@@ -1,12 +1,18 @@
 import tensorflow as tf
 import numpy as np
 from pathlib import Path
-import os, cv2, time, sys
+import os
+import cv2
+import time
+import sys
+import logging
 
 from object_detection.utils import label_map_util
 
+logger = logging.getLogger("cat_logger")
+
 cat_cam_py = str(Path(os.getcwd()).parents[0])
-print('CatCamPy:', cat_cam_py)
+logger.info('CatCamPy:', cat_cam_py)
 PC_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Prey_Classifier')
 FF_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Face_Fur_Classifier')
 EYE_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Eye_Detector')
@@ -14,7 +20,7 @@ HAAR_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Haar_Classifi
 CR_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Cat_Recognizer')
 
 
-class CC_MobileNet_Stage():
+class CCMobileNetStage:
     def __init__(self):
         self.MODEL_NAME = 'ssdlite_mobilenet_v2_coco_2018_05_09'
         self.img_org = None
@@ -29,9 +35,9 @@ class CC_MobileNet_Stage():
         sys.path.append('..')
 
         # Grab path to current working directory
-        print(os.environ['PYTHONPATH'].split(os.pathsep)[1])
+        logger.debug('PYTHONPATH = ' + str(os.environ['PYTHONPATH'].split(os.pathsep)[1]))
         TF_OD_PATH = os.environ['PYTHONPATH'].split(os.pathsep)[1] + '/object_detection'
-        print(TF_OD_PATH)
+        logger.debug('PYTHONPATH2 = ' + str(TF_OD_PATH))
 
         # Path to frozen detection graph .pb file, which contains the model that is used
         # for object detection.
@@ -83,7 +89,7 @@ class CC_MobileNet_Stage():
         # Number of objects detected
         num_detections = detection_graph.get_tensor_by_name('num_detections:0')
 
-        print('CNN is ready to go!')
+        logger.debug('CNN is ready to go!')
 
         return sess, detection_boxes, detection_scores, detection_classes, num_detections, image_tensor, category_index
 
@@ -100,7 +106,7 @@ class CC_MobileNet_Stage():
                                                                     self.detection_scores, self.detection_classes,
                                                                     self.num_detections, self.image_tensor,
                                                                     self.category_index)
-        print('CC_time: ', inference_time)
+        logger.debug('CC_time: ' + str(inference_time))
         return pred_cc_bb, pred_class, inference_time
 
     def draw_rectangle(self, img, box, color, text):
@@ -149,7 +155,8 @@ class CC_MobileNet_Stage():
         else:
             return False, target_box, inference_time
 
-class Haar_Stage():
+
+class HaarStage:
     def __init__(self):
         self.TARGET_SIZE = 224
         self.inference_time_list = []
@@ -164,7 +171,7 @@ class Haar_Stage():
 
     def haar_do(self, target_img, full_img, cc_bbs):
         pred_bb, inference_time, haar_found_bool = self.haar_predict(input=target_img)
-        print('Haar_time: ', str('%.2f' % inference_time))
+        logger.debug('Haar_time: ' + str('%.2f' % inference_time))
 
         pred_bb_full = pred_bb[:]
 
@@ -246,7 +253,8 @@ class Haar_Stage():
 
         return intersection_area / union_area
 
-class PC_Stage():
+
+class PCStage:
     def __init__(self):
         self.TARGET_SIZE = 224
         self.fp = 0
@@ -311,7 +319,8 @@ class PC_Stage():
                     lineType)
         return img
 
-class FF_Stage():
+
+class FFStage:
     def __init__(self):
         self.TARGET_SIZE = 224
         self.fp = 0
@@ -347,7 +356,8 @@ class FF_Stage():
         else:
             return False, pred,  inference_time
 
-class Eye_Stage():
+
+class EyeStage:
     def __init__(self):
         self.TARGET_SIZE = 224
         model_name = 'trainwhole100_Epochs_2020_04_30_18_05_25.h5'

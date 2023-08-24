@@ -1,48 +1,53 @@
-import RPi.GPIO as GPIO
-from picamera.array import PiRGBArray
-from picamera import PiCamera
-from gpiozero import CPUTemperature
-
 from collections import deque
-import pytz
 from datetime import datetime
-from threading import Thread
+import pytz
 import time
-import sys
 import cv2
-import numpy as np
-import io, gc
+import gc
+import os
+import logging
+
+logger = logging.getLogger("cat_logger")
+
 
 class Camera:
-    def __init__(self,):
-        IRPin = 36
-        # GPIO Stuff
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(IRPin, GPIO.OUT)
-        GPIO.output(IRPin, GPIO.LOW)
+    def __init__(self, fps):
+        self.framerate = fps
+        if os.getenv('CAMERA_STREAM_URI') == "":
+            raise Exception("Camera stream URI not set!. Please set the 'CAMERA_STREAM_URI' environment variable")
+        self.streamURL = os.getenv('CAMERA_STREAM_URI')
+        self.stop_flag = False
 
         time.sleep(2)
 
-    def fill_queue(self, deque):
-        while(1):
+    def stop_thread(self):
+        self.stop_flag = True
+
+    def fill_queue(self, main_deque: deque):
+        while True:
             gc.collect()
-            camera = PiCamera()
-            camera.framerate = 3
-            camera.vflip = False
-            camera.hflip = False
-            camera.resolution = (2592, 1944)
-            camera.exposure_mode = 'sports'
-            stream = io.BytesIO()
-            for i, frame in enumerate(camera.capture_continuous(stream, format="jpeg", use_video_port=True)):
-                stream.seek(0)
-                data = np.frombuffer(stream.getvalue(), dtype=np.uint8)
-                image = cv2.imdecode(data, 1)
-                deque.append(
-                    (datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f"), image))
-                #deque.pop()
-                print("Quelength: " + str(len(deque)) + "\tStreamsize: " + str(sys.getsizeof(stream)))
-                if i == 60:
-                    print("Loop ended, starting over.")
-                    camera.close()
+            camera = cv2.VideoCapture(self.streamURL)
+
+            i = 0
+            while camera.isOpened():
+                ret, frame = camera.read()
+                main_deque.append(
+                    (datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f"), frame)
+                )
+                # main_deque.pop()
+                i += 1
+                logger.info("Quelength: " + str(len(main_deque)))
+                # print("sleeping (ms) " + str(self.framerate))
+                time.sleep(1 / self.framerate)
+                if i >= 60:
+                    logger.info("Loop ended, starting over.")
+                    camera.release()
                     del camera
                     break
+
+                if self.stop_flag:
+                    break
+
+            if self.stop_flag:
+                break
+        return
