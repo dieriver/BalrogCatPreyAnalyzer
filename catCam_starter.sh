@@ -2,9 +2,7 @@
 
 echo "Executing CatPreyAnalyzer"
 # Tensorflow Stuff
-#export PYTHONPATH=$PYTHONPATH:/usr/local/lib/python3.7/dist-packages:/home/pi/tensorflow1/models/research:/home/pi/tensorflow1/models/research/slim:/home/pi/.local/lib/python3.7/site-packages
-export PYTHONPATH=$PYTHONPATH:$HOME/tensorflow1/models/research:$HOME/tensorflow1/models/research/slim
-cd /home/pi/CatPreyAnalyzer
+export CAT_PREY_ANALYZER_PATH="$(pwd)"
 while true; do
 	python3 cascade.py
 	sleep 5

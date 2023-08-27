@@ -11,13 +11,14 @@ from object_detection.utils import label_map_util
 
 logger = logging.getLogger("cat_logger")
 
-cat_cam_py = str(Path(os.getcwd()).parents[0])
+cat_cam_py = os.getenv('CAT_PREY_ANALYZER_PATH')
 logger.info('CatCamPy:', cat_cam_py)
-PC_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Prey_Classifier')
-FF_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Face_Fur_Classifier')
-EYE_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Eye_Detector')
-HAAR_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Haar_Classifier')
-CR_models_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/models/Cat_Recognizer')
+
+PC_models_dir = os.path.join(cat_cam_py, 'models/Prey_Classifier')
+FF_models_dir = os.path.join(cat_cam_py, 'models/Face_Fur_Classifier')
+EYE_models_dir = os.path.join(cat_cam_py, 'models/Eye_Detector')
+HAAR_models_dir = os.path.join(cat_cam_py, 'models/Haar_Classifier')
+CR_models_dir = os.path.join(cat_cam_py, 'models/Cat_Recognizer')
 
 
 class CCMobileNetStage:

@@ -1,5 +1,4 @@
 import numpy as np
-from pathlib import Path
 import os
 import cv2
 import time
@@ -19,7 +18,7 @@ from model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
 from camera_class import Camera
 from telegram_bot import NodeBot
 
-cat_cam_py = str(Path(os.getcwd()).parents[0])
+cat_cam_py = os.getenv('CAT_PREY_ANALYZER_PATH')
 
 # We configure the logging
 logger = logging.getLogger("cat_logger")
@@ -233,8 +232,7 @@ class SequentialCascadeFeeder:
     def single_debug(self):
         start_time = time.time()
         target_img_name = 'dummy_img.jpg'
-        target_img = cv2.imread(os.path.join(cat_cam_py,
-                                             'CatPreyAnalyzer/readme_images/lenna_casc_Node1_001557_02_2020_05_24_09-49-35.jpg'))
+        target_img = cv2.imread(os.path.join(cat_cam_py, 'readme_images/lenna_casc_Node1_001557_02_2020_05_24_09-49-35.jpg'))
         cascade_obj = self.feed(target_img=target_img, img_name=target_img_name)[1]
         logger.debug('Runtime:' + str(time.time() - start_time))
         return cascade_obj
