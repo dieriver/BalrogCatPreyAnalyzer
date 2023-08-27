@@ -24,38 +24,6 @@ logger = logging.getLogger("cat_logger")
 logger.setLevel(logging.INFO)
 
 
-class SpecEventHandler:
-    def __init__(self):
-        self.img_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/debug/input')
-        self.out_dir = os.path.join(cat_cam_py, 'CatPreyAnalyzer/debug/output')
-
-        self.img_list = [x for x in sorted(os.listdir(self.img_dir)) if '.jpg' in x]
-        self.base_cascade = Cascade()
-
-    def debug(self):
-        event_object_list = []
-        for event_img in sorted(self.img_list):
-            event_object_list.append(
-                EventElement(img_name=event_img, cc_target_img=cv2.imread(os.path.join(self.img_dir, event_img))))
-
-        for event_obj in event_object_list:
-            start_time = time.time()
-            single_cascade = self.base_cascade.do_single_cascade(event_img_object=event_obj)
-            single_cascade.total_inference_time = sum(filter(None, [
-                single_cascade.cc_inference_time,
-                single_cascade.cr_inference_time,
-                single_cascade.bbs_inference_time,
-                single_cascade.haar_inference_time,
-                single_cascade.ff_bbs_inference_time,
-                single_cascade.ff_haar_inference_time,
-                single_cascade.pc_inference_time]))
-            logger.info("Total Inference Time:" + str(single_cascade.total_inference_time))
-            logger.info('Total Runtime:' + str(time.time() - start_time))
-
-            # Write img to output dir and log csv of each event
-            cv2.imwrite(os.path.join(self.out_dir, single_cascade.img_name), single_cascade.output_img)
-
-
 class SequentialCascadeFeeder:
     def __init__(self):
         self.log_dir = os.path.join(os.getcwd(), 'log')
@@ -85,6 +53,7 @@ class SequentialCascadeFeeder:
         self.queues_cumuli_in_event = []
         self.bot = NodeBot()
         self.processing_pool = []
+
         self.main_deque = deque()
 
         self.camera = Camera(fps=5)
@@ -146,8 +115,7 @@ class SequentialCascadeFeeder:
         logger.info('Working the Queue with len:' + str(len(self.main_deque)))
         start_time = time.time()
         # Feed the latest image in the Queue through the cascade
-        cascade_obj = \
-            self.feed(target_img=self.main_deque[self.fps_offset][1], img_name=self.main_deque[self.fps_offset][0])[1]
+        cascade_obj = self.feed(target_img=self.main_deque[self.fps_offset][1], img_name=self.main_deque[self.fps_offset][0])[1]
         logger.debug('Runtime:' + str(time.time() - start_time))
         done_timestamp = datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f")
         logger.debug('Timestamp at Done Runtime:' + str(done_timestamp))
@@ -165,7 +133,7 @@ class SequentialCascadeFeeder:
         for i in range(self.fps_offset + 1):
             self.main_deque.popleft()
 
-        if cascade_obj.cc_cat_bool == True:
+        if cascade_obj.cc_cat_bool:
             # We are inside an event => add event_obj to list
             self.EVENT_FLAG = True
             self.event_nr = self.get_event_nr()

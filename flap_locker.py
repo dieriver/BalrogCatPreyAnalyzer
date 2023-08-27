@@ -29,18 +29,17 @@ class FlapLocker:
         pets: List[Pet] = await self.surepy.get_pets()
         for pet in pets:
             telegram_bot.send_text(f"\n\n{pet.name}: {pet.state} | {pet.location}\n")
-            #pprint(pet.raw_data())
 
     async def list_devices(self, telegram_bot):
         # all entities as id-indexed dict
         entities: Dict[int, SurepyEntity] = await self.surepy.get_entities()
 
-        # list with alldevices
+        # list with all devices
         devices: List[SurepyDevice] = await self.surepy.get_devices()
-        #for device in devices:
-            #telegram_bot.send_text(f"{device.name = } | {device.serial = } | {device.battery_level = }")
-            #telegram_bot.send_text(f"{device.type = } | {device.unique_id = } | {device.id = }")
-            #telegram_bot.send_text(f"{entities[device.parent_id].full_name = } | {entities[device.parent_id] = }\n")
+        for device in devices:
+            telegram_bot.send_text(f"{device.name = } | {device.serial = } | {device.battery_level = }")
+            telegram_bot.send_text(f"{device.type = } | {device.unique_id = } | {device.id = }")
+            telegram_bot.send_text(f"{entities[device.parent_id].full_name = } | {entities[device.parent_id] = }\n")
 
     async def get_lock_state(self):
         devices: List[SurepyDevice] = await self.surepy.get_devices()
@@ -50,7 +49,7 @@ class FlapLocker:
                 return cat_flap.state
 
     async def set_moria_lock_state(self, state: LockState, telegram_bot):
-        # list with alldevices
+        # list with all devices
         devices: List[SurepyDevice] = await self.surepy.get_devices()
         for device in devices:
             # Search for the cat flap
