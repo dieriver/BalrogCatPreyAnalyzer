@@ -20,8 +20,27 @@ from camera_class import Camera
 from telegram_bot import NodeBot
 
 cat_cam_py = str(Path(os.getcwd()).parents[0])
+
+# We configure the logging
 logger = logging.getLogger("cat_logger")
 logger.setLevel(logging.INFO)
+
+stdout_handler = logging.StreamHandler(stream=sys.stdout)
+file_handler = logging.FileHandler(filename='/tmp/cat_logger.log')
+dbg_file_handler = logging.FileHandler(filename='/tmp/cat_logger-dbg.log')
+stdout_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.INFO)
+dbg_file_handler.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+stdout_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+dbg_file_handler.setFormatter(formatter)
+
+logger.addHandler(stdout_handler)
+logger.addHandler(file_handler)
+logger.addHandler(dbg_file_handler)
 
 
 class SequentialCascadeFeeder:
@@ -601,7 +620,6 @@ if __name__ == '__main__':
     try:
         sq_cascade.queue_handler()
     except Exception as e:
-        sq_cascade
         print("Something wrong happened... Message:", e)
         logger.exception("Something wrong happened... Restarting", e)
         traceback.print_exc()
