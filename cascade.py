@@ -257,7 +257,7 @@ class SequentialCascadeFeeder:
                 self.queue_worker()
 
             else:
-                logger.info('Nothing to work with => Queue_length:', len(self.main_deque))
+                logger.info('Nothing to work with => Queue_length:' + str(len(self.main_deque)))
                 time.sleep(0.25)
 
             # Check if user force opens the door
