@@ -8,6 +8,7 @@ import gc
 import pytz
 import traceback
 import logging
+from logging import handlers
 from datetime import datetime
 from collections import deque
 from threading import Thread
@@ -25,8 +26,8 @@ logger = logging.getLogger("cat_logger")
 logger.setLevel(logging.INFO)
 
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
-file_handler = logging.FileHandler(filename='/tmp/cat_logger.log')
-dbg_file_handler = logging.FileHandler(filename='/tmp/cat_logger-dbg.log')
+file_handler = logging.handlers.RotatingFileHandler(filename='/var/log/balrog-logs/cat_logger.log', backupCount=5, encoding='utf-8')
+dbg_file_handler = logging.handlers.RotatingFileHandler(filename='/var/log/balrog-logs/cat_logger-dbg.log', backupCount=5, encoding='utf-8')
 stdout_handler.setLevel(logging.INFO)
 file_handler.setLevel(logging.INFO)
 dbg_file_handler.setLevel(logging.DEBUG)
@@ -49,7 +50,7 @@ class SequentialCascadeFeeder:
         self.event_nr = 0
         self.base_cascade = Cascade()
         self.DEFAULT_FPS_OFFSET = 2
-        self.QUEUE_MAX_THRESHOLD = 50
+        self.QUEUE_MAX_THRESHOLD = 100
         self.fps_offset = self.DEFAULT_FPS_OFFSET
         self.MAX_PROCESSES = 5
         self.EVENT_FLAG = False
@@ -74,7 +75,7 @@ class SequentialCascadeFeeder:
 
         self.main_deque = deque()
 
-        self.camera = Camera(fps=5)
+        self.camera = Camera(fps=10)
 
     def reset_cumuli_et_al(self):
         self.EVENT_FLAG = False
@@ -618,6 +619,7 @@ if __name__ == '__main__':
     try:
         sq_cascade.queue_handler()
     except Exception as e:
+        sq_cascade.stop_threads()
         print("Something wrong happened... Message:", e)
         logger.exception("Something wrong happened... Restarting", e)
         traceback.print_exc()
