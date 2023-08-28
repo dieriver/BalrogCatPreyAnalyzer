@@ -68,13 +68,11 @@ class SequentialCascadeFeeder:
         self.face_counter = 0
         self.PREY_FLAG = None
         self.NO_PREY_FLAG = None
-        self.queues_cumuli_in_event = []
         self.bot = NodeBot()
-        self.processing_pool = ThreadPool(processes=4)
-
         self.main_deque = deque()
-
         self.camera = Camera(fps=10)
+        self.processing_pool = ThreadPool(processes=4)
+        self.camera_thread = Thread(target=self.camera.fill_queue, args=self.main_deque, daemon=True)
 
     def reset_cumuli_et_al(self):
         self.EVENT_FLAG = False
@@ -94,7 +92,6 @@ class SequentialCascadeFeeder:
         self.bot.node_let_in_flag = False
 
         self.event_objects.clear()
-        self.queues_cumuli_in_event.clear()
         self.main_deque.clear()
 
         gc.collect()
@@ -102,24 +99,20 @@ class SequentialCascadeFeeder:
     def queue_handler(self):
         # Do this to force run all networks s.t. the network inference time stabilizes
         self.single_debug()
-
-        camera_thread = Thread(target=self.camera.fill_queue, args=(self.main_deque,), daemon=True)
-        camera_thread.start()
+        self.camera_thread.start()
 
         while True:
             if len(self.main_deque) > self.QUEUE_MAX_THRESHOLD:
                 self.main_deque.clear()
                 self.reset_cumuli_et_al()
-                # Clean up garbage
-                gc.collect()
-                logger.info('DELETING QUEUE BECAUSE OVERLOADED!')
-                self.bot.send_text(message='Running Hot... had to kill Queue!')
+                logger.info('EMPTYING QUEUE BECAUSE MAXIMUM THRESHOLD REACHED!')
+                self.bot.send_text(message='Queue overflowed... emptying Queue!')
 
             elif len(self.main_deque) > self.DEFAULT_FPS_OFFSET:
                 self.queue_worker()
 
             else:
-                logger.info('Nothing to work with => Queue_length:' + str(len(self.main_deque)))
+                logger.info('Nothing to work with => Queue length:' + str(len(self.main_deque)))
                 time.sleep(0.25)
 
             # Check if user force opens the door
@@ -130,19 +123,24 @@ class SequentialCascadeFeeder:
     def shutdown(self):
         # We stop the camera thread and the thread pool
         self.camera.stop_thread()
+        self.camera_thread.join()
         self.processing_pool.terminate()
 
     def queue_worker(self):
         logger.info('Working the Queue with len:' + str(len(self.main_deque)))
         start_time = time.time()
         # Feed the latest image in the Queue through the cascade
-        cascade_obj = self.feed(target_img=self.main_deque[self.fps_offset][1], img_name=self.main_deque[self.fps_offset][0])[1]
+        total_runtime, cascade_obj = self.feed_to_cascade(
+            target_img=self.main_deque[self.fps_offset][1],
+            img_name=self.main_deque[self.fps_offset][0]
+        )
         logger.debug('Runtime:' + str(time.time() - start_time))
         done_timestamp = datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f")
         logger.debug('Timestamp at Done Runtime:' + str(done_timestamp))
 
-        overhead = datetime.strptime(done_timestamp, "%Y_%m_%d_%H-%M-%S.%f") - datetime.strptime(
-            self.main_deque[self.fps_offset][0], "%Y_%m_%d_%H-%M-%S.%f")
+        overhead = (datetime.strptime(done_timestamp, "%Y_%m_%d_%H-%M-%S.%f") -
+                    datetime.strptime(self.main_deque[self.fps_offset][0], "%Y_%m_%d_%H-%M-%S.%f")
+                    )
         logger.debug('Overhead:' + str(overhead.total_seconds()))
 
         # Add this such that the bot has some info
@@ -175,7 +173,6 @@ class SequentialCascadeFeeder:
                 self.FACE_FOUND_FLAG = True
 
             logger.info('CUMULUS:' + str(self.cumulus_points))
-            self.queues_cumuli_in_event.append((len(self.main_deque), self.cumulus_points, done_timestamp))
 
             # Check the cumuli points and set flags if necessary
             if self.face_counter > 0 and self.PATIENCE_FLAG:
@@ -186,7 +183,6 @@ class SequentialCascadeFeeder:
                         func=self.send_no_prey_message,
                         args=(self.event_objects, self.cumulus_points / self.face_counter,)
                     )
-                    # self.log_event_to_csv(event_obj=self.event_objects, queues_cumuli_in_event=self.queues_cumuli_in_event, event_nr=self.event_nr)
                     self.reset_cumuli_et_al()
                 elif self.cumulus_points / self.face_counter < self.cumulus_prey_threshold:
                     self.PREY_FLAG = True
@@ -195,7 +191,6 @@ class SequentialCascadeFeeder:
                         func=self.send_prey_message,
                         args=(self.event_objects, self.cumulus_points / self.face_counter,)
                     )
-                    # self.log_event_to_csv(event_obj=self.event_objects, queues_cumuli_in_event=self.queues_cumuli_in_event, event_nr=self.event_nr)
                     self.reset_cumuli_et_al()
                 else:
                     self.NO_PREY_FLAG = False
@@ -220,7 +215,6 @@ class SequentialCascadeFeeder:
                         func=self.send_dk_message,
                         args=(self.event_objects, self.cumulus_points / self.face_counter,)
                     )
-                    # self.log_event_to_csv(event_obj=self.event_objects, queues_cumuli_in_event=self.queues_cumuli_in_event, event_nr=self.event_nr)
                 self.reset_cumuli_et_al()
 
         if self.EVENT_FLAG and self.FACE_FOUND_FLAG:
@@ -230,11 +224,29 @@ class SequentialCascadeFeeder:
         if self.face_counter > 1:
             self.PATIENCE_FLAG = True
 
+    def feed_to_cascade(self, target_img, img_name):
+        target_event_obj = EventElement(img_name=img_name, cc_target_img=target_img)
+
+        start_time = time.time()
+        single_cascade = self.base_cascade.do_single_cascade(event_img_object=target_event_obj)
+        single_cascade.total_inference_time = sum(filter(None, [
+            single_cascade.cc_inference_time,
+            single_cascade.cr_inference_time,
+            single_cascade.bbs_inference_time,
+            single_cascade.haar_inference_time,
+            single_cascade.ff_bbs_inference_time,
+            single_cascade.ff_haar_inference_time,
+            single_cascade.pc_inference_time]))
+        total_runtime = time.time() - start_time
+        logger.debug('Total Runtime:' + str(total_runtime))
+
+        return total_runtime, single_cascade
+
     def single_debug(self):
         start_time = time.time()
         target_img_name = 'dummy_img.jpg'
         target_img = cv2.imread(os.path.join(cat_cam_py, 'readme_images/lenna_casc_Node1_001557_02_2020_05_24_09-49-35.jpg'))
-        cascade_obj = self.feed(target_img=target_img, img_name=target_img_name)[1]
+        cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name)[1]
         logger.debug('Runtime:' + str(time.time() - start_time))
         return cascade_obj
 
@@ -303,24 +315,6 @@ class SequentialCascadeFeeder:
         tree.write(os.path.join(self.log_dir, 'info.xml'))
 
         return imgNr
-
-    def feed(self, target_img, img_name):
-        target_event_obj = EventElement(img_name=img_name, cc_target_img=target_img)
-
-        start_time = time.time()
-        single_cascade = self.base_cascade.do_single_cascade(event_img_object=target_event_obj)
-        single_cascade.total_inference_time = sum(filter(None, [
-            single_cascade.cc_inference_time,
-            single_cascade.cr_inference_time,
-            single_cascade.bbs_inference_time,
-            single_cascade.haar_inference_time,
-            single_cascade.ff_bbs_inference_time,
-            single_cascade.ff_haar_inference_time,
-            single_cascade.pc_inference_time]))
-        total_runtime = time.time() - start_time
-        logger.debug('Total Runtime:' + str(total_runtime))
-
-        return total_runtime, single_cascade
 
 
 class EventElement:
