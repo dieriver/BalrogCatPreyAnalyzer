@@ -2,7 +2,6 @@ import numpy as np
 import os
 import cv2
 import time
-import csv
 import sys
 import gc
 import pytz
@@ -12,7 +11,7 @@ from logging import handlers
 from datetime import datetime
 from collections import deque
 from threading import Thread
-from multiprocessing import Process
+from multiprocessing.pool import ThreadPool
 import xml.etree.ElementTree as ET
 
 from model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
@@ -49,7 +48,7 @@ class SequentialCascadeFeeder:
         logger.info('Log Dir:' + str(self.log_dir))
         self.event_nr = 0
         self.base_cascade = Cascade()
-        self.DEFAULT_FPS_OFFSET = 2
+        self.DEFAULT_FPS_OFFSET = 3
         self.QUEUE_MAX_THRESHOLD = 100
         self.fps_offset = self.DEFAULT_FPS_OFFSET
         self.MAX_PROCESSES = 5
@@ -71,7 +70,7 @@ class SequentialCascadeFeeder:
         self.NO_PREY_FLAG = None
         self.queues_cumuli_in_event = []
         self.bot = NodeBot()
-        self.processing_pool = []
+        self.processing_pool = ThreadPool(processes=4)
 
         self.main_deque = deque()
 
@@ -98,37 +97,40 @@ class SequentialCascadeFeeder:
         self.queues_cumuli_in_event.clear()
         self.main_deque.clear()
 
-        # terminate processes when pool too large
-        if len(self.processing_pool) >= self.MAX_PROCESSES:
-            logger.debug('Terminating oldest processes Len:' + str(len(self.processing_pool)))
-            for p in self.processing_pool[0:int(len(self.processing_pool) / 2)]:
-                p.terminate()
-            logger.debug('Now processes Len:' + str(len(self.processing_pool)))
+        gc.collect()
 
-    def log_event_to_csv(self, event_obj, queues_cumuli_in_event, event_nr):
-        csv_name = 'event_log.csv'
-        file_exists = os.path.isfile(os.path.join(self.log_dir, csv_name))
-        with open(os.path.join(self.log_dir, csv_name), mode='a') as csv_file:
-            headers = ['Event', 'Img_Name', 'Done_Time', 'Queue', 'Cumuli', 'CC_Cat_Bool', 'CC_Time', 'CR_Class',
-                       'CR_Val', 'CR_Time', 'BBS_Time', 'HAAR_Time', 'FF_BBS_Bool', 'FF_BBS_Val', 'FF_BBS_Time',
-                       'Face_Bool', 'PC_Class', 'PC_Val', 'PC_Time', 'Total_Time']
-            writer = csv.DictWriter(csv_file, delimiter=',', lineterminator='\n', fieldnames=headers)
-            if not file_exists:
-                writer.writeheader()
+    def queue_handler(self):
+        # Do this to force run all networks s.t. the network inference time stabilizes
+        self.single_debug()
 
-            for i, img_obj in enumerate(event_obj):
-                writer.writerow(
-                    {'Event': event_nr, 'Img_Name': img_obj.img_name, 'Done_Time': queues_cumuli_in_event[i][2],
-                     'Queue': queues_cumuli_in_event[i][0],
-                     'Cumuli': queues_cumuli_in_event[i][1], 'CC_Cat_Bool': img_obj.cc_cat_bool,
-                     'CC_Time': img_obj.cc_inference_time, 'CR_Class': img_obj.cr_class,
-                     'CR_Val': img_obj.cr_val, 'CR_Time': img_obj.cr_inference_time,
-                     'BBS_Time': img_obj.bbs_inference_time,
-                     'HAAR_Time': img_obj.haar_inference_time, 'FF_BBS_Bool': img_obj.ff_bbs_bool,
-                     'FF_BBS_Val': img_obj.ff_bbs_val, 'FF_BBS_Time': img_obj.ff_bbs_inference_time,
-                     'Face_Bool': img_obj.face_bool,
-                     'PC_Class': img_obj.pc_prey_class, 'PC_Val': img_obj.pc_prey_val,
-                     'PC_Time': img_obj.pc_inference_time, 'Total_Time': img_obj.total_inference_time})
+        camera_thread = Thread(target=self.camera.fill_queue, args=(self.main_deque,), daemon=True)
+        camera_thread.start()
+
+        while True:
+            if len(self.main_deque) > self.QUEUE_MAX_THRESHOLD:
+                self.main_deque.clear()
+                self.reset_cumuli_et_al()
+                # Clean up garbage
+                gc.collect()
+                logger.info('DELETING QUEUE BECAUSE OVERLOADED!')
+                self.bot.send_text(message='Running Hot... had to kill Queue!')
+
+            elif len(self.main_deque) > self.DEFAULT_FPS_OFFSET:
+                self.queue_worker()
+
+            else:
+                logger.info('Nothing to work with => Queue_length:' + str(len(self.main_deque)))
+                time.sleep(0.25)
+
+            # Check if user force opens the door
+            if self.bot.node_let_in_flag:
+                # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
+                self.reset_cumuli_et_al()
+
+    def shutdown(self):
+        # We stop the camera thread and the thread pool
+        self.camera.stop_thread()
+        self.processing_pool.terminate()
 
     def queue_worker(self):
         logger.info('Working the Queue with len:' + str(len(self.main_deque)))
@@ -160,9 +162,7 @@ class SequentialCascadeFeeder:
             # Send a message on Telegram to ask what to do
             self.cat_counter += 1
             if self.cat_counter >= self.cat_counter_threshold:
-                msg_thread = Process(target=self.send_cat_detected_message, args=(self.bot.node_live_img, 0,),
-                                     daemon=True)
-                msg_thread.start()
+                self.processing_pool.apply_async(func=self.send_cat_detected_message, args=(self.bot.node_live_img, 0))
 
             # Last cat pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
@@ -182,19 +182,19 @@ class SequentialCascadeFeeder:
                 if self.cumulus_points / self.face_counter > self.cumulus_no_prey_threshold:
                     self.NO_PREY_FLAG = True
                     logger.info('NO PREY DETECTED... YOU CLEAN...')
-                    p = Process(target=self.send_no_prey_message,
-                                args=(self.event_objects, self.cumulus_points / self.face_counter,), daemon=True)
-                    p.start()
-                    self.processing_pool.append(p)
+                    self.processing_pool.apply_async(
+                        func=self.send_no_prey_message,
+                        args=(self.event_objects, self.cumulus_points / self.face_counter,)
+                    )
                     # self.log_event_to_csv(event_obj=self.event_objects, queues_cumuli_in_event=self.queues_cumuli_in_event, event_nr=self.event_nr)
                     self.reset_cumuli_et_al()
                 elif self.cumulus_points / self.face_counter < self.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('IT IS A PREY!!!!!')
-                    p = Process(target=self.send_prey_message,
-                                args=(self.event_objects, self.cumulus_points / self.face_counter,), daemon=True)
-                    p.start()
-                    self.processing_pool.append(p)
+                    self.processing_pool.apply_async(
+                        func=self.send_prey_message,
+                        args=(self.event_objects, self.cumulus_points / self.face_counter,)
+                    )
                     # self.log_event_to_csv(event_obj=self.event_objects, queues_cumuli_in_event=self.queues_cumuli_in_event, event_nr=self.event_nr)
                     self.reset_cumuli_et_al()
                 else:
@@ -211,15 +211,15 @@ class SequentialCascadeFeeder:
             self.event_reset_counter += 1
             if self.event_reset_counter >= self.event_reset_threshold:
                 # If was True => event now over => clear queue
-                if self.EVENT_FLAG == True:
+                if self.EVENT_FLAG:
                     logger.info('CLEARED QUEUE BECAUSE EVENT OVER WITHOUT CONCLUSION...')
                     # TODO QUICK FIX
                     if self.face_counter == 0:
                         self.face_counter = 1
-                    p = Process(target=self.send_dk_message,
-                                args=(self.event_objects, self.cumulus_points / self.face_counter,), daemon=True)
-                    p.start()
-                    self.processing_pool.append(p)
+                    self.processing_pool.apply_async(
+                        func=self.send_dk_message,
+                        args=(self.event_objects, self.cumulus_points / self.face_counter,)
+                    )
                     # self.log_event_to_csv(event_obj=self.event_objects, queues_cumuli_in_event=self.queues_cumuli_in_event, event_nr=self.event_nr)
                 self.reset_cumuli_et_al()
 
@@ -237,38 +237,6 @@ class SequentialCascadeFeeder:
         cascade_obj = self.feed(target_img=target_img, img_name=target_img_name)[1]
         logger.debug('Runtime:' + str(time.time() - start_time))
         return cascade_obj
-
-    def queue_handler(self):
-        # Do this to force run all networks s.t. the network inference time stabilizes
-        self.single_debug()
-
-        camera_thread = Thread(target=self.camera.fill_queue, args=(self.main_deque,), daemon=True)
-        camera_thread.start()
-
-        while True:
-            if len(self.main_deque) > self.QUEUE_MAX_THRESHOLD:
-                self.main_deque.clear()
-                self.reset_cumuli_et_al()
-                # Clean up garbage
-                gc.collect()
-                logger.info('DELETING QUEUE BECAUSE OVERLOADED!')
-                self.bot.send_text(message='Running Hot... had to kill Queue!')
-
-            elif len(self.main_deque) > self.DEFAULT_FPS_OFFSET:
-                self.queue_worker()
-
-            else:
-                logger.info('Nothing to work with => Queue_length:' + str(len(self.main_deque)))
-                time.sleep(0.25)
-
-            # Check if user force opens the door
-            if self.bot.node_let_in_flag:
-                # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
-                self.reset_cumuli_et_al()
-
-    def stop_threads(self):
-        # We stop the camera thread
-        self.camera.stop_thread()
 
     def send_prey_message(self, event_objects, cumuli):
         prey_vals = [x.pc_prey_val for x in event_objects]
@@ -619,8 +587,9 @@ if __name__ == '__main__':
     try:
         sq_cascade.queue_handler()
     except Exception as e:
-        sq_cascade.stop_threads()
         print("Something wrong happened... Message:", e)
         logger.exception("Something wrong happened... Restarting", e)
         traceback.print_exc()
         sys.exit(1)
+    finally:
+        sq_cascade.shutdown()
