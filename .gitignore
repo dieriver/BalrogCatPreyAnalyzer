@@ -128,4 +128,6 @@ degubi.jpg
 last_casc.jpg
 pkgs.txt
 live_img.jpg
+*.zip
+log/
 .idea/

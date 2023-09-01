@@ -21,6 +21,7 @@ class Camera:
         time.sleep(2)
 
     def stop_thread(self):
+        logger.warning("Received signal to stop camera thread")
         self.stop_flag = True
 
     def fill_queue(self, main_deque: deque):
@@ -46,8 +47,10 @@ class Camera:
                     break
 
                 if self.stop_flag:
+                    logger.warning("Terminating camera thread - A")
                     break
 
             if self.stop_flag:
+                logger.warning("Terminating camera thread - A")
                 break
         return

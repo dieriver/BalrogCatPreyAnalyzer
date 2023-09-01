@@ -72,7 +72,7 @@ class SequentialCascadeFeeder:
         self.main_deque = deque()
         self.camera = Camera(fps=10)
         self.processing_pool = ThreadPool(processes=4)
-        self.camera_thread = Thread(target=self.camera.fill_queue, args=self.main_deque, daemon=True)
+        self.camera_thread = Thread(target=self.camera.fill_queue, args=(self.main_deque,), daemon=True)
 
     def reset_cumuli_et_al(self):
         self.EVENT_FLAG = False
