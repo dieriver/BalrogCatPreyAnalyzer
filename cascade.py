@@ -91,7 +91,12 @@ class SequentialCascadeFeeder:
         # Close the node_letin flag
         self.bot.node_let_in_flag = False
 
+        for item in self.event_objects:
+            del item
         self.event_objects.clear()
+
+        for item in self.main_deque:
+            del item
         self.main_deque.clear()
 
         gc.collect()
@@ -103,7 +108,6 @@ class SequentialCascadeFeeder:
 
         while True:
             if len(self.main_deque) > self.QUEUE_MAX_THRESHOLD:
-                self.main_deque.clear()
                 self.reset_cumuli_et_al()
                 logger.info('EMPTYING QUEUE BECAUSE MAXIMUM THRESHOLD REACHED!')
                 self.bot.send_text(message='Queue overflowed... emptying Queue!')
