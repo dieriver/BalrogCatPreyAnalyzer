@@ -1,5 +1,5 @@
-from collections import deque
 from datetime import datetime
+from threading import Event
 import pytz
 import time
 import cv2
@@ -7,12 +7,16 @@ import gc
 import os
 import logging
 
+from image_container import ImageBuffers
+
 logger = logging.getLogger("cat_logger")
 
 
 class Camera:
-    def __init__(self, fps):
+    def __init__(self, fps: int, cleanup_threshold: int, cam_rdy: Event):
         self.framerate = fps
+        self.cleanup_threshold = cleanup_threshold
+        self.camera_ready = cam_rdy
         if os.getenv('CAMERA_STREAM_URI') == "":
             raise Exception("Camera stream URI not set!. Please set the 'CAMERA_STREAM_URI' environment variable")
         self.streamURL = os.getenv('CAMERA_STREAM_URI')
@@ -24,33 +28,31 @@ class Camera:
         logger.warning("Received signal to stop camera thread")
         self.stop_flag = True
 
-    def fill_queue(self, main_deque: deque):
+    def fill_queue(self, main_deque: ImageBuffers):
         while True:
             gc.collect()
             camera = cv2.VideoCapture(self.streamURL)
 
             i = 0
+            self.camera_ready.set()
             while camera.isOpened():
                 ret, frame = camera.read()
-                main_deque.append(
+                main_deque.write_img_to_next_buffer(
                     (datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f"), frame)
                 )
-                # main_deque.pop()
                 i += 1
-                logger.info("Quelength: " + str(len(main_deque)))
-                # print("sleeping (ms) " + str(self.framerate))
                 time.sleep(1 / self.framerate)
-                if i >= 60:
-                    logger.info("Loop ended, starting over.")
+                if i >= self.cleanup_threshold:
+                    logger.info("Camera captures max configured frames; cleaning up and restarting")
                     camera.release()
                     del camera
                     break
 
                 if self.stop_flag:
-                    logger.warning("Terminating camera thread - A")
+                    logger.warning("Terminating camera thread - break A")
                     break
 
             if self.stop_flag:
-                logger.warning("Terminating camera thread - A")
+                logger.warning("Terminating camera thread - break B")
                 break
         return
