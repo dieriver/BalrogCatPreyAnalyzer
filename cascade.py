@@ -186,7 +186,7 @@ class SequentialCascadeFeeder:
                 self.cumulus_points += (50 - int(round(100 * cascade_obj.pc_prey_val)))
                 self.FACE_FOUND_FLAG = True
 
-            logger.info('CUMULUS:' + str(self.cumulus_points))
+            logger.debug('CUMULUS:' + str(self.cumulus_points))
 
             # Check the cumuli points and set flags if necessary
             if self.face_counter > 0 and self.PATIENCE_FLAG:
@@ -221,7 +221,7 @@ class SequentialCascadeFeeder:
             if self.event_reset_counter >= self.event_reset_threshold:
                 # If was True => event now over => clear queue
                 if self.EVENT_FLAG:
-                    logger.info('CLEARED QUEUE BECAUSE EVENT OVER WITHOUT CONCLUSION...')
+                    logger.debug('CLEARED QUEUE BECAUSE EVENT OVER WITHOUT CONCLUSION...')
                     # TODO QUICK FIX
                     if self.face_counter == 0:
                         self.face_counter = 1
@@ -388,7 +388,7 @@ class Cascade:
         event_img_object.cc_inference_time = cc_inference_time
 
         if cat_bool and bbs_target_img.size != 0:
-            logger.info('Cat Detected!')
+            logger.debug('Cat Detected!')
             rec_img = self.cc_mobile_stage.draw_rectangle(img=original_copy_img, box=pred_cc_bb_full, color=(255, 0, 0),
                                                           text='CC_Pred')
 
@@ -434,7 +434,7 @@ class Cascade:
             if face_bool:
                 rec_img = self.cc_mobile_stage.draw_rectangle(img=rec_img, box=inf_bb, color=(255, 255, 255),
                                                               text='INF_Pred')
-                logger.info('Face Detected!')
+                logger.debug('Face Detected!')
 
                 # Do PC
                 pred_class, pred_val, inference_time = self.do_pc_stage(pc_target_img=snout_crop)
@@ -449,12 +449,12 @@ class Cascade:
                 event_img_object.pc_inference_time = inference_time
 
             else:
-                logger.info('No Face Found...')
+                logger.debug('No Face Found...')
                 ff_str = 'No_Face'
                 rec_img = self.input_text(img=rec_img, text=ff_str, text_pos=(15, 100), color=(255, 255, 0))
 
         else:
-            logger.info('No Cat Found...')
+            logger.debug('No Cat Found...')
             rec_img = self.input_text(img=original_copy_img, text='CC_Pred: NoCat', text_pos=(15, 100),
                                       color=(255, 255, 0))
 
