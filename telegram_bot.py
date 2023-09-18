@@ -81,12 +81,8 @@ class NodeBot:
         self.node_let_in_flag = True
 
     def node_reboot(self, update, context):
-        for i in range(5):
-            time.sleep(1)
-            bot_message = 'Rebooting in ' + str(5-i) + ' seconds...'
-            self.send_text(bot_message)
-        self.send_text('See ya later Alligator 🐊🐊🐊')
-        os.system("sudo reboot")
+        self.send_text('Restarting script...')
+        exit(0)
 
     def bot_send_last_casc_pic(self, update, context):
         if self.node_last_casc_img is not None:
