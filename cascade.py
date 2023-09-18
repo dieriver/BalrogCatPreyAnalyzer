@@ -175,7 +175,7 @@ class SequentialCascadeFeeder:
             # Send a message on Telegram to ask what to do
             self.cat_counter += 1
             if self.cat_counter >= self.cat_counter_threshold:
-                self.processing_pool.apply_async(func=self.send_cat_detected_message, args=(self.bot.node_live_img, 0))
+                self.processing_pool.apply_async(func=send_cat_detected_message, args=(self.bot, self.bot.node_live_img, 0,))
 
             # Last cat pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
@@ -194,16 +194,16 @@ class SequentialCascadeFeeder:
                     self.NO_PREY_FLAG = True
                     logger.info('NO PREY DETECTED... YOU CLEAN...')
                     self.processing_pool.apply_async(
-                        func=self.send_no_prey_message,
-                        args=(self.event_objects, self.cumulus_points / self.face_counter,)
+                        func=send_no_prey_message,
+                        args=(self.bot, self.event_objects, self.cumulus_points / self.face_counter,)
                     )
                     self.reset_cumuli_et_al()
                 elif self.cumulus_points / self.face_counter < self.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('IT IS A PREY!!!!!')
                     self.processing_pool.apply_async(
-                        func=self.send_prey_message,
-                        args=(self.event_objects, self.cumulus_points / self.face_counter,)
+                        func=send_prey_message,
+                        args=(self.bot, self.event_objects, self.cumulus_points / self.face_counter,)
                     )
                     self.reset_cumuli_et_al()
                 else:
@@ -226,8 +226,8 @@ class SequentialCascadeFeeder:
                     if self.face_counter == 0:
                         self.face_counter = 1
                     self.processing_pool.apply_async(
-                        func=self.send_dk_message,
-                        args=(self.event_objects, self.cumulus_points / self.face_counter,)
+                        func=send_dk_message,
+                        args=(self.bot, self.event_objects, self.cumulus_points / self.face_counter,)
                     )
                 self.reset_cumuli_et_al()
 
@@ -266,62 +266,71 @@ class SequentialCascadeFeeder:
         logger.debug('Runtime:' + str(time.time() - start_time))
         return cascade_obj
 
-    def send_prey_message(self, event_objects, cumuli):
-        prey_vals = [x.pc_prey_val for x in event_objects]
-        max_prey_index = prey_vals.index(max(filter(lambda x: x is not None, prey_vals)))
+    def get_event_nr(self):
+        tree = ET.parse(os.path.join(self.log_dir, 'info.xml'))
+        data = tree.getroot()
+        imgNr = int(data.find('node').get('imgNr'))
+        data.find('node').set('imgNr', str(int(imgNr) + 1))
+        tree.write(os.path.join(self.log_dir, 'info.xml'))
 
-        event_str = ''
-        face_events = [x for x in event_objects if x.face_bool]
-        for f_event in face_events:
-            logger.info('****************')
-            logger.info('Img_Name:' + str(f_event.img_name))
-            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-            logger.info('****************')
-            event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
+        return imgNr
 
-        sender_img = event_objects[max_prey_index].output_img
-        caption = 'Cumuli: ' + str(cumuli) + ' => PREY IN DA HOUSE!' + ' 🐁🐁🐁' + event_str
-        self.bot.send_img(img=sender_img, caption=caption)
-        return
+def send_prey_message(bot, event_objects, cumuli):
+    prey_vals = [x.pc_prey_val for x in event_objects]
+    max_prey_index = prey_vals.index(max(filter(lambda x: x is not None, prey_vals)))
 
-    def send_no_prey_message(self, event_objects, cumuli):
-        prey_vals = [x.pc_prey_val for x in event_objects]
-        min_prey_index = prey_vals.index(min(filter(lambda x: x is not None, prey_vals)))
+    event_str = ''
+    face_events = [x for x in event_objects if x.face_bool]
+    for f_event in face_events:
+        logger.info('****************')
+        logger.info('Img_Name:' + str(f_event.img_name))
+        logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+        logger.info('****************')
+        event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
 
-        event_str = ''
-        face_events = [x for x in event_objects if x.face_bool]
-        for f_event in face_events:
-            logger.info('****************')
-            logger.info('Img_Name:' + str(f_event.img_name))
-            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-            logger.info('****************')
-            event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
+    sender_img = event_objects[max_prey_index].output_img
+    caption = 'Cumuli: ' + str(cumuli) + ' => PREY IN DA HOUSE!' + ' 🐁🐁🐁' + event_str
+    bot.send_img(img=sender_img, caption=caption)
+    return
 
-        sender_img = event_objects[min_prey_index].output_img
-        caption = 'Cumuli: ' + str(cumuli) + ' => Cat is clean...' + ' 🐱' + event_str
-        self.bot.send_img(img=sender_img, caption=caption)
-        return
+def send_no_prey_message(bot, event_objects, cumuli):
+    prey_vals = [x.pc_prey_val for x in event_objects]
+    min_prey_index = prey_vals.index(min(filter(lambda x: x is not None, prey_vals)))
 
-    def send_dk_message(self, event_objects, cumuli):
-        event_str = ''
-        face_events = [x for x in event_objects if x.face_bool]
-        for f_event in face_events:
-            logger.info('****************')
-            logger.info('Img_Name:' + str(f_event.img_name))
-            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-            logger.info('****************')
-            event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
+    event_str = ''
+    face_events = [x for x in event_objects if x.face_bool]
+    for f_event in face_events:
+        logger.info('****************')
+        logger.info('Img_Name:' + str(f_event.img_name))
+        logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+        logger.info('****************')
+        event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
 
-        sender_img = face_events[0].output_img
-        caption = 'Cumuli: ' + str(cumuli) + ' => Cant say for sure...' + ' 🤷‍♀️' + event_str + '\nMaybe use /letin?'
-        self.bot.send_img(img=sender_img, caption=caption)
-        return
+    sender_img = event_objects[min_prey_index].output_img
+    caption = 'Cumuli: ' + str(cumuli) + ' => Cat is clean...' + ' 🐱' + event_str
+    bot.send_img(img=sender_img, caption=caption)
+    return
 
-    def send_cat_detected_message(self, live_img, cumuli):
-        caption = 'Cumuli: ' + str(
-            cumuli) + ' => Gato incoming! 🐱🐈🐱' + '\nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
-        # sender_img = event_objects[-1].output_img
-        self.bot.send_img(img=live_img, caption=caption)
+def send_dk_message(bot, event_objects, cumuli):
+    event_str = ''
+    face_events = [x for x in event_objects if x.face_bool]
+    for f_event in face_events:
+        logger.info('****************')
+        logger.info('Img_Name:' + str(f_event.img_name))
+        logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+        logger.info('****************')
+        event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
+
+    sender_img = face_events[0].output_img
+    caption = 'Cumuli: ' + str(cumuli) + ' => Cant say for sure...' + ' 🤷‍♀️' + event_str + '\nMaybe use /letin?'
+    bot.send_img(img=sender_img, caption=caption)
+    return
+
+def send_cat_detected_message(bot, live_img, cumuli):
+    caption = 'Cumuli: ' + str(
+        cumuli) + ' => Gato incoming! 🐱🐈🐱' + '\nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
+    # sender_img = event_objects[-1].output_img
+    bot.send_img(img=live_img, caption=caption);
 
 
 class EventElement:
