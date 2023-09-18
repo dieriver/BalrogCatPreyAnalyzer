@@ -22,7 +22,7 @@ class NodeBot:
         self.last_msg_id = 0
         self.bot_updater = Updater(token=self.BOT_TOKEN, use_context=True)
         self.bot_dispatcher = self.bot_updater.dispatcher
-        self.commands = ['/help', '/nodestatus', '/sendlivepic', '/sendlastcascpic', '/letin', '/reboot', '/lock', '/lockin', '/lockout', '/curfew', '/unlock']
+        self.commands = ['/help', '/sendlivepic', '/sendlastcascpic', '/letin', '/reboot', '/lock', '/lockin', '/lockout', '/curfew', '/unlock']
 
         self.node_live_img = None
         self.node_queue_info = None
@@ -44,8 +44,6 @@ class NodeBot:
         # Add all commands to handler
         help_handler = CommandHandler('help', self.bot_help_cmd)
         self.bot_dispatcher.add_handler(help_handler)
-        node_status_handler = CommandHandler('nodestatus', self.bot_send_status)
-        self.bot_dispatcher.add_handler(node_status_handler)
         send_pic_handler = CommandHandler('sendlivepic', self.bot_send_live_pic)
         self.bot_dispatcher.add_handler(send_pic_handler)
         send_last_casc_pic = CommandHandler('sendlastcascpic', self.bot_send_last_casc_pic)
@@ -99,13 +97,6 @@ class NodeBot:
             self.send_img(self.node_live_img, caption)
         else:
             self.send_text('No img available yet...')
-
-    def bot_send_status(self, update, context):
-        if self.node_queue_info is not None and self.node_over_head_info is not None:
-            bot_message = 'Queue length: ' + str(self.node_queue_info) + '\nOverhead: ' + str(self.node_over_head_info) + 's'
-        else:
-            bot_message = 'No info yet...'
-        self.send_text(bot_message)
 
     def send_text(self, message):
         telegram.Bot(token=self.BOT_TOKEN).send_message(chat_id=self.CHAT_ID, text=message, parse_mode=telegram.ParseMode.MARKDOWN)
