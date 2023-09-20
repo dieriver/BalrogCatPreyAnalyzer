@@ -41,6 +41,8 @@ class Camera:
                     (datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f"), frame)
                 )
                 i += 1
+                logger.debug("Quelength: " + str(len(main_deque)))
+                # print("sleeping (ms) " + str(self.framerate))
                 time.sleep(1 / self.framerate)
                 if i >= self.cleanup_threshold:
                     logger.info("Camera captures max configured frames; cleaning up and restarting")
@@ -53,6 +55,6 @@ class Camera:
                     break
 
             if self.stop_flag:
-                logger.warning("Terminating camera thread - break B")
+                logger.warning("Terminating camera thread - B")
                 break
         return

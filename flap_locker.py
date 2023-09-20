@@ -82,14 +82,14 @@ class FlapLocker:
 
     async def unlock_for_seconds(self, telegram_bot, seconds: int):
         self.old_state = await self.get_lock_state()
-        logger.info("Old state = " + str(self.old_state))
+        logger.debug("Old state = " + str(self.old_state))
         if self.old_state >= LockState.CURFEW:
             new_state = LockState.CURFEW_UNLOCKED
         else:
             new_state = LockState.UNLOCKED
-        logger.info("New state = " + str(new_state))
+        logger.debug("New state = " + str(new_state))
         await self.set_moria_lock_state(new_state, telegram_bot)
         await asyncio.sleep(seconds)
-        logger.info("Setting back old state = " + str(self.old_state))
+        logger.debug("Setting back old state = " + str(self.old_state))
         await self.set_moria_lock_state(self.old_state, telegram_bot)
         self.old_state = LockState.UNLOCKED

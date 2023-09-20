@@ -21,11 +21,21 @@ cat_cam_py = os.getenv('CAT_PREY_ANALYZER_PATH')
 
 # We configure the logging
 logger = logging.getLogger("cat_logger")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
-file_handler = logging.handlers.RotatingFileHandler(filename='/var/log/balrog-logs/cat_logger.log', maxBytes=(1024*1024*500), backupCount=5, encoding='utf-8')
-dbg_file_handler = logging.handlers.RotatingFileHandler(filename='/var/log/balrog-logs/cat_logger-dbg.log', maxBytes=(1024*1024*500), backupCount=5, encoding='utf-8')
+file_handler = logging.handlers.RotatingFileHandler(
+    filename='/var/log/balrog-logs/cat_logger.log',
+    maxBytes=(1024*1024*500),
+    backupCount=5,
+    encoding='utf-8'
+)
+dbg_file_handler = logging.handlers.RotatingFileHandler(
+    filename='/var/log/balrog-logs/cat_logger-dbg.log',
+    maxBytes=(1024*1024*500),
+    backupCount=5,
+    encoding='utf-8'
+)
 stdout_handler.setLevel(logging.INFO)
 file_handler.setLevel(logging.INFO)
 dbg_file_handler.setLevel(logging.DEBUG)
@@ -49,10 +59,10 @@ def send_prey_message(bot: NodeBot, event_objects, cumuli):
         event_str = ''
         face_events = [x for x in event_objects if x.face_bool]
         for f_event in face_events:
-            logger.info('****************')
-            logger.info('Img_Name:' + str(f_event.img_name))
-            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-            logger.info('****************')
+            logger.debug('****************')
+            logger.debug('Img_Name:' + str(f_event.img_name))
+            logger.debug('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+            logger.debug('****************')
             event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
 
         sender_img = event_objects[max_prey_index].output_img
@@ -70,10 +80,10 @@ def send_no_prey_message(bot: NodeBot, event_objects, cumuli):
         event_str = ''
         face_events = [x for x in event_objects if x.face_bool]
         for f_event in face_events:
-            logger.info('****************')
-            logger.info('Img_Name:' + str(f_event.img_name))
-            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-            logger.info('****************')
+            logger.debug('****************')
+            logger.debug('Img_Name:' + str(f_event.img_name))
+            logger.debug('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+            logger.debug('****************')
             event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
 
         sender_img = event_objects[min_prey_index].output_img
@@ -88,10 +98,10 @@ def send_dk_message(bot: NodeBot, event_objects, cumuli):
         event_str = ''
         face_events = [x for x in event_objects if x.face_bool]
         for f_event in face_events:
-            logger.info('****************')
-            logger.info('Img_Name:' + str(f_event.img_name))
-            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-            logger.info('****************')
+            logger.debug('****************')
+            logger.debug('Img_Name:' + str(f_event.img_name))
+            logger.debug('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+            logger.debug('****************')
             event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
 
         sender_img = face_events[0].output_img
@@ -414,14 +424,14 @@ class Cascade:
         start_time = time.time()
         dk_bool, cat_bool, bbs_target_img, pred_cc_bb_full, cc_inference_time = self.do_cc_mobile_stage(
             cc_target_img=cc_target_img)
-        logger.debug('CC_Do Time:' + str(time.time() - start_time))
+        logger.debug('CASCADE - CC compute Time:' + str(time.time() - start_time))
         event_img_object.cc_cat_bool = cat_bool
         event_img_object.cc_pred_bb = pred_cc_bb_full
         event_img_object.bbs_target_img = bbs_target_img
         event_img_object.cc_inference_time = cc_inference_time
 
         if cat_bool and bbs_target_img.size != 0:
-            logger.debug('Cat Detected!')
+            logger.debug('CASCADE - Cat Detected!')
             rec_img = self.cc_mobile_stage.draw_rectangle(img=original_copy_img, box=pred_cc_bb_full, color=(255, 0, 0),
                                                           text='CC_Pred')
 
@@ -467,12 +477,12 @@ class Cascade:
             if face_bool:
                 rec_img = self.cc_mobile_stage.draw_rectangle(img=rec_img, box=inf_bb, color=(255, 255, 255),
                                                               text='INF_Pred')
-                logger.debug('Face Detected!')
+                logger.debug('CASCADE - Face Detected!')
 
                 # Do PC
                 pred_class, pred_val, inference_time = self.do_pc_stage(pc_target_img=snout_crop)
-                logger.debug('Prey Prediction: ' + str(pred_class))
-                logger.debug('Pred_Val: ' + str('%.2f' % pred_val))
+                logger.debug('CASCADE - Prey Prediction: ' + str(pred_class))
+                logger.debug('CASCADE - Pred_Val: ' + str('%.2f' % pred_val))
                 pc_str = ' PC_Pred: ' + str(pred_class) + ' @ ' + str('%.2f' % pred_val)
                 color = (0, 0, 255) if pred_class else (0, 255, 0)
                 rec_img = self.input_text(img=rec_img, text=pc_str, text_pos=(15, 100), color=color)
@@ -482,12 +492,12 @@ class Cascade:
                 event_img_object.pc_inference_time = inference_time
 
             else:
-                logger.debug('No Face Found...')
+                logger.debug('CASCADE - No Face Found...')
                 ff_str = 'No_Face'
                 rec_img = self.input_text(img=rec_img, text=ff_str, text_pos=(15, 100), color=(255, 255, 0))
 
         else:
-            logger.debug('No Cat Found...')
+            logger.debug('CASCADE - No Cat Found...')
             rec_img = self.input_text(img=original_copy_img, text='CC_Pred: NoCat', text_pos=(15, 100),
                                       color=(255, 255, 0))
 
@@ -499,7 +509,7 @@ class Cascade:
         cc_area = abs(cc_bbs[0][0] - cc_bbs[1][0]) * abs(cc_bbs[0][1] - cc_bbs[1][1])
         haar_area = abs(haar_bbs[0][0] - haar_bbs[1][0]) * abs(haar_bbs[0][1] - haar_bbs[1][1])
         overlap = haar_area / cc_area
-        logger.debug('Overlap: ' + str(overlap))
+        logger.debug('CASCADE - Overlap: ' + str(overlap))
         return overlap
 
     def infere_snout_crop(self, bbs, haar_bbs, bbs_face_bool, bbs_ff_conf, haar_face_bool, haar_ff_conf, cc_target_img):
