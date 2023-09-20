@@ -2,12 +2,10 @@ import asyncio
 import time
 import os
 import cv2
-import logging
 import telegram
 from telegram.ext import Updater, CommandHandler
 from flap_locker import FlapLocker
-
-logger = logging.getLogger("cat_logger")
+from utils import logger
 
 
 class NodeBot:

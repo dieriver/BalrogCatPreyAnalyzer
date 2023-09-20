@@ -1,18 +1,12 @@
 import tensorflow as tf
 import numpy as np
-from pathlib import Path
 import os
 import cv2
 import time
 import sys
-import logging
 
 from object_detection.utils import label_map_util
-
-logger = logging.getLogger("cat_logger")
-
-cat_cam_py = os.getenv('CAT_PREY_ANALYZER_PATH')
-logger.info('CatCamPy:', cat_cam_py)
+from utils import logger, cat_cam_py
 
 PC_models_dir = os.path.join(cat_cam_py, 'models/Prey_Classifier')
 FF_models_dir = os.path.join(cat_cam_py, 'models/Face_Fur_Classifier')

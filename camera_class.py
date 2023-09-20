@@ -5,11 +5,7 @@ import time
 import cv2
 import gc
 import os
-import logging
-
-from image_container import ImageBuffers
-
-logger = logging.getLogger("cat_logger")
+from utils import logger
 
 
 class Camera:

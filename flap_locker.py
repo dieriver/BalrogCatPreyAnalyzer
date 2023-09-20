@@ -1,13 +1,11 @@
 import asyncio
-import logging
 import os
 from typing import List, Dict
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
 from surepy.enums import LockState
 from surepy.entities.pet import Pet
 from surepy.entities.devices import Flap
-
-logger = logging.getLogger("cat_logger")
+from utils import logger
 
 
 class FlapLocker:
