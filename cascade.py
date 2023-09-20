@@ -41,6 +41,76 @@ logger.addHandler(file_handler)
 logger.addHandler(dbg_file_handler)
 
 
+def send_prey_message(bot: NodeBot, event_objects, cumuli):
+    try:
+        prey_vals = [x.pc_prey_val for x in event_objects]
+        max_prey_index = prey_vals.index(max(filter(lambda x: x is not None, prey_vals)))
+
+        event_str = ''
+        face_events = [x for x in event_objects if x.face_bool]
+        for f_event in face_events:
+            logger.info('****************')
+            logger.info('Img_Name:' + str(f_event.img_name))
+            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+            logger.info('****************')
+            event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
+
+        sender_img = event_objects[max_prey_index].output_img
+        caption = 'Cumuli: ' + str(cumuli) + ' => PREY IN DA HOUSE!' + ' 🐁🐁🐁' + event_str
+        bot.send_img(img=sender_img, caption=caption)
+    except Exception:
+        logger.exception('+++ Exception while sending img: ')
+
+
+def send_no_prey_message(bot: NodeBot, event_objects, cumuli):
+    try:
+        prey_vals = [x.pc_prey_val for x in event_objects]
+        min_prey_index = prey_vals.index(min(filter(lambda x: x is not None, prey_vals)))
+
+        event_str = ''
+        face_events = [x for x in event_objects if x.face_bool]
+        for f_event in face_events:
+            logger.info('****************')
+            logger.info('Img_Name:' + str(f_event.img_name))
+            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+            logger.info('****************')
+            event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
+
+        sender_img = event_objects[min_prey_index].output_img
+        caption = 'Cumuli: ' + str(cumuli) + ' => Cat is clean...' + ' 🐱' + event_str
+        bot.send_img(img=sender_img, caption=caption)
+    except Exception:
+        logger.exception('+++ Exception while sending img: ')
+
+
+def send_dk_message(bot: NodeBot, event_objects, cumuli):
+    try:
+        event_str = ''
+        face_events = [x for x in event_objects if x.face_bool]
+        for f_event in face_events:
+            logger.info('****************')
+            logger.info('Img_Name:' + str(f_event.img_name))
+            logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
+            logger.info('****************')
+            event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
+
+        sender_img = face_events[0].output_img
+        caption = 'Cumuli: ' + str(cumuli) + ' => Cant say for sure...' + ' 🤷‍♀️' + event_str + '\nMaybe use /letin?'
+        bot.send_img(img=sender_img, caption=caption)
+    except Exception:
+        logger.exception('+++ Exception while sending img: ')
+
+
+def send_cat_detected_message(bot: NodeBot, live_img, cumuli):
+    try:
+        caption = 'Cumuli: ' + str(
+            cumuli) + ' => Gato incoming! 🐱🐈🐱' + '\nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
+        # sender_img = event_objects[-1].output_img
+        bot.send_img(img=live_img, caption=caption);
+    except Exception:
+        logger.exception('+++ Exception while sending img: ')
+
+
 class SequentialCascadeFeeder:
     def __init__(self):
         self.log_dir = os.path.join(os.getcwd(), 'log')
@@ -57,6 +127,7 @@ class SequentialCascadeFeeder:
         self.patience_counter = 0
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
+        self.CAT_DETECTED_FLAG = False
         self.FACE_FOUND_FLAG = False
         self.PREY_FLAG = None
         self.NO_PREY_FLAG = None
@@ -87,6 +158,7 @@ class SequentialCascadeFeeder:
         self.EVENT_FLAG = False
         self.patience_counter = 0
         self.PATIENCE_FLAG = False
+        self.CAT_DETECTED_FLAG = False
         self.FACE_FOUND_FLAG = False
         self.cumulus_points = 0
         self.event_reset_counter = 0
@@ -96,6 +168,15 @@ class SequentialCascadeFeeder:
         self.NO_PREY_FLAG = None
         self.cumulus_points = 0
         self.bot.node_let_in_flag = False
+
+        #for item in self.event_objects:
+        #    del item
+        self.event_objects.clear()
+
+        for item in self.main_deque:
+            del item
+        self.main_deque.clear()
+
         gc.collect()
 
     def initialize(self):
@@ -170,18 +251,22 @@ class SequentialCascadeFeeder:
 
         if cascade_obj.cc_cat_bool:
             # We are inside an event => add event_obj to list
+            logger.info('**** CAT FOUND! ****')
             self.EVENT_FLAG = True
             self.event_objects.append(cascade_obj)
             # Send a message on Telegram to ask what to do
             self.cat_counter += 1
-            if self.cat_counter >= self.cat_counter_threshold:
-                self.processing_pool.apply_async(func=send_cat_detected_message, args=(self.bot, self.bot.node_live_img, 0,))
+            if self.cat_counter >= self.cat_counter_threshold and not self.CAT_DETECTED_FLAG:
+                self.CAT_DETECTED_FLAG = True
+                node_live_img_cpy = self.bot.node_live_img;
+                self.processing_pool.apply_async(send_cat_detected_message, args=(self.bot, node_live_img_cpy, 0,))
 
             # Last cat pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
 
             # If face found add the cumulus points
             if cascade_obj.face_bool:
+                logger.info('**** FACE FOUND! ****')
                 self.face_counter += 1
                 self.cumulus_points += (50 - int(round(100 * cascade_obj.pc_prey_val)))
                 self.FACE_FOUND_FLAG = True
@@ -192,18 +277,22 @@ class SequentialCascadeFeeder:
             if self.face_counter > 0 and self.PATIENCE_FLAG:
                 if self.cumulus_points / self.face_counter > self.cumulus_no_prey_threshold:
                     self.NO_PREY_FLAG = True
-                    logger.info('NO PREY DETECTED... YOU CLEAN...')
+                    logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
+                    events_cpy = self.event_objects.copy()
+                    cumuli_cpy = self.cumulus_points / self.face_counter
                     self.processing_pool.apply_async(
-                        func=send_no_prey_message,
-                        args=(self.bot, self.event_objects, self.cumulus_points / self.face_counter,)
+                        send_no_prey_message,
+                        args=(self.bot, events_cpy, cumuli_cpy,)
                     )
                     self.reset_cumuli_et_al()
                 elif self.cumulus_points / self.face_counter < self.cumulus_prey_threshold:
                     self.PREY_FLAG = True
-                    logger.info('IT IS A PREY!!!!!')
+                    logger.info('**** IT IS A PREY!!!!! ****')
+                    events_cpy = self.event_objects.copy()
+                    cumuli_cpy = self.cumulus_points / self.face_counter
                     self.processing_pool.apply_async(
-                        func=send_prey_message,
-                        args=(self.bot, self.event_objects, self.cumulus_points / self.face_counter,)
+                        send_prey_message,
+                        args=(self.bot, events_cpy, cumuli_cpy,)
                     )
                     self.reset_cumuli_et_al()
                 else:
@@ -216,18 +305,20 @@ class SequentialCascadeFeeder:
 
         # No cat detected => reset event_counters if necessary
         else:
-            logger.info('NO CAT FOUND!')
+            logger.info('**** NO CAT FOUND! ****')
             self.event_reset_counter += 1
             if self.event_reset_counter >= self.event_reset_threshold:
                 # If was True => event now over => clear queue
                 if self.EVENT_FLAG:
-                    logger.debug('CLEARED QUEUE BECAUSE EVENT OVER WITHOUT CONCLUSION...')
+                    logger.debug('---- CLEARED QUEUE BECAUSE EVENT OVER WITHOUT CONCLUSION... ----')
                     # TODO QUICK FIX
                     if self.face_counter == 0:
                         self.face_counter = 1
+                    events_cpy = self.event_objects.copy()
+                    cumuli_cpy = self.cumulus_points / self.face_counter
                     self.processing_pool.apply_async(
-                        func=send_dk_message,
-                        args=(self.bot, self.event_objects, self.cumulus_points / self.face_counter,)
+                        send_dk_message,
+                        args=(self.bot, events_cpy, cumuli_cpy,)
                     )
                 self.reset_cumuli_et_al()
 
@@ -272,65 +363,7 @@ class SequentialCascadeFeeder:
         imgNr = int(data.find('node').get('imgNr'))
         data.find('node').set('imgNr', str(int(imgNr) + 1))
         tree.write(os.path.join(self.log_dir, 'info.xml'))
-
         return imgNr
-
-def send_prey_message(bot, event_objects, cumuli):
-    prey_vals = [x.pc_prey_val for x in event_objects]
-    max_prey_index = prey_vals.index(max(filter(lambda x: x is not None, prey_vals)))
-
-    event_str = ''
-    face_events = [x for x in event_objects if x.face_bool]
-    for f_event in face_events:
-        logger.info('****************')
-        logger.info('Img_Name:' + str(f_event.img_name))
-        logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-        logger.info('****************')
-        event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
-
-    sender_img = event_objects[max_prey_index].output_img
-    caption = 'Cumuli: ' + str(cumuli) + ' => PREY IN DA HOUSE!' + ' 🐁🐁🐁' + event_str
-    bot.send_img(img=sender_img, caption=caption)
-    return
-
-def send_no_prey_message(bot, event_objects, cumuli):
-    prey_vals = [x.pc_prey_val for x in event_objects]
-    min_prey_index = prey_vals.index(min(filter(lambda x: x is not None, prey_vals)))
-
-    event_str = ''
-    face_events = [x for x in event_objects if x.face_bool]
-    for f_event in face_events:
-        logger.info('****************')
-        logger.info('Img_Name:' + str(f_event.img_name))
-        logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-        logger.info('****************')
-        event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
-
-    sender_img = event_objects[min_prey_index].output_img
-    caption = 'Cumuli: ' + str(cumuli) + ' => Cat is clean...' + ' 🐱' + event_str
-    bot.send_img(img=sender_img, caption=caption)
-    return
-
-def send_dk_message(bot, event_objects, cumuli):
-    event_str = ''
-    face_events = [x for x in event_objects if x.face_bool]
-    for f_event in face_events:
-        logger.info('****************')
-        logger.info('Img_Name:' + str(f_event.img_name))
-        logger.info('PC_Val:' + str('%.2f' % f_event.pc_prey_val))
-        logger.info('****************')
-        event_str += '\n' + f_event.img_name + ' => PC_Val: ' + str('%.2f' % f_event.pc_prey_val)
-
-    sender_img = face_events[0].output_img
-    caption = 'Cumuli: ' + str(cumuli) + ' => Cant say for sure...' + ' 🤷‍♀️' + event_str + '\nMaybe use /letin?'
-    bot.send_img(img=sender_img, caption=caption)
-    return
-
-def send_cat_detected_message(bot, live_img, cumuli):
-    caption = 'Cumuli: ' + str(
-        cumuli) + ' => Gato incoming! 🐱🐈🐱' + '\nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
-    # sender_img = event_objects[-1].output_img
-    bot.send_img(img=live_img, caption=caption);
 
 
 class EventElement:
