@@ -2,11 +2,11 @@ import sys
 import traceback
 
 from main_loop import SequentialCascadeFeeder
-from utils import logger
+from utils import logger, init_logger
 
 
 if __name__ == '__main__':
-    utils.init_logger()
+    init_logger()
     sq_cascade = SequentialCascadeFeeder()
     try:
         sq_cascade.queue_handler()
