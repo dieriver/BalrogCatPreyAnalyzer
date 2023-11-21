@@ -4,12 +4,12 @@ import cv2
 import telegram
 from telegram.ext import Updater, CommandHandler
 from flap_locker import FlapLocker
-from utils import logger
+from utils import clean_logs
 
 
 class NodeBot:
     def __init__(self):
-        #Insert Chat ID and Bot Token according to Telegram API
+        # Insert Chat ID and Bot Token according to Telegram API
         if os.getenv('TELEGRAM_CHAT_ID') == "":
             raise Exception("Telegram CHAT ID not set!. Please set the 'TELEGRAM_CHAT_ID' environment variable")
         if os.getenv('TELEGRAM_BOT_TOKEN') == "":
@@ -19,7 +19,19 @@ class NodeBot:
         self.last_msg_id = 0
         self.bot_updater = Updater(token=self.BOT_TOKEN, use_context=True)
         self.bot_dispatcher = self.bot_updater.dispatcher
-        self.commands = ['/help', '/sendlivepic', '/sendlastcascpic', '/letin', '/reboot', '/lock', '/lockin', '/lockout', '/curfew', '/unlock']
+        self.commands = [
+            '/help',
+            '/clean',
+            '/reboot',
+            '/sendlivepic',
+            '/sendlastcascpic',
+            '/letin',
+            '/lock',
+            '/lockin',
+            '/lockout',
+            '/curfew',
+            '/unlock'
+        ]
 
         self.node_live_img = None
         self.node_queue_info = None
@@ -30,25 +42,29 @@ class NodeBot:
 
         self.let_in_open_time = 40
 
-        #Flap Locker instance
+        # Flap Locker instance
         self.flap_handler = FlapLocker()
 
-        #Init the listener
+        # Init the listener
         self.init_bot_listener()
 
     def init_bot_listener(self):
-        telegram.Bot(token=self.BOT_TOKEN).send_message(chat_id=self.CHAT_ID, text='Good Morning, NodeBot is online!' + '🤙')
+        telegram.Bot(token=self.BOT_TOKEN).send_message(chat_id=self.CHAT_ID, text='Good Morning, Balrog is online! 🤙')
         # Add all commands to handler
         help_handler = CommandHandler('help', self.bot_help_cmd)
         self.bot_dispatcher.add_handler(help_handler)
+        clean = CommandHandler('clean', self.node_clean)
+        self.bot_dispatcher.add_handler(clean)
+        reboot = CommandHandler('reboot', self.node_reboot)
+        self.bot_dispatcher.add_handler(reboot)
+        node_status_handler = CommandHandler('nodestatus', self.bot_send_status)
+        self.bot_dispatcher.add_handler(node_status_handler)
         send_pic_handler = CommandHandler('sendlivepic', self.bot_send_live_pic)
         self.bot_dispatcher.add_handler(send_pic_handler)
         send_last_casc_pic = CommandHandler('sendlastcascpic', self.bot_send_last_casc_pic)
         self.bot_dispatcher.add_handler(send_last_casc_pic)
         letin = CommandHandler('letin', self.node_let_in)
         self.bot_dispatcher.add_handler(letin)
-        reboot = CommandHandler('reboot', self.node_reboot)
-        self.bot_dispatcher.add_handler(reboot)
         lock_moria = CommandHandler('lock', self.lock_moria)
         self.bot_dispatcher.add_handler(lock_moria)
         unlock_moria = CommandHandler('unlock', self.unlock_moria)
@@ -70,9 +86,8 @@ class NodeBot:
         self.send_text(bot_message)
 
     def node_let_in(self, update, context):
-        self.send_text('Ok door is open for ' + str(self.let_in_open_time) + 's...')
+        self.send_text(f'Ok door is open for {self.let_in_open_time}s...')
         self.unlock_moria_for_seconds(self.let_in_open_time)
-        self.send_text('Door locked again, back to business...')
         self.node_let_in_flag = True
 
     def node_reboot(self, update, context):
@@ -80,6 +95,9 @@ class NodeBot:
         # We use a "successful" exit code to restart the script
         # This is interpreted as a call to restart the script
         exit(0)
+
+    def node_clean(self, update, context):
+        clean_logs()
 
     def bot_send_last_casc_pic(self, update, context):
         if self.node_last_casc_img is not None:
@@ -96,6 +114,13 @@ class NodeBot:
             self.send_img(self.node_live_img, caption)
         else:
             self.send_text('No img available yet...')
+
+    def bot_send_status(self, update, context):
+        if self.node_queue_info is not None and self.node_over_head_info is not None:
+            bot_message = f'Queue length: {self.node_queue_info}\nOverhead: {self.node_over_head_info}s'
+        else:
+            bot_message = 'No info yet...'
+        self.send_text(bot_message)
 
     def send_text(self, message):
         telegram.Bot(token=self.BOT_TOKEN).send_message(chat_id=self.CHAT_ID, text=message, parse_mode=telegram.ParseMode.MARKDOWN)
