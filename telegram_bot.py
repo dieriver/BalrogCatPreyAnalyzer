@@ -122,7 +122,7 @@ class NodeBot:
             bot_message = 'No info yet...'
         self.send_text(bot_message)
 
-    def send_text(self, message):
+    def send_text(self, message: str):
         telegram.Bot(token=self.BOT_TOKEN).send_message(chat_id=self.CHAT_ID, text=message, parse_mode=telegram.ParseMode.MARKDOWN)
 
     def send_img(self, img, caption):

@@ -31,7 +31,7 @@ class SequentialCascadeFeeder:
     """
     def __init__(self):
         self.log_dir = os.path.join(os.getcwd(), 'log')
-        logger.info('Log Dir:' + str(self.log_dir))
+        logger.info(f'Log Dir: {self.log_dir}')
         self.event_nr = 0
         self.base_cascade = Cascade()
         self.DEFAULT_FPS_OFFSET = 3
@@ -98,13 +98,13 @@ class SequentialCascadeFeeder:
             if len(self.main_deque) > self.QUEUE_MAX_THRESHOLD:
                 self.reset_cumuli_et_al()
                 logger.info('EMPTYING QUEUE BECAUSE MAXIMUM THRESHOLD REACHED!')
-                self.bot.send_text(message='Queue overflowed... emptying Queue!')
+                self.bot.send_text('Queue overflowed... emptying Queue!')
 
             elif len(self.main_deque) > self.DEFAULT_FPS_OFFSET:
                 self.queue_worker()
 
             else:
-                logger.info('Nothing to work with => Queue length:' + str(len(self.main_deque)))
+                logger.info(f'Nothing to work with => Queue length: {len(self.main_deque)}')
                 time.sleep(0.25)
 
             # Check if user force opens the door
@@ -119,16 +119,17 @@ class SequentialCascadeFeeder:
         self.processing_pool.terminate()
 
     def queue_worker(self):
-        logger.info('Working the Queue with len:' + str(len(self.main_deque)))
+        logger.info(f'Working the Queue with len: {len(self.main_deque)}')
         start_time = time.time()
         # Feed the latest image in the Queue through the cascade
         total_runtime, cascade_obj = self.feed_to_cascade(
             target_img=self.main_deque[self.fps_offset][1],
             img_name=self.main_deque[self.fps_offset][0]
         )
-        logger.debug('Runtime:' + str(time.time() - start_time))
+        current_time = time.time()
+        logger.debug(f'Runtime: {current_time - start_time}')
         done_timestamp = datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f")
-        logger.debug('Timestamp at Done Runtime:' + str(done_timestamp))
+        logger.debug(f'Timestamp at Done Runtime: {done_timestamp}')
 
         overhead = (datetime.strptime(done_timestamp, "%Y_%m_%d_%H-%M-%S.%f") -
                     datetime.strptime(self.main_deque[self.fps_offset][0], "%Y_%m_%d_%H-%M-%S.%f")
@@ -154,7 +155,7 @@ class SequentialCascadeFeeder:
             self.cat_counter += 1
             if self.cat_counter >= self.cat_counter_threshold and not self.CAT_DETECTED_FLAG:
                 self.CAT_DETECTED_FLAG = True
-                node_live_img_cpy = self.bot.node_live_img;
+                node_live_img_cpy = self.bot.node_live_img
                 self.processing_pool.apply_async(send_cat_detected_message, args=(self.bot, node_live_img_cpy, 0,))
 
             # Last cat pic for bot
@@ -168,7 +169,7 @@ class SequentialCascadeFeeder:
                 self.cumulus_points += (50 - int(round(100 * cascade_obj.pc_prey_val)))
                 self.FACE_FOUND_FLAG = True
 
-            logger.debug('CUMULUS:' + str(self.cumulus_points))
+            logger.debug(f'CUMULUS: {self.cumulus_points}')
 
             # Check the cumuli points and set flags if necessary
             if self.face_counter > 0 and self.PATIENCE_FLAG:
@@ -240,7 +241,7 @@ class SequentialCascadeFeeder:
             single_cascade.ff_haar_inference_time,
             single_cascade.pc_inference_time]))
         total_runtime = time.time() - start_time
-        logger.debug('Total Runtime:' + str(total_runtime))
+        logger.debug(f'Total Runtime: {total_runtime}')
 
         return total_runtime, single_cascade
 
@@ -251,7 +252,8 @@ class SequentialCascadeFeeder:
             os.path.join(cat_cam_py, 'readme_images/lenna_casc_Node1_001557_02_2020_05_24_09-49-35.jpg')
         )
         cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name)[1]
-        logger.debug('Runtime:' + str(time.time() - start_time))
+        current_time = time.time()
+        logger.debug(f'Runtime: {current_time - start_time}')
         return cascade_obj
 
     def get_event_nr(self):

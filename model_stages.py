@@ -30,9 +30,10 @@ class CCMobileNetStage:
         sys.path.append('..')
 
         # Grab path to current working directory
-        logger.debug('PYTHONPATH = ' + str(os.environ['PYTHONPATH'].split(os.pathsep)[1]))
-        TF_OD_PATH = os.environ['PYTHONPATH'].split(os.pathsep)[1] + '/object_detection'
-        logger.debug('PYTHONPATH2 = ' + str(TF_OD_PATH))
+        pythonpath = os.environ['PYTHONPATH'].split(os.pathsep)[1]
+        logger.debug(f"PYTHONPATH = {pythonpath}")
+        TF_OD_PATH = f"{pythonpath}/object_detection"
+        logger.debug(f'PYTHONPATH2 = {TF_OD_PATH}')
 
         # Path to frozen detection graph .pb file, which contains the model that is used
         # for object detection.
@@ -50,7 +51,8 @@ class CCMobileNetStage:
         # Here we use internal utility functions, but anything that returns a
         # dictionary mapping integers to appropriate string labels would be fine
         label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
-        categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
+        categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES,
+                                                                    use_display_name=True)
         category_index = label_map_util.create_category_index(categories)
 
         # print(categories)
@@ -98,30 +100,30 @@ class CCMobileNetStage:
     def do_cc(self, target_img):
         preprocessed_img = self.resize_img(input_img=target_img)
         pred_class, pred_cc_bb, inference_time = self.pet_detector(preprocessed_img, self.sess, self.detection_boxes,
-                                                                    self.detection_scores, self.detection_classes,
-                                                                    self.num_detections, self.image_tensor,
-                                                                    self.category_index)
-        logger.debug('CC_time: ' + str(inference_time))
+                                                                   self.detection_scores, self.detection_classes,
+                                                                   self.num_detections, self.image_tensor,
+                                                                   self.category_index)
+        logger.debug(f'CC_time: {inference_time}')
         return pred_cc_bb, pred_class, inference_time
 
     def draw_rectangle(self, img, box, color, text):
         font = cv2.FONT_HERSHEY_SIMPLEX
-        fontScale = 2
-        lineType = 3
-        text_pos = (box[0][0], int(box[0][1]-16))
+        font_scale = 2
+        line_type = 3
+        text_pos = (box[0][0], int(box[0][1] - 16))
 
         cv2.putText(img, text,
                     text_pos,
                     font,
-                    fontScale,
+                    font_scale,
                     color,
-                    lineType)
+                    line_type)
         return cv2.rectangle(img, (box[0][0], box[0][1]), (box[1][0], box[1][1]), color, 5)
-
 
     # This function contains the code to detect a pet, determine if it's
     # inside or outside, and send a text to the user's phone.
-    def pet_detector(self, frame, sess, detection_boxes, detection_scores, detection_classes, num_detections, image_tensor, category_index):
+    def pet_detector(self, frame, sess, detection_boxes, detection_scores, detection_classes, num_detections,
+                     image_tensor, category_index):
         frame_expanded = np.expand_dims(frame, axis=0)
 
         # Perform the actual detection by running the model with the image as input
@@ -140,11 +142,9 @@ class CCMobileNetStage:
         ymin = int(boxes[0][0][0] * self.img_org.shape[0])
         xmax = int(boxes[0][0][3] * self.img_org.shape[1])
         ymax = int(boxes[0][0][2] * self.img_org.shape[0])
-        target_box = np.array([(xmin,ymin), (xmax,ymax)]).reshape((-1, 2))
+        target_box = np.array([(xmin, ymin), (xmax, ymax)]).reshape((-1, 2))
 
-
-
-        if (int(classes[0][0]) == 17 or int(classes[0][0]) == 18):
+        if int(classes[0][0]) == 17 or int(classes[0][0]) == 18:
             return True, target_box, inference_time
 
         else:
@@ -186,7 +186,8 @@ class HaarStage:
 
         haar_found_bool = False
         if len(faces) != 0:
-            face = max(faces, key=lambda coords: abs(coords[0] - coords[2]) * abs(coords[1] - coords[3])).reshape((-1, 2))
+            face = max(faces, key=lambda coords: abs(coords[0] - coords[2]) * abs(coords[1] - coords[3])).reshape(
+                (-1, 2))
             pred_bb = face[:]
             pred_bb[0][0] = int(face[0][0] - face[1][0] * 0.2)
             pred_bb[0][1] = int(face[0][1] - face[1][1] * 0.4)
@@ -195,8 +196,7 @@ class HaarStage:
             haar_found_bool = True
 
         else:
-            pred_bb = np.array([(0,0), (0,0)]).reshape((-1, 2))
-
+            pred_bb = np.array([(0, 0), (0, 0)]).reshape((-1, 2))
 
         return pred_bb, inference_time, haar_found_bool
 
@@ -204,7 +204,7 @@ class HaarStage:
         font = cv2.FONT_HERSHEY_SIMPLEX
         fontScale = 2
         lineType = 3
-        text_pos = (box[0][0], int(box[0][1]-16))
+        text_pos = (box[0][0], int(box[0][1] - 16))
 
         cv2.putText(img, text,
                     text_pos,
@@ -214,7 +214,6 @@ class HaarStage:
                     lineType)
         return cv2.rectangle(img, (box[0][0], box[0][1]), (box[1][0], box[1][1]), color, 5)
 
-
     def calc_iou(self, gt_bbox, pred_bbox):
         (x_topleft_gt, y_topleft_gt), (x_bottomright_gt, y_bottomright_gt) = gt_bbox.tolist()
         (x_topleft_p, y_topleft_p), (x_bottomright_p, y_bottomright_p) = pred_bbox.tolist()
@@ -222,16 +221,21 @@ class HaarStage:
         if (x_topleft_gt > x_bottomright_gt) or (y_topleft_gt > y_bottomright_gt):
             raise AssertionError("Ground Truth Bounding Box is not correct")
         if (x_topleft_p > x_bottomright_p) or (y_topleft_p > y_bottomright_p):
-            raise AssertionError("Predicted Bounding Box is not correct", x_topleft_p, x_bottomright_p, y_topleft_p, y_bottomright_gt)
+            raise AssertionError("Predicted Bounding Box is not correct", x_topleft_p, x_bottomright_p, y_topleft_p,
+                                 y_bottomright_gt)
 
         # if the GT bbox and predcited BBox do not overlap then iou=0
-        if (x_bottomright_gt < x_topleft_p):# If bottom right of x-coordinate  GT  bbox is less than or above the top left of x coordinate of  the predicted BBox
+        if (
+                x_bottomright_gt < x_topleft_p):  # If bottom right of x-coordinate  GT  bbox is less than or above the top left of x coordinate of  the predicted BBox
             return 0.0
-        if (y_bottomright_gt < y_topleft_p):  # If bottom right of y-coordinate  GT  bbox is less than or above the top left of y coordinate of  the predicted BBox
+        if (
+                y_bottomright_gt < y_topleft_p):  # If bottom right of y-coordinate  GT  bbox is less than or above the top left of y coordinate of  the predicted BBox
             return 0.0
-        if (x_topleft_gt > x_bottomright_p):  # If bottom right of x-coordinate  GT  bbox is greater than or below the bottom right  of x coordinate of  the predcited BBox
+        if (
+                x_topleft_gt > x_bottomright_p):  # If bottom right of x-coordinate  GT  bbox is greater than or below the bottom right  of x coordinate of  the predcited BBox
             return 0.0
-        if (y_topleft_gt > y_bottomright_p):  # If bottom right of y-coordinate  GT  bbox is greater than or below the bottom right  of y coordinate of  the predcited BBox
+        if (
+                y_topleft_gt > y_bottomright_p):  # If bottom right of y-coordinate  GT  bbox is greater than or below the bottom right  of y coordinate of  the predcited BBox
             return 0.0
 
         GT_bbox_area = (x_bottomright_gt - x_topleft_gt + 1) * (y_bottomright_gt - y_topleft_gt + 1)
@@ -258,7 +262,7 @@ class PCStage:
         self.fn = 0
         self.inference_time_list = []
 
-        #Handle args
+        # Handle args
         self.models_dir = PC_models_dir
         self.pc_model_name = '0.86_512_05_VGG16_ownData_FTfrom15_350_Epochs_2020_05_15_11_40_56.h5'
 
@@ -291,7 +295,6 @@ class PCStage:
         inference_time = time.time() - start_time
 
         return class_pred[0][0], inference_time
-
 
     def pc_do(self, target_img):
         pred_val, inference_time = self.pc_prediction(img=target_img, pc_model=self.pc_model)
@@ -332,7 +335,6 @@ class FFStage:
     def resize_img(self, img_org):
         return cv2.resize(img_org, (self.TARGET_SIZE, self.TARGET_SIZE)) * (1. / 255)
 
-
     def ff_prediction(self, img, ff_model):
         preprocessed_img = self.resize_img(img_org=img).reshape((1, self.TARGET_SIZE, self.TARGET_SIZE, 3))
 
@@ -342,14 +344,13 @@ class FFStage:
 
         return class_pred[0][0], inference_time
 
-
     def ff_do(self, target_img):
         pred, inference_time = self.ff_prediction(img=target_img, ff_model=self.ff_model)
 
         if pred <= 0.5:
             return True, pred, inference_time
         else:
-            return False, pred,  inference_time
+            return False, pred, inference_time
 
 
 class EyeStage:
@@ -398,8 +399,7 @@ class EyeStage:
         y_mid = int((pred_eyes[0][1] + pred_eyes[1][1]) / 2)
         x_diff = abs(pred_eyes[0][0] - pred_eyes[1][0])
         y_diff = abs(pred_eyes[0][1] - pred_eyes[1][1])
-        xy_diag = (x_diff**2 + y_diff**2)**0.5
-
+        xy_diag = (x_diff ** 2 + y_diff ** 2) ** 0.5
 
         cc_bb_x_diff = abs(cc_pred_full[0][0] - cc_pred_full[1][0])
         cc_bb_y_diff = abs(cc_pred_full[0][1] - cc_pred_full[1][1])
@@ -421,7 +421,7 @@ class EyeStage:
         eyes_full_coords, inference_time = self.eye_full_prediction(target_img=eye_target_img, cc_bbs=cc_pred_bb)
         bbs = self.eyes_to_box(pred_eyes=eyes_full_coords, cc_target_img=cc_target_img, cc_pred_full=cc_pred_bb)
 
-        #for eye in eyes_full_coords:
+        # for eye in eyes_full_coords:
         #    cv2.circle(cc_target_img, center=tuple(eye), radius=15, color=(0, 255, 0), thickness=5)
 
         pc_xmin = int(bbs[0][0])

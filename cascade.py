@@ -46,7 +46,7 @@ class Cascade:
         self.haar_stage = HaarStage()
 
     def do_single_cascade(self, event_img_object):
-        logger.info('Processing image: ' + str(event_img_object.img_name))
+        logger.info(f'Processing image: {event_img_object.img_name}')
         cc_target_img = event_img_object.cc_target_img
         original_copy_img = cc_target_img.copy()
 
@@ -54,7 +54,8 @@ class Cascade:
         start_time = time.time()
         dk_bool, cat_bool, bbs_target_img, pred_cc_bb_full, cc_inference_time = self.do_cc_mobile_stage(
             cc_target_img=cc_target_img)
-        logger.debug('CASCADE - CC compute Time:' + str(time.time() - start_time))
+        current_time = time.time()
+        logger.debug(f'CASCADE - CC compute Time: {current_time - start_time}')
         event_img_object.cc_cat_bool = cat_bool
         event_img_object.cc_pred_bb = pred_cc_bb_full
         event_img_object.bbs_target_img = bbs_target_img
@@ -62,14 +63,25 @@ class Cascade:
 
         if cat_bool and bbs_target_img.size != 0:
             logger.debug('CASCADE - Cat Detected!')
-            rec_img = self.cc_mobile_stage.draw_rectangle(img=original_copy_img, box=pred_cc_bb_full, color=(255, 0, 0),
+            rec_img = self.cc_mobile_stage.draw_rectangle(img=original_copy_img,
+                                                          box=pred_cc_bb_full,
+                                                          color=(255, 0, 0),
                                                           text='CC_Pred')
 
             # Do HAAR
-            haar_snout_crop, haar_bbs, haar_inference_time, haar_found_bool = self.do_haar_stage(
-                target_img=bbs_target_img, pred_cc_bb_full=pred_cc_bb_full, cc_target_img=cc_target_img)
-            rec_img = self.cc_mobile_stage.draw_rectangle(img=rec_img, box=haar_bbs, color=(0, 255, 255),
-                                                          text='HAAR_Pred')
+            haar_snout_crop, haar_bbs, haar_inference_time, haar_found_bool = (
+                self.do_haar_stage(
+                    target_img=bbs_target_img,
+                    pred_cc_bb_full=pred_cc_bb_full,
+                    cc_target_img=cc_target_img
+                )
+            )
+            rec_img = self.cc_mobile_stage.draw_rectangle(
+                img=rec_img,
+                box=haar_bbs,
+                color=(0, 255, 255),
+                text='HAAR_Pred'
+            )
 
             event_img_object.haar_pred_bb = haar_bbs
             event_img_object.haar_inference_time = haar_inference_time
@@ -111,9 +123,9 @@ class Cascade:
 
                 # Do PC
                 pred_class, pred_val, inference_time = self.do_pc_stage(pc_target_img=snout_crop)
-                logger.debug('CASCADE - Prey Prediction: ' + str(pred_class))
-                logger.debug('CASCADE - Pred_Val: ' + str('%.2f' % pred_val))
-                pc_str = ' PC_Pred: ' + str(pred_class) + ' @ ' + str('%.2f' % pred_val)
+                logger.debug(f'CASCADE - Prey Prediction: {pred_class}')
+                logger.debug(f'CASCADE - Pred_Val: {pred_val:.2f}')
+                pc_str = f' PC_Pred: {pred_class} @ {pred_val:.2f}'
                 color = (0, 0, 255) if pred_class else (0, 255, 0)
                 rec_img = self.input_text(img=rec_img, text=pc_str, text_pos=(15, 100), color=color)
 
@@ -128,8 +140,11 @@ class Cascade:
 
         else:
             logger.debug('CASCADE - No Cat Found...')
-            rec_img = self.input_text(img=original_copy_img, text='CC_Pred: NoCat', text_pos=(15, 100),
-                                      color=(255, 255, 0))
+            rec_img = self.input_text(img=original_copy_img,
+                                      text='CC_Pred: NoCat',
+                                      text_pos=(15, 100),
+                                      color=(255, 255, 0)
+                                      )
 
         # Always save rec_img in event_img object
         event_img_object.output_img = rec_img
@@ -139,7 +154,7 @@ class Cascade:
         cc_area = abs(cc_bbs[0][0] - cc_bbs[1][0]) * abs(cc_bbs[0][1] - cc_bbs[1][1])
         haar_area = abs(haar_bbs[0][0] - haar_bbs[1][0]) * abs(haar_bbs[0][1] - haar_bbs[1][1])
         overlap = haar_area / cc_area
-        logger.debug('CASCADE - Overlap: ' + str(overlap))
+        logger.debug(f'CASCADE - Overlap: {overlap}')
         return overlap
 
     def infere_snout_crop(self, bbs, haar_bbs, bbs_face_bool, bbs_ff_conf, haar_face_bool, haar_ff_conf, cc_target_img):
@@ -179,24 +194,31 @@ class Cascade:
         (x_topleft_gt, y_topleft_gt), (x_bottomright_gt, y_bottomright_gt) = gt_bbox.tolist()
         (x_topleft_p, y_topleft_p), (x_bottomright_p, y_bottomright_p) = pred_bbox.tolist()
 
-        if (x_topleft_gt > x_bottomright_gt) or (y_topleft_gt > y_bottomright_gt):
+        if x_topleft_gt > x_bottomright_gt or y_topleft_gt > y_bottomright_gt:
             raise AssertionError("Ground Truth Bounding Box is not correct")
-        if (x_topleft_p > x_bottomright_p) or (y_topleft_p > y_bottomright_p):
-            raise AssertionError("Predicted Bounding Box is not correct", x_topleft_p, x_bottomright_p, y_topleft_p,
+        if x_topleft_p > x_bottomright_p or y_topleft_p > y_bottomright_p:
+            raise AssertionError("Predicted Bounding Box is not correct",
+                                 x_topleft_p,
+                                 x_bottomright_p,
+                                 y_topleft_p,
                                  y_bottomright_gt)
 
         # if the GT bbox and predcited BBox do not overlap then iou=0
-        if (
-                x_bottomright_gt < x_topleft_p):  # If bottom right of x-coordinate  GT  bbox is less than or above the top left of x coordinate of  the predicted BBox
+        if x_bottomright_gt < x_topleft_p:
+            # If bottom right of x-coordinate GT bbox is less than or above the top left
+            # of x coordinate of the predicted BBox
             return 0.0
-        if (
-                y_bottomright_gt < y_topleft_p):  # If bottom right of y-coordinate  GT  bbox is less than or above the top left of y coordinate of  the predicted BBox
+        if y_bottomright_gt < y_topleft_p:
+            # If bottom right of y-coordinate GT bbox is less than or above the top left
+            # of y coordinate of the predicted BBox
             return 0.0
-        if (
-                x_topleft_gt > x_bottomright_p):  # If bottom right of x-coordinate  GT  bbox is greater than or below the bottom right  of x coordinate of  the predcited BBox
+        if x_topleft_gt > x_bottomright_p:
+            # If bottom right of x-coordinate GT bbox is greater than or below the bottom
+            # right of x coordinate of the predicted BBox
             return 0.0
-        if (
-                y_topleft_gt > y_bottomright_p):  # If bottom right of y-coordinate  GT  bbox is greater than or below the bottom right  of y coordinate of  the predcited BBox
+        if y_topleft_gt > y_bottomright_p:
+            # If bottom right of y-coordinate GT bbox is greater than or below the bottom
+            # right of y coordinate of the predicted BBox
             return 0.0
 
         GT_bbox_area = (x_bottomright_gt - x_topleft_gt + 1) * (y_bottomright_gt - y_topleft_gt + 1)

@@ -37,7 +37,7 @@ class Camera:
                     (datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f"), frame)
                 )
                 i += 1
-                logger.debug("Quelength: " + str(len(main_deque)))
+                logger.debug(f'Quelength: {len(main_deque)}')
                 # print("sleeping (ms) " + str(self.framerate))
                 time.sleep(1 / self.framerate)
                 if i >= self.cleanup_threshold:
