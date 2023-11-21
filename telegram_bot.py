@@ -1,5 +1,7 @@
 import asyncio
 import os
+import sys
+
 import cv2
 import telegram
 from telegram.ext import Updater, CommandHandler
@@ -94,7 +96,8 @@ class NodeBot:
         self.send_text('Restarting script...')
         # We use a "successful" exit code to restart the script
         # This is interpreted as a call to restart the script
-        exit(0)
+        #sys.exit(0)
+        self.send_text("(Does not work yet)")
 
     def node_clean(self, update, context):
         self.send_text('Cleaning old logs...')
