@@ -46,8 +46,11 @@ def init_logger():
 
 def clean_logs():
     base_path = Path(log_base_folder)
+    removed_files = []
     for file in base_path.iterdir():
-        if file.is_dir() and (file.name == log_filename or file.name == log_dbg_filename):
+        if file.is_dir() or (file.is_file() and (file.name == log_filename or file.name == log_dbg_filename)):
             continue
         else:
+            removed_files.append(str(file))
             file.unlink(missing_ok=True)
+    return removed_files

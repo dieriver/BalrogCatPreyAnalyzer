@@ -97,7 +97,9 @@ class NodeBot:
         exit(0)
 
     def node_clean(self, update, context):
-        clean_logs()
+        self.send_text('Cleaning old logs...')
+        removed_paths = clean_logs()
+        self.send_text(f'Removed: [{*removed_paths,}]')
 
     def bot_send_last_casc_pic(self, update, context):
         if self.node_last_casc_img is not None:
