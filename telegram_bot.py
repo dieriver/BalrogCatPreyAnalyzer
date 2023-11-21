@@ -22,7 +22,7 @@ class NodeBot:
         self.commands = [
             '/help',
             '/clean',
-            '/reboot',
+            '/restart',
             '/sendlivepic',
             '/sendlastcascpic',
             '/letin',
@@ -55,8 +55,8 @@ class NodeBot:
         self.bot_dispatcher.add_handler(help_handler)
         clean = CommandHandler('clean', self.node_clean)
         self.bot_dispatcher.add_handler(clean)
-        reboot = CommandHandler('reboot', self.node_reboot)
-        self.bot_dispatcher.add_handler(reboot)
+        restart = CommandHandler('restart', self.node_restart_script)
+        self.bot_dispatcher.add_handler(restart)
         node_status_handler = CommandHandler('nodestatus', self.bot_send_status)
         self.bot_dispatcher.add_handler(node_status_handler)
         send_pic_handler = CommandHandler('sendlivepic', self.bot_send_live_pic)
@@ -90,7 +90,7 @@ class NodeBot:
         self.unlock_moria_for_seconds(self.let_in_open_time)
         self.node_let_in_flag = True
 
-    def node_reboot(self, update, context):
+    def node_restart_script(self, update, context):
         self.send_text('Restarting script...')
         # We use a "successful" exit code to restart the script
         # This is interpreted as a call to restart the script
