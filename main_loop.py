@@ -57,7 +57,7 @@ class SequentialCascadeFeeder:
         self.NO_PREY_FLAG = None
         self.bot = NodeBot()
         self.main_deque = deque()
-        self.camera = Camera(fps=10)
+        self.camera = Camera(fps=10, cleanup_threshold=60)
         self.processing_pool = ThreadPool(processes=4)
         self.camera_thread = Thread(target=self.camera.fill_queue, args=(self.main_deque,), daemon=True)
 

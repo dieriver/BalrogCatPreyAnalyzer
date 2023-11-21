@@ -1,8 +1,6 @@
 from threading import BoundedSemaphore
 from collections import deque
-import logging
-
-logger = logging.getLogger("cat_logger")
+from utils import logger
 
 
 class ImageBuffers:
