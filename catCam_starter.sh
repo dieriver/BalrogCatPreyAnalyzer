@@ -3,8 +3,18 @@
 echo "Executing CatPreyAnalyzer"
 # Tensorflow Stuff
 export CAT_PREY_ANALYZER_PATH="$(pwd)"
-while true; do
-	python3 __init__.py
-	sleep 5
-	#exit $?
+while : ; do
+  python3 __init__.py
+  case $? in
+  255)
+    echo "Exiting balrog script"
+    break
+    ;;
+  *)
+    # Whatever else will be interpreted as a restart of teh script
+    echo "Restarting balrog script"
+    sleep 5
+    true
+    ;;
+  esac
 done

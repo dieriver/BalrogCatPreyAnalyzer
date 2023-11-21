@@ -1,5 +1,4 @@
 import asyncio
-import time
 import os
 import cv2
 import telegram
@@ -78,6 +77,8 @@ class NodeBot:
 
     def node_reboot(self, update, context):
         self.send_text('Restarting script...')
+        # We use a "successful" exit code to restart the script
+        # This is interpreted as a call to restart the script
         exit(0)
 
     def bot_send_last_casc_pic(self, update, context):
