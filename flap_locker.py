@@ -47,6 +47,9 @@ class FlapLocker:
                     return cat_flap.state
         except Exception:
             logger.exception('+++ Exception while getting last flap state: ')
+            # We assume a default value;
+            logger.debug('WARNING: We assume that the old state was "LOCKED_OUT"')
+            return LockState.LOCKED_OUT
 
     async def set_moria_lock_state(self, state: LockState, telegram_bot):
         # list with all devices
@@ -92,4 +95,3 @@ class FlapLocker:
         await asyncio.sleep(seconds)
         logger.debug(f"Setting back old state = {old_state}")
         await self.set_moria_lock_state(old_state, telegram_bot)
-        old_state = LockState.UNLOCKED
