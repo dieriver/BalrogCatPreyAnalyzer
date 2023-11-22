@@ -16,7 +16,6 @@ class FlapLocker:
         if os.getenv('SUREPET_PASSWORD') == "":
             raise Exception("Surepet password not set!. Please set the 'SUREPET_PASSWORD' environment variable")
         self.surepy = Surepy(email=os.getenv('SUREPET_USER'), password=os.getenv('SUREPET_PASSWORD'))
-        self.old_state = LockState.UNLOCKED
 
         # token authentication (token supplied via SUREPY_TOKEN env var)
         #token = 'XXXXX' # Complete if necessary
@@ -40,11 +39,14 @@ class FlapLocker:
             telegram_bot.send_text(f"{entities[device.parent_id].full_name = } | {entities[device.parent_id] = }\n")
 
     async def get_lock_state(self):
-        devices: List[SurepyDevice] = await self.surepy.get_devices()
-        for device in devices:
-            if device.type == EntityType.CAT_FLAP:
-                cat_flap: Flap = device;
-                return cat_flap.state
+        try:
+            devices: List[SurepyDevice] = await self.surepy.get_devices()
+            for device in devices:
+                if device.type == EntityType.CAT_FLAP:
+                    cat_flap: Flap = device
+                    return cat_flap.state
+        except Exception:
+            logger.exception('+++ Exception while getting last flap state: ')
 
     async def set_moria_lock_state(self, state: LockState, telegram_bot):
         # list with all devices
@@ -79,15 +81,15 @@ class FlapLocker:
         await self.set_moria_lock_state(LockState.CURFEW_UNLOCKED, telegram_bot)
 
     async def unlock_for_seconds(self, telegram_bot, seconds: int):
-        self.old_state = await self.get_lock_state()
-        logger.debug(f"Old state = {self.old_state}")
-        if self.old_state >= LockState.CURFEW:
+        old_state = await self.get_lock_state()
+        logger.debug(f"Old state = {old_state}")
+        if old_state >= LockState.CURFEW:
             new_state = LockState.CURFEW_UNLOCKED
         else:
             new_state = LockState.UNLOCKED
         logger.debug(f"New state = {new_state}")
         await self.set_moria_lock_state(new_state, telegram_bot)
         await asyncio.sleep(seconds)
-        logger.debug(f"Setting back old state = {self.old_state}")
-        await self.set_moria_lock_state(self.old_state, telegram_bot)
-        self.old_state = LockState.UNLOCKED
+        logger.debug(f"Setting back old state = {old_state}")
+        await self.set_moria_lock_state(old_state, telegram_bot)
+        old_state = LockState.UNLOCKED
