@@ -14,6 +14,7 @@ from detection_callbacks import send_cat_detected_message, send_dk_message, send
 from camera_class import Camera
 from telegram_bot import NodeBot
 from utils import logger, cat_cam_py
+from config import general_config, model_config
 
 
 class SequentialCascadeFeeder:
@@ -34,9 +35,7 @@ class SequentialCascadeFeeder:
         logger.info(f'Log Dir: {self.log_dir}')
         self.event_nr = 0
         self.base_cascade = Cascade()
-        self.DEFAULT_FPS_OFFSET = 3
-        self.QUEUE_MAX_THRESHOLD = 100
-        self.fps_offset = self.DEFAULT_FPS_OFFSET
+        self.fps_offset = general_config.default_fps_offset
         self.MAX_PROCESSES = 5
         self.EVENT_FLAG = False
         self.event_objects = []
@@ -44,21 +43,19 @@ class SequentialCascadeFeeder:
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
         self.FACE_FOUND_FLAG = False
-        self.event_reset_threshold = 6
         self.event_reset_counter = 0
         self.cat_counter = 0
-        self.cat_counter_threshold = 6
         self.cumulus_points = 0
-        self.cumulus_prey_threshold = -10
-        self.cumulus_no_prey_threshold = 2.9603
-        self.prey_val_hard_threshold = 0.6
         self.face_counter = 0
         self.PREY_FLAG = None
         self.NO_PREY_FLAG = None
         self.bot = NodeBot()
         self.main_deque = deque()
-        self.camera = Camera(fps=10, cleanup_threshold=60)
-        self.processing_pool = ThreadPool(processes=4)
+        self.camera = Camera(
+            fps=general_config.camera_fps,
+            cleanup_threshold=general_config.camera_cleanup_frames_threshold
+        )
+        self.processing_pool = ThreadPool(processes=general_config.max_message_sender_threads)
         self.camera_thread = Thread(target=self.camera.fill_queue, args=(self.main_deque,), daemon=True)
 
     def reset_cumuli_et_al(self):
@@ -68,7 +65,7 @@ class SequentialCascadeFeeder:
         self.CAT_DETECTED_FLAG = False
         self.FACE_FOUND_FLAG = False
         self.cumulus_points = 0
-        self.fps_offset = self.DEFAULT_FPS_OFFSET
+        self.fps_offset = general_config.default_fps_offset
         self.event_reset_counter = 0
         self.cat_counter = 0
         self.face_counter = 0
@@ -95,12 +92,12 @@ class SequentialCascadeFeeder:
         self.camera_thread.start()
 
         while True:
-            if len(self.main_deque) > self.QUEUE_MAX_THRESHOLD:
+            if len(self.main_deque) > general_config.queue_max_threshold:
                 self.reset_cumuli_et_al()
                 logger.info('EMPTYING QUEUE BECAUSE MAXIMUM THRESHOLD REACHED!')
                 self.bot.send_text('Queue overflowed... emptying Queue!')
 
-            elif len(self.main_deque) > self.DEFAULT_FPS_OFFSET:
+            elif len(self.main_deque) > general_config.default_fps_offset:
                 self.queue_worker()
 
             else:
@@ -153,7 +150,7 @@ class SequentialCascadeFeeder:
             self.event_objects.append(cascade_obj)
             # Send a message on Telegram to ask what to do
             self.cat_counter += 1
-            if self.cat_counter >= self.cat_counter_threshold and not self.CAT_DETECTED_FLAG:
+            if self.cat_counter >= model_config.cat_counter_threshold and not self.CAT_DETECTED_FLAG:
                 self.CAT_DETECTED_FLAG = True
                 node_live_img_cpy = self.bot.node_live_img
                 self.processing_pool.apply_async(send_cat_detected_message, args=(self.bot, node_live_img_cpy, 0,))
@@ -173,7 +170,7 @@ class SequentialCascadeFeeder:
 
             # Check the cumuli points and set flags if necessary
             if self.face_counter > 0 and self.PATIENCE_FLAG:
-                if self.cumulus_points / self.face_counter > self.cumulus_no_prey_threshold:
+                if self.cumulus_points / self.face_counter > model_config.cumulus_no_prey_threshold:
                     self.NO_PREY_FLAG = True
                     logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
                     events_cpy = self.event_objects.copy()
@@ -183,7 +180,7 @@ class SequentialCascadeFeeder:
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
                     self.reset_cumuli_et_al()
-                elif self.cumulus_points / self.face_counter < self.cumulus_prey_threshold:
+                elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('**** IT IS A PREY!!!!! ****')
                     events_cpy = self.event_objects.copy()
@@ -205,7 +202,7 @@ class SequentialCascadeFeeder:
         else:
             logger.info('**** NO CAT FOUND! ****')
             self.event_reset_counter += 1
-            if self.event_reset_counter >= self.event_reset_threshold:
+            if self.event_reset_counter >= model_config.event_reset_threshold:
                 # If was True => event now over => clear queue
                 if self.EVENT_FLAG:
                     logger.debug('---- CLEARED QUEUE BECAUSE EVENT OVER WITHOUT CONCLUSION... ----')

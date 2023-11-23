@@ -1,0 +1,13 @@
+[general]
+max_message_sender_threads = 2
+default_fps_offset = 3
+queue_max_threshold = 100
+camera_fps = 10
+camera_cleanup_frames_threshold = 60
+
+[model]
+event_reset_threshold = 6
+cat_counter_threshold = 6
+cumulus_prey_threshold = -10
+cumulus_no_prey_threshold = 2.9603
+prey_val_hard_threshold = 0.6

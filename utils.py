@@ -4,16 +4,17 @@ import logging
 from pathlib import Path
 from logging import handlers
 
+cat_cam_py = os.getenv('CAT_PREY_ANALYZER_PATH')
+
+
 # We configure the logging
 logger = logging.getLogger("cat_logger")
 log_base_folder = '/var/log/balrog-logs/'
 log_filename = 'cat_logger.log'
 log_dbg_filename = 'cat_logger-dbg.log'
 
-cat_cam_py = os.getenv('CAT_PREY_ANALYZER_PATH')
 
-
-def init_logger():
+def init_logger() -> None:
     logger.setLevel(logging.DEBUG)
 
     stdout_handler = logging.StreamHandler(stream=sys.stdout)
@@ -44,7 +45,7 @@ def init_logger():
     logger.addHandler(dbg_file_handler)
 
 
-def clean_logs():
+def clean_logs() -> list[str]:
     base_path = Path(log_base_folder)
     removed_files = []
     for file in base_path.iterdir():
