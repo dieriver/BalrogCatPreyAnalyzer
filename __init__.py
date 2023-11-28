@@ -7,7 +7,7 @@ from camera_class import Camera
 
 if __name__ == '__main__':
     init_logger()
-    frame_buffers = ImageBuffers(2 * general_config.queue_max_threshold)
+    frame_buffers = ImageBuffers(2 * general_config.max_frame_buffers)
 
     frame_aggregator = FrameResultAggregator(frame_buffers)
     camera = Camera(

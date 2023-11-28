@@ -160,9 +160,11 @@ class ImageBuffers:
 
     def frames_ready_for_aggregation(self) -> int:
         result = 0
+        self.base_index_lock.acquire()
         for buffer in self.circular_buffer:
             if buffer.is_ready_for_aggregation():
                 result += 1
+        self.base_index_lock.release()
         return result
 
     def get_next_img_lock(self) -> int:

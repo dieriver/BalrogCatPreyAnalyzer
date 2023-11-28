@@ -17,33 +17,31 @@ from image_container import ImageBuffers
 
 class FrameResultAggregator:
     """
-    Implementation of the main loop of the software. This class:
-      * Starts the thread that reads the frames from the camera class and puts them on a queue
-      * Starts the main loop which:
-      * Constantly checks the queue from the camera
-      * Reads a frame from the queue (if there are enough frames)
-      * Invokes the cascade on the frame to compute the results
-      * Process the results of the cascade, computing cumulative with previous frames' results
+    Implementation of the aggregation loop of the software. This class:
+      * Starts the thread that reads the already-processed frames from the shared circular buffer
+      * Starts the aggregation process which:
+      * Constantly checks the circular buffer for frames ready to be aggregared
+      * Reads a frame from the buffer (if there are enough ready frames)
+      * Aggregates the results, computing cumulative with previous frames' results
       * Invokes the telegram callbacks with the verdicts.
-    TODO - The main loop of this class (method `queue_worker`) takes a lot of responsibility.
-    It would be great to refactor that code
     """
     def __init__(self, frame_buffers: ImageBuffers):
+        self.bot = NodeBot()
+        self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
+        # Aggregation fields
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
         self.FACE_FOUND_FLAG = False
         self.PREY_FLAG = None
         self.NO_PREY_FLAG = None
-        self.event_objects = []
         self.patience_counter = 0
         self.event_reset_counter = 0
         self.cumulus_points = 0
         self.cat_counter = 0
         self.face_counter = 0
-        self.bot = NodeBot()
-        self.main_deque = frame_buffers
-        self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
+        self.event_objects = []
+        self.frame_buffers = frame_buffers
 
     def __enter__(self):
         # We don't do anything here
@@ -60,7 +58,7 @@ class FrameResultAggregator:
             logger.error(f"Traceback: {traceback}")
             sys.exit(1)
 
-    def reset_cumuli_et_al(self):
+    def reset_aggregation_fields(self):
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
@@ -72,58 +70,47 @@ class FrameResultAggregator:
         self.cumulus_points = 0
         self.cat_counter = 0
         self.face_counter = 0
+        self.event_objects.clear()
+        self.frame_buffers.clean()
 
         # Close the node_letin flag
         # TODO - This should not be modified here!
         self.bot.node_let_in_flag = False
 
-        # for item in self.event_objects:
-        #    del item
-        self.event_objects.clear()
-
-        self.main_deque.clean()
-
         gc.collect()
 
     def queue_handler(self):
         while True:
-            if len(self.main_deque) > general_config.queue_max_threshold:
-                self.reset_cumuli_et_al()
-                logger.info('EMPTYING QUEUE BECAUSE MAXIMUM THRESHOLD REACHED!')
-                self.bot.send_text('Queue overflowed... emptying Queue!')
-                continue
+            # We check if there are enough frames to work with (according to the config)
+            frames_rdy_for_aggregation = self.frame_buffers.frames_ready_for_aggregation()
 
-            # We check if there are enough frames to work with
-            elif self.main_deque.frames_ready_for_aggregation() > general_config.min_frames_threshold:
-                self.queue_worker()
-
-            # We simply wait for new frames to be ready (The camera thread should propulate the deque)
+            if frames_rdy_for_aggregation > general_config.min_aggregation_frames_threshold:
+                # Here we go :)
+                self.aggregate_available_frames()
             else:
-                logger.info(f'Nothing to work with => Queue length: {len(self.main_deque)}')
+                # We simply wait for new frames to be ready (The camera thread should propulate the deque)
+                logger.info(f'Nothing to work with => Available buffers: {frames_rdy_for_aggregation}')
                 time.sleep(0.25)
 
             # Check if user force opens the door
             if self.bot.node_let_in_flag:
                 # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
-                self.reset_cumuli_et_al()
+                self.reset_aggregation_fields()
 
-    def queue_worker(self):
-        next_frame_index = self.main_deque.get_next_aggregation_lock()
+    def aggregate_available_frames(self):
+        # We get the last buffer, and extract its data
+        next_frame_index = self.frame_buffers.get_next_aggregation_lock()
         if next_frame_index < 0:
             return
 
-        next_frame = self.main_deque[next_frame_index]
+        next_frame = self.frame_buffers[next_frame_index]
         cascade_obj = next_frame.get_event_element()
         overhead = next_frame.get_overhead()
 
         # Add this such that the bot has some info
-        self.bot.node_queue_info = len(self.main_deque)
+        self.bot.node_queue_info = len(self.frame_buffers)
         self.bot.node_live_img = next_frame.get_img_data()
         self.bot.node_over_head_info = overhead
-
-        # Always delete the left part
-        # for i in range(self.fps_offset + 1):
-        #     self.main_deque.popleft()
 
         if cascade_obj.cc_cat_bool:
             # We are inside an event => add event_obj to list
@@ -161,7 +148,7 @@ class FrameResultAggregator:
                         send_no_prey_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                    self.reset_cumuli_et_al()
+                    self.reset_aggregation_fields()
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('**** IT IS A PREY!!!!! ****')
@@ -171,7 +158,7 @@ class FrameResultAggregator:
                         send_prey_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                    self.reset_cumuli_et_al()
+                    self.reset_aggregation_fields()
                 else:
                     self.NO_PREY_FLAG = False
                     self.PREY_FLAG = False
@@ -197,7 +184,7 @@ class FrameResultAggregator:
                         send_dk_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                self.reset_cumuli_et_al()
+                self.reset_aggregation_fields()
 
         if self.EVENT_FLAG and self.FACE_FOUND_FLAG:
             self.patience_counter += 1
