@@ -3,9 +3,9 @@ from enum import Enum
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from threading import BoundedSemaphore
+from threading import BoundedSemaphore, Lock
 
-import cv2.typing
+from cv2.typing import MatLike
 
 from utils import logger
 from cascade import EventElement
@@ -13,7 +13,7 @@ from cascade import EventElement
 
 @dataclass
 class _CaptureImageData:
-    img_data: cv2.typing.MatLike | None = None
+    img_data: MatLike | None = None
     timestamp: datetime | None = None
 
 
@@ -115,8 +115,22 @@ class ImageContainer:
 
 class ImageBuffers:
     def __init__(self, max_capacity):
+        """
+        Creates a pre-allocated circular buffer with the given maximum capacity.
+        All the indexes returned by methods of this class will return an integer in
+        the range [0, max_capacity)
+        :param max_capacity: the maximum capacity of the circular buffer
+        """
         self.circular_buffer: deque[ImageContainer] = deque(maxlen=max_capacity)
-        for i in range(0, max_capacity):
+        # To emulate the circular behavior, we will keep a reference _of the first_ index that
+        # is in use. When computing any "next available index" we will iterate over the range:
+        # [self.base_index, self.base_index + max_capacity). Of course, this range extends to
+        # the outside of the max_capacity (length) of self.circular_buffer, however, to fix that
+        # (and to keep the circular behavior) we will use the integers on that range _modulus_
+        # max_capacity.
+        self.base_index = 0
+        self.base_index_lock = Lock()
+        for i in range(self.base_index, self.base_index + max_capacity):
             self.circular_buffer.append(ImageContainer())
 
     def __len__(self):
@@ -152,27 +166,42 @@ class ImageBuffers:
         return result
 
     def get_next_img_lock(self) -> int:
-        for i in range(0, len(self.circular_buffer)):
-            instance = self.circular_buffer[i]
+        self.base_index_lock.acquire()
+        index = -1
+        for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+            instance = self.circular_buffer[i % len(self.circular_buffer)]
             if instance.try_acquire_img_lock():
-                return i
-        return -1
+                index = i
+                break
+        self.base_index_lock.release()
+        return index
 
     def get_next_casc_compute_lock(self) -> int:
-        for i in range(0, len(self.circular_buffer)):
-            instance = self.circular_buffer[i]
+        self.base_index_lock.acquire()
+        index = -1
+        for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+            instance = self.circular_buffer[i % len(self.circular_buffer)]
             if instance.try_acquire_casc_compute_lock():
-                return i
-        return -1
+                index = i
+                break
+        self.base_index_lock.release()
+        return index
 
     def get_next_aggregation_lock(self) -> int:
-        for i in range(0, len(self.circular_buffer)):
-            instance = self.circular_buffer[i]
+        self.base_index_lock.acquire()
+        index = -1
+        for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+            instance = self.circular_buffer[i % len(self.circular_buffer)]
             if instance.try_acquire_casc_result_available_lock():
-                return i
-        return -1
+                index = i
+                break
+        self.base_index_lock.release()
+        return index
 
     def reset_buffer(self, index):
         logger.debug(f"Releasing buffer # = {index}")
+        self.base_index_lock.acquire()
+        self.base_index = (self.base_index + 1) % len(self.circular_buffer)
         self.circular_buffer[index].try_acquire_casc_result_available_lock()
         self.circular_buffer[index].release_img_lock()
+        self.base_index_lock.release()
