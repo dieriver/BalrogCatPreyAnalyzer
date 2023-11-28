@@ -38,9 +38,17 @@ class Camera:
             i = 0
             while camera.isOpened():
                 ret, frame = camera.read()
-                self.frame_buffers.write_img_to_next_buffer(frame, datetime.now(pytz.timezone('Europe/Zurich')))
+
+                index = self.frame_buffers.get_next_img_lock()
+                if index < 0:
+                    logger.warning("Could not find a buffer ready to write an image, discarding the frame")
+                    continue
+
+                next_buffer = self.frame_buffers[index]
+                next_buffer.write_capture_data(frame, datetime.now(pytz.timezone('Europe/Zurich')))
+                next_buffer.release_casc_compute_lock()
+
                 i += 1
-                logger.debug(f'Queue length: {len(self.frame_buffers)}')
                 # print(f"Camera thread sleeping '{self.frame_rate}' (ms), before obtain the next frame (keep fps)")
                 time.sleep(1 / self.frame_rate)
                 if i >= self.cleanup_threshold:

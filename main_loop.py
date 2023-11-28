@@ -29,7 +29,6 @@ class FrameResultAggregator:
     It would be great to refactor that code
     """
     def __init__(self, frame_buffers: ImageBuffers):
-        self.base_cascade = Cascade()
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
@@ -87,9 +86,6 @@ class FrameResultAggregator:
         gc.collect()
 
     def queue_handler(self):
-        # Do this to force run all networks s.t. the network inference time stabilizes
-        self.single_debug()
-
         while True:
             if len(self.main_deque) > general_config.queue_max_threshold:
                 self.reset_cumuli_et_al()
@@ -112,29 +108,18 @@ class FrameResultAggregator:
                 self.reset_cumuli_et_al()
 
     def queue_worker(self):
-        logger.info(f'Working the Queue with len: {len(self.main_deque)}')
-        # Feed the latest image in the Queue through the cascade
-        next_frame_index = self.main_deque.get_next_casc_compute_lock()
-        next_frame = self.main_deque[next_frame_index]
-
+        next_frame_index = self.main_deque.get_next_aggregation_lock()
         if next_frame_index < 0:
-            # We couldn't acquire the lock of a frame to compute the cascade; pass
             return
 
-        total_runtime, cascade_obj = self.feed_to_cascade(
-            target_img=next_frame.get_img_data(),
-            img_name=next_frame.get_timestamp()
-        )
-        done_timestamp = datetime.now(pytz.timezone('Europe/Zurich'))
-        logger.debug(f'Timestamp at Done Runtime: {done_timestamp}')
-
-        overhead = (done_timestamp - next_frame.get_timestamp())
-        logger.debug(f'Overhead: {overhead.total_seconds()}')
+        next_frame = self.main_deque[next_frame_index]
+        cascade_obj = next_frame.get_event_element()
+        overhead = next_frame.get_overhead()
 
         # Add this such that the bot has some info
         self.bot.node_queue_info = len(self.main_deque)
         self.bot.node_live_img = next_frame.get_img_data()
-        self.bot.node_over_head_info = overhead.total_seconds()
+        self.bot.node_over_head_info = overhead
 
         # Always delete the left part
         # for i in range(self.fps_offset + 1):
@@ -221,7 +206,41 @@ class FrameResultAggregator:
         if self.face_counter > 1:
             self.PATIENCE_FLAG = True
 
-    def feed_to_cascade(self, target_img, img_name):
+
+class FrameProcessor:
+    """
+    Implementation of the main loop of the software. This class:
+      * Starts the thread that reads the frames stored by the camera thread in the shared circular buffer
+      * Starts the main loop which:
+      * Constantly checks the circular buffer for images ready to be processed
+      * Reads a frame from the buffer (if there are enough frames)
+      * Invokes the cascade on the frame to compute the results
+      * Writes the results to the circular buffer
+      * Marks the buffer as ready to be aggregated
+    """
+    def __init__(self, frame_buffers: ImageBuffers):
+        self.base_cascade = Cascade()
+        self.frame_buffers = frame_buffers
+        self.frame_processor_pool = ThreadPool(processes=general_config.max_message_sender_threads)
+
+    def __enter__(self):
+        # Do this to force run all networks s.t. the network inference time stabilizes
+        self.single_debug()
+        # We need to submit the process tasks here
+        self.frame_processor_pool.apply_async(func=self.process_frame, args=())
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.frame_processor_pool.terminate()
+        if exception_type is not None:
+            logger.error(f"Something wrong happened in the frame processor thread")
+            logger.error(f"Exception type: {exception_type}")
+        if exception_value is not None:
+            logger.error(f"Exception value: {exception_value}")
+        if traceback is not None:
+            logger.error(f"Traceback: {traceback}")
+        return True
+
+    def feed_to_cascade(self, target_img, img_name) -> tuple[float, EventElement]:
         target_event_obj = EventElement(img_name=img_name, cc_target_img=target_img)
 
         start_time = time.time()
@@ -239,6 +258,28 @@ class FrameResultAggregator:
 
         return total_runtime, single_cascade
 
+    def process_frame(self):
+        while True:
+            logger.info(f'Working the Queue with len: {len(self.frame_buffers)}')
+            # Feed the latest image in the Queue through the cascade
+            next_frame_index = self.frame_buffers.get_next_casc_compute_lock()
+            next_frame = self.frame_buffers[next_frame_index]
+
+            if next_frame_index < 0:
+                # We couldn't acquire the lock of a frame to compute the cascade; pass
+                return
+
+            total_runtime, cascade_obj = self.feed_to_cascade(
+                target_img=next_frame.get_img_data(),
+                img_name=next_frame.get_timestamp()
+            )
+            overhead = (datetime.now(pytz.timezone('Europe/Zurich')) - next_frame.get_timestamp())
+            logger.debug(f'Overhead: {overhead.total_seconds()}')
+            # TODO - set the returned information in the buffer; then release the lock for aggregation
+            logger.debug(f"Writing cascade result of buffer # = {next_frame_index}")
+            next_frame.write_cascade_data(cascade_obj, total_runtime, overhead.total_seconds())
+            next_frame.release_casc_res_available_lock()
+
     def single_debug(self):
         start_time = time.time()
         target_img_name = 'dummy_img.jpg'
@@ -247,21 +288,5 @@ class FrameResultAggregator:
         )
         cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name)[1]
         current_time = time.time()
-        logger.debug(f'Runtime: {current_time - start_time}')
+        logger.debug(f'Debug cascade runtime: {current_time - start_time}')
         return cascade_obj
-
-
-class FrameProcessor:
-    """
-    Implementation of the main loop of the software. This class:
-      * Starts the thread that reads the frames from the camera class and puts them on a queue
-      * Starts the main loop which:
-      * Constantly checks the queue from the camera
-      * Reads a frame from the queue (if there are enough frames)
-      * Invokes the cascade on the frame to compute the results
-      * Marks the buffer as ready to be aggregated
-    """
-    def __init__(self):
-        # TODO - Move the fields required by the aggregation to this class.
-        pass
-

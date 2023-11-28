@@ -1,5 +1,6 @@
 [general]
 max_message_sender_threads = 2
+max_frame_processor_threads = 1
 min_frames_threshold = 3
 queue_max_threshold = 100
 camera_fps = 10
