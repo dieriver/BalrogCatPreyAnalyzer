@@ -4,7 +4,6 @@ import time
 import cv2
 import pytz
 from datetime import datetime
-from collections import deque
 from threading import Thread
 from multiprocessing.pool import ThreadPool
 
@@ -14,6 +13,7 @@ from camera_class import Camera
 from telegram_bot import NodeBot
 from utils import logger, cat_cam_py
 from config import general_config, model_config
+from image_container import ImageBuffers
 
 
 class SequentialCascadeFeeder:
@@ -37,7 +37,6 @@ class SequentialCascadeFeeder:
         self.FACE_FOUND_FLAG = False
         self.PREY_FLAG = None
         self.NO_PREY_FLAG = None
-        self.fps_offset = general_config.default_fps_offset
         self.event_objects = []
         self.patience_counter = 0
         self.event_reset_counter = 0
@@ -45,7 +44,7 @@ class SequentialCascadeFeeder:
         self.cat_counter = 0
         self.face_counter = 0
         self.bot = NodeBot()
-        self.main_deque = deque()
+        self.main_deque = ImageBuffers(2 * general_config.queue_max_threshold)
         self.camera = Camera(
             fps=general_config.camera_fps,
             cleanup_threshold=general_config.camera_cleanup_frames_threshold
@@ -60,7 +59,6 @@ class SequentialCascadeFeeder:
         self.FACE_FOUND_FLAG = False
         self.PREY_FLAG = None
         self.NO_PREY_FLAG = None
-        self.fps_offset = general_config.default_fps_offset
         self.patience_counter = 0
         self.event_reset_counter = 0
         self.cumulus_points = 0
@@ -71,13 +69,11 @@ class SequentialCascadeFeeder:
         # TODO - This should not be modified here!
         self.bot.node_let_in_flag = False
 
-        #for item in self.event_objects:
+        # for item in self.event_objects:
         #    del item
         self.event_objects.clear()
 
-        for item in self.main_deque:
-            del item
-        self.main_deque.clear()
+        self.main_deque.clean()
 
         gc.collect()
 
@@ -91,10 +87,13 @@ class SequentialCascadeFeeder:
                 self.reset_cumuli_et_al()
                 logger.info('EMPTYING QUEUE BECAUSE MAXIMUM THRESHOLD REACHED!')
                 self.bot.send_text('Queue overflowed... emptying Queue!')
+                continue
 
-            elif len(self.main_deque) > general_config.default_fps_offset:
+            # We check if there are enough frames to work with
+            elif self.main_deque.frames_ready_for_aggregation() > general_config.min_frames_threshold:
                 self.queue_worker()
 
+            # We simply wait for new frames to be ready (The camera thread should propulate the deque)
             else:
                 logger.info(f'Nothing to work with => Queue length: {len(self.main_deque)}')
                 time.sleep(0.25)
@@ -112,30 +111,32 @@ class SequentialCascadeFeeder:
 
     def queue_worker(self):
         logger.info(f'Working the Queue with len: {len(self.main_deque)}')
-        start_time = time.time()
         # Feed the latest image in the Queue through the cascade
+        next_frame_index = self.main_deque.get_next_casc_compute_lock()
+        next_frame = self.main_deque[next_frame_index]
+
+        if next_frame_index < 0:
+            # We couldn't acquire the lock of a frame to compute the cascade; pass
+            return
+
         total_runtime, cascade_obj = self.feed_to_cascade(
-            target_img=self.main_deque[self.fps_offset][1],
-            img_name=self.main_deque[self.fps_offset][0]
+            target_img=next_frame.get_img_data(),
+            img_name=next_frame.get_timestamp()
         )
-        current_time = time.time()
-        logger.debug(f'Runtime: {current_time - start_time}')
-        done_timestamp = datetime.now(pytz.timezone('Europe/Zurich')).strftime("%Y_%m_%d_%H-%M-%S.%f")
+        done_timestamp = datetime.now(pytz.timezone('Europe/Zurich'))
         logger.debug(f'Timestamp at Done Runtime: {done_timestamp}')
 
-        overhead = (datetime.strptime(done_timestamp, "%Y_%m_%d_%H-%M-%S.%f") -
-                    datetime.strptime(self.main_deque[self.fps_offset][0], "%Y_%m_%d_%H-%M-%S.%f")
-                    )
-        logger.debug('Overhead:' + str(overhead.total_seconds()))
+        overhead = (done_timestamp - next_frame.get_timestamp())
+        logger.debug(f'Overhead: {overhead.total_seconds()}')
 
         # Add this such that the bot has some info
         self.bot.node_queue_info = len(self.main_deque)
-        self.bot.node_live_img = self.main_deque[self.fps_offset][1]
+        self.bot.node_live_img = next_frame.get_img_data()
         self.bot.node_over_head_info = overhead.total_seconds()
 
         # Always delete the left part
-        for i in range(self.fps_offset + 1):
-            self.main_deque.popleft()
+        # for i in range(self.fps_offset + 1):
+        #     self.main_deque.popleft()
 
         if cascade_obj.cc_cat_bool:
             # We are inside an event => add event_obj to list
@@ -152,7 +153,7 @@ class SequentialCascadeFeeder:
             # Last cat pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
 
-            self.fps_offset = 0
+            # self.fps_offset = 0
             # If face found add the cumulus points
             if cascade_obj.face_bool:
                 logger.info('**** FACE FOUND! ****')

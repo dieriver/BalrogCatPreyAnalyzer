@@ -5,7 +5,7 @@ from tomllib import load
 @dataclass
 class GeneralConfigs:
     max_message_sender_threads: int
-    default_fps_offset: int
+    min_frames_threshold: int
     queue_max_threshold: int
     camera_fps: int
     camera_cleanup_frames_threshold: int
@@ -37,7 +37,7 @@ def load_general_config() -> GeneralConfigs:
         loaded_bytes = load(config_file)
         return GeneralConfigs(
             loaded_bytes["general"]["max_message_sender_threads"],
-            loaded_bytes["general"]["default_fps_offset"],
+            loaded_bytes["general"]["min_frames_threshold"],
             loaded_bytes["general"]["queue_max_threshold"],
             loaded_bytes["general"]["camera_fps"],
             loaded_bytes["general"]["camera_cleanup_frames_threshold"]
