@@ -7,7 +7,6 @@ from datetime import datetime
 from collections import deque
 from threading import Thread
 from multiprocessing.pool import ThreadPool
-import xml.etree.ElementTree as ET
 
 from cascade import Cascade, EventElement
 from detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
@@ -31,49 +30,45 @@ class SequentialCascadeFeeder:
     It would be great to refactor that code
     """
     def __init__(self):
-        self.log_dir = os.path.join(os.getcwd(), 'log')
-        logger.info(f'Log Dir: {self.log_dir}')
-        self.event_nr = 0
         self.base_cascade = Cascade()
-        self.fps_offset = general_config.default_fps_offset
-        self.MAX_PROCESSES = 5
         self.EVENT_FLAG = False
-        self.event_objects = []
-        self.patience_counter = 0
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
         self.FACE_FOUND_FLAG = False
-        self.event_reset_counter = 0
-        self.cat_counter = 0
-        self.cumulus_points = 0
-        self.face_counter = 0
         self.PREY_FLAG = None
         self.NO_PREY_FLAG = None
+        self.fps_offset = general_config.default_fps_offset
+        self.event_objects = []
+        self.patience_counter = 0
+        self.event_reset_counter = 0
+        self.cumulus_points = 0
+        self.cat_counter = 0
+        self.face_counter = 0
         self.bot = NodeBot()
         self.main_deque = deque()
         self.camera = Camera(
             fps=general_config.camera_fps,
             cleanup_threshold=general_config.camera_cleanup_frames_threshold
         )
-        self.processing_pool = ThreadPool(processes=general_config.max_message_sender_threads)
+        self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
         self.camera_thread = Thread(target=self.camera.fill_queue, args=(self.main_deque,), daemon=True)
 
     def reset_cumuli_et_al(self):
         self.EVENT_FLAG = False
-        self.patience_counter = 0
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
         self.FACE_FOUND_FLAG = False
-        self.cumulus_points = 0
-        self.fps_offset = general_config.default_fps_offset
-        self.event_reset_counter = 0
-        self.cat_counter = 0
-        self.face_counter = 0
         self.PREY_FLAG = None
         self.NO_PREY_FLAG = None
+        self.fps_offset = general_config.default_fps_offset
+        self.patience_counter = 0
+        self.event_reset_counter = 0
         self.cumulus_points = 0
+        self.cat_counter = 0
+        self.face_counter = 0
 
         # Close the node_letin flag
+        # TODO - This should not be modified here!
         self.bot.node_let_in_flag = False
 
         #for item in self.event_objects:
@@ -113,7 +108,7 @@ class SequentialCascadeFeeder:
         # We stop the camera thread and the thread pool
         self.camera.stop_thread()
         self.camera_thread.join()
-        self.processing_pool.terminate()
+        self.verdict_sender_pool.terminate()
 
     def queue_worker(self):
         logger.info(f'Working the Queue with len: {len(self.main_deque)}')
@@ -146,14 +141,13 @@ class SequentialCascadeFeeder:
             # We are inside an event => add event_obj to list
             logger.info('**** CAT FOUND! ****')
             self.EVENT_FLAG = True
-            self.event_nr = self.get_event_nr()
             self.event_objects.append(cascade_obj)
             # Send a message on Telegram to ask what to do
             self.cat_counter += 1
             if self.cat_counter >= model_config.cat_counter_threshold and not self.CAT_DETECTED_FLAG:
                 self.CAT_DETECTED_FLAG = True
                 node_live_img_cpy = self.bot.node_live_img
-                self.processing_pool.apply_async(send_cat_detected_message, args=(self.bot, node_live_img_cpy, 0,))
+                self.verdict_sender_pool.apply_async(send_cat_detected_message, args=(self.bot, node_live_img_cpy, 0,))
 
             # Last cat pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
@@ -175,7 +169,7 @@ class SequentialCascadeFeeder:
                     logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
                     events_cpy = self.event_objects.copy()
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.processing_pool.apply_async(
+                    self.verdict_sender_pool.apply_async(
                         send_no_prey_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
@@ -185,7 +179,7 @@ class SequentialCascadeFeeder:
                     logger.info('**** IT IS A PREY!!!!! ****')
                     events_cpy = self.event_objects.copy()
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.processing_pool.apply_async(
+                    self.verdict_sender_pool.apply_async(
                         send_prey_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
@@ -211,7 +205,7 @@ class SequentialCascadeFeeder:
                         self.face_counter = 1
                     events_cpy = self.event_objects.copy()
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.processing_pool.apply_async(
+                    self.verdict_sender_pool.apply_async(
                         send_dk_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
@@ -252,11 +246,3 @@ class SequentialCascadeFeeder:
         current_time = time.time()
         logger.debug(f'Runtime: {current_time - start_time}')
         return cascade_obj
-
-    def get_event_nr(self):
-        tree = ET.parse(os.path.join(self.log_dir, 'info.xml'))
-        data = tree.getroot()
-        img_nr = int(data.find('node').get('imgNr'))
-        data.find('node').set('imgNr', str(int(img_nr) + 1))
-        tree.write(os.path.join(self.log_dir, 'info.xml'))
-        return img_nr
