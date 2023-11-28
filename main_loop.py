@@ -1,22 +1,21 @@
 import os
 import gc
+import sys
 import time
 import cv2
 import pytz
 from datetime import datetime
-from threading import Thread
 from multiprocessing.pool import ThreadPool
 
 from cascade import Cascade, EventElement
 from detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
-from camera_class import Camera
 from telegram_bot import NodeBot
 from utils import logger, cat_cam_py
 from config import general_config, model_config
 from image_container import ImageBuffers
 
 
-class SequentialCascadeFeeder:
+class FrameResultAggregator:
     """
     Implementation of the main loop of the software. This class:
       * Starts the thread that reads the frames from the camera class and puts them on a queue
@@ -29,7 +28,7 @@ class SequentialCascadeFeeder:
     TODO - The main loop of this class (method `queue_worker`) takes a lot of responsibility.
     It would be great to refactor that code
     """
-    def __init__(self):
+    def __init__(self, frame_buffers: ImageBuffers):
         self.base_cascade = Cascade()
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
@@ -44,13 +43,23 @@ class SequentialCascadeFeeder:
         self.cat_counter = 0
         self.face_counter = 0
         self.bot = NodeBot()
-        self.main_deque = ImageBuffers(2 * general_config.queue_max_threshold)
-        self.camera = Camera(
-            fps=general_config.camera_fps,
-            cleanup_threshold=general_config.camera_cleanup_frames_threshold
-        )
+        self.main_deque = frame_buffers
         self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
-        self.camera_thread = Thread(target=self.camera.fill_queue, args=(self.main_deque,), daemon=True)
+
+    def __enter__(self):
+        # We don't do anything here
+        pass
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.verdict_sender_pool.terminate()
+        if exception_type is not None:
+            logger.error(f"Something wrong happened... Restarting")
+            logger.error(f"Exception type: {exception_type}")
+        if exception_value is not None:
+            logger.error(f"Exception value: {exception_value}")
+        if traceback is not None:
+            logger.error(f"Traceback: {traceback}")
+            sys.exit(1)
 
     def reset_cumuli_et_al(self):
         self.EVENT_FLAG = False
@@ -80,7 +89,6 @@ class SequentialCascadeFeeder:
     def queue_handler(self):
         # Do this to force run all networks s.t. the network inference time stabilizes
         self.single_debug()
-        self.camera_thread.start()
 
         while True:
             if len(self.main_deque) > general_config.queue_max_threshold:
@@ -102,12 +110,6 @@ class SequentialCascadeFeeder:
             if self.bot.node_let_in_flag:
                 # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
                 self.reset_cumuli_et_al()
-
-    def shutdown(self):
-        # We stop the camera thread and the thread pool
-        self.camera.stop_thread()
-        self.camera_thread.join()
-        self.verdict_sender_pool.terminate()
 
     def queue_worker(self):
         logger.info(f'Working the Queue with len: {len(self.main_deque)}')
@@ -247,3 +249,19 @@ class SequentialCascadeFeeder:
         current_time = time.time()
         logger.debug(f'Runtime: {current_time - start_time}')
         return cascade_obj
+
+
+class FrameProcessor:
+    """
+    Implementation of the main loop of the software. This class:
+      * Starts the thread that reads the frames from the camera class and puts them on a queue
+      * Starts the main loop which:
+      * Constantly checks the queue from the camera
+      * Reads a frame from the queue (if there are enough frames)
+      * Invokes the cascade on the frame to compute the results
+      * Marks the buffer as ready to be aggregated
+    """
+    def __init__(self):
+        # TODO - Move the fields required by the aggregation to this class.
+        pass
+

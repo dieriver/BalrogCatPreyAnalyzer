@@ -1,19 +1,20 @@
-import sys
-import traceback
-
-from main_loop import SequentialCascadeFeeder
-from utils import logger, init_logger
+from main_loop import FrameResultAggregator
+from utils import init_logger
+from config import general_config
+from image_container import ImageBuffers
+from camera_class import Camera
 
 
 if __name__ == '__main__':
     init_logger()
-    sq_cascade = SequentialCascadeFeeder()
-    try:
-        sq_cascade.queue_handler()
-    except Exception as e:
-        print("Something wrong happened... Message:", e)
-        logger.exception("Something wrong happened... Restarting", e)
-        traceback.print_exc()
-        sys.exit(1)
-    finally:
-        sq_cascade.shutdown()
+    frame_buffers = ImageBuffers(2 * general_config.queue_max_threshold)
+
+    with FrameResultAggregator(frame_buffers) as frame_aggregator:
+        camera = Camera(
+            fps=general_config.camera_fps,
+            cleanup_threshold=general_config.camera_cleanup_frames_threshold,
+            frame_buffers=frame_buffers
+        )
+        with camera:
+            sq_cascade = FrameResultAggregator(frame_buffers)
+            sq_cascade.queue_handler()

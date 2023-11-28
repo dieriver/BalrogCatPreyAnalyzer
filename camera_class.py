@@ -1,4 +1,6 @@
 from datetime import datetime
+from threading import Thread
+
 import pytz
 import time
 import cv2
@@ -8,31 +10,37 @@ from utils import logger
 
 
 class Camera:
-    def __init__(self, fps: int, cleanup_threshold: int):
+    def __init__(self, fps: int, cleanup_threshold: int, frame_buffers: ImageBuffers):
         self.frame_rate = fps
         self.cleanup_threshold = cleanup_threshold
         if os.getenv('CAMERA_STREAM_URI') == "":
             raise Exception("Camera stream URI not set!. Please set the 'CAMERA_STREAM_URI' environment variable")
-        self.streamURL = os.getenv('CAMERA_STREAM_URI')
+        self.stream_url = os.getenv('CAMERA_STREAM_URI')
         self.stop_flag = False
+        self.frame_buffers = frame_buffers
 
-        time.sleep(2)
+        self.camera_thread = Thread(target=self.fill_queue, args=(), daemon=True)
 
-    def stop_thread(self):
-        logger.warning("Received signal to stop camera thread")
+    def __enter__(self):
+        self.camera_thread.start()
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        logger.warning("Stopping camera thread")
+        # We set the terminate flag and wait for the thread to terminate gracefully
         self.stop_flag = True
+        self.camera_thread.join()
 
-    def fill_queue(self, main_deque: ImageBuffers):
+    def fill_queue(self):
         while True:
             gc.collect()
-            camera = cv2.VideoCapture(self.streamURL)
+            camera = cv2.VideoCapture(self.stream_url)
 
             i = 0
             while camera.isOpened():
                 ret, frame = camera.read()
-                main_deque.write_img_to_next_buffer(frame, datetime.now(pytz.timezone('Europe/Zurich')))
+                self.frame_buffers.write_img_to_next_buffer(frame, datetime.now(pytz.timezone('Europe/Zurich')))
                 i += 1
-                logger.debug(f'Queue length: {len(main_deque)}')
+                logger.debug(f'Queue length: {len(self.frame_buffers)}')
                 # print(f"Camera thread sleeping '{self.frame_rate}' (ms), before obtain the next frame (keep fps)")
                 time.sleep(1 / self.frame_rate)
                 if i >= self.cleanup_threshold:
