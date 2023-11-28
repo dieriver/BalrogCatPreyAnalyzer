@@ -53,7 +53,7 @@ class FrameResultAggregator:
     def __exit__(self, exception_type, exception_value, traceback):
         self.verdict_sender_pool.terminate()
         if exception_type is not None:
-            logger.error(f"Something wrong happened... Restarting")
+            logger.error(f"Something wrong happened in the frame result aggregator thread")
             logger.error(f"Exception type: {exception_type}")
         if exception_value is not None:
             logger.error(f"Exception value: {exception_value}")
