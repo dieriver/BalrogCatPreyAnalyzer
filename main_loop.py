@@ -262,14 +262,18 @@ class FrameProcessor:
     def process_frame(self, thread_id: int):
         while not self.stop_event.is_set():
             frames_ready_for_cascade = self.frame_buffers.frames_ready_for_cascade()
-            logger.info(f'Frames ready for cascade: {frames_ready_for_cascade}')
+
             # Feed the latest image in the Queue through the cascade
             next_frame_index = self.frame_buffers.get_next_casc_compute_lock()
-            next_frame = self.frame_buffers[next_frame_index]
+            logger.debug(f'Frames ready for cascade: {frames_ready_for_cascade}')
+            logger.debug(f'Selected index for cascade: {next_frame_index}')
 
             if next_frame_index < 0:
                 # We couldn't acquire the lock of a frame to compute the cascade; pass
-                return
+                time.sleep(0.25)
+                continue
+
+            next_frame = self.frame_buffers[next_frame_index]
 
             total_runtime, cascade_obj = self.feed_to_cascade(
                 target_img=next_frame.get_img_data(),
