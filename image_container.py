@@ -178,9 +178,10 @@ class ImageBuffers:
         index = -1
         with self.base_index_lock:
             for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
-                instance = self.circular_buffer[i % len(self.circular_buffer)]
+                normalized_index = i % len(self.circular_buffer)
+                instance = self.circular_buffer[normalized_index]
                 if instance.try_acquire_img_lock():
-                    index = i
+                    index = normalized_index
                     break
         return index
 
@@ -188,9 +189,10 @@ class ImageBuffers:
         index = -1
         with self.base_index_lock:
             for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
-                instance = self.circular_buffer[i % len(self.circular_buffer)]
+                normalized_index = i % len(self.circular_buffer)
+                instance = self.circular_buffer[normalized_index]
                 if instance.try_acquire_casc_compute_lock():
-                    index = i
+                    index = normalized_index
                     break
         return index
 
@@ -198,9 +200,10 @@ class ImageBuffers:
         index = -1
         with self.base_index_lock:
             for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
-                instance = self.circular_buffer[i % len(self.circular_buffer)]
+                normalized_index = i % len(self.circular_buffer)
+                instance = self.circular_buffer[normalized_index]
                 if instance.try_acquire_casc_result_available_lock():
-                    index = i
+                    index = normalized_index
                     break
         return index
 
