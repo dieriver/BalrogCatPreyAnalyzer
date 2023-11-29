@@ -5,10 +5,10 @@ from surepy.enums import LockState
 from surepy.entities.pet import Pet
 from surepy.entities.devices import Flap
 from utils import logger
+from telegram_bot import NodeBot as NodeBotClass
 
 
 class FlapLocker:
-    from telegram_bot import NodeBot
     def __init__(self):
         # user/password authentication (gets a token in background)
         if os.getenv('SUREPET_USER') == "":
@@ -21,13 +21,13 @@ class FlapLocker:
         #token = 'XXXXX' # Complete if necessary
         #surepy = Surepy(auth_token=token)
 
-    async def list_pets(self, telegram_bot: NodeBot):
+    async def list_pets(self, telegram_bot: NodeBotClass):
         # list with all pets
         pets: list[Pet] = await self.surepy.get_pets()
         for pet in pets:
             telegram_bot.send_text(f"\n\n{pet.name}: {pet.state} | {pet.location}\n")
 
-    async def list_devices(self, telegram_bot: NodeBot):
+    async def list_devices(self, telegram_bot: NodeBotClass):
         # all entities as id-indexed dict
         entities: dict[int, SurepyEntity] = await self.surepy.get_entities()
 
@@ -51,7 +51,7 @@ class FlapLocker:
             logger.debug('WARNING: We assume that the old state was "LOCKED_OUT"')
             return LockState.LOCKED_OUT
 
-    async def set_moria_lock_state(self, state: LockState, telegram_bot: NodeBot):
+    async def set_moria_lock_state(self, state: LockState, telegram_bot: NodeBotClass):
         # list with all devices
         devices: list[SurepyDevice] = await self.surepy.get_devices()
         for device in devices:
@@ -62,28 +62,28 @@ class FlapLocker:
                 if result_lock and result_device:
                     telegram_bot.send_text('Done')
 
-    async def unlock_moria(self, telegram_bot: NodeBot):
+    async def unlock_moria(self, telegram_bot: NodeBotClass):
         await self.set_moria_lock_state(LockState.UNLOCKED, telegram_bot)
 
-    async def lock_moria_in(self, telegram_bot: NodeBot):
+    async def lock_moria_in(self, telegram_bot: NodeBotClass):
         await self.set_moria_lock_state(LockState.LOCKED_IN, telegram_bot)
 
-    async def lock_moria_out(self, telegram_bot: NodeBot):
+    async def lock_moria_out(self, telegram_bot: NodeBotClass):
         await self.set_moria_lock_state(LockState.LOCKED_OUT, telegram_bot)
 
-    async def lock_moria(self, telegram_bot: NodeBot):
+    async def lock_moria(self, telegram_bot: NodeBotClass):
         await self.set_moria_lock_state(LockState.LOCKED_ALL, telegram_bot)
 
-    async def activate_curfew(self, telegram_bot: NodeBot):
+    async def activate_curfew(self, telegram_bot: NodeBotClass):
         await self.set_moria_lock_state(LockState.CURFEW, telegram_bot)
 
-    async def lock_moria_curfew(self, telegram_bot: NodeBot):
+    async def lock_moria_curfew(self, telegram_bot: NodeBotClass):
         await self.set_moria_lock_state(LockState.CURFEW_LOCKED, telegram_bot)
 
-    async def unlock_moria_curfew(self, telegram_bot: NodeBot):
+    async def unlock_moria_curfew(self, telegram_bot: NodeBotClass):
         await self.set_moria_lock_state(LockState.CURFEW_UNLOCKED, telegram_bot)
 
-    async def unlock_for_seconds(self, telegram_bot: NodeBot, seconds: int):
+    async def unlock_for_seconds(self, telegram_bot: NodeBotClass, seconds: int):
         old_state = await self.get_lock_state()
         logger.debug(f"Old state = {old_state}")
         if old_state >= LockState.CURFEW:
