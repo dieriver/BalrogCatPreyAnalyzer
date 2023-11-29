@@ -123,15 +123,19 @@ class ImageBuffers:
         :param max_capacity: the maximum capacity of the circular buffer
         """
         self.circular_buffer: deque[ImageContainer] = deque(maxlen=max_capacity)
-        # To emulate the circular behavior, we will keep a reference _of the first_ index that
-        # is in use. When computing any "next available index" we will iterate over the range:
+        # To emulate the circular behavior, we will keep a reference _of the first and last_
+        # index of the window that is in use. When computing any "next available index" we will iterate over the range:
         # [self.base_index, self.base_index + max_capacity). Of course, this range extends to
         # the outside of the max_capacity (length) of self.circular_buffer, however, to fix that
         # (and to keep the circular behavior) we will use the integers on that range _modulus_
         # max_capacity.
-        self.base_index = 0
-        self.base_index_lock = Lock()
-        for i in range(self.base_index, self.base_index + max_capacity):
+        self.window_start = 0
+        self.window_start_lock = Lock()
+        self.window_end = 0
+        self.window_end_lock = Lock()
+        self.general_lock = Lock()
+
+        for i in range(self.window_start, self.window_start + max_capacity):
             self.circular_buffer.append(ImageContainer())
 
     def __len__(self):
@@ -161,7 +165,7 @@ class ImageBuffers:
 
     def frames_ready_for_cascade(self) -> int:
         result = 0
-        with self.base_index_lock:
+        with self.general_lock:
             for buffer in self.circular_buffer:
                 if buffer.is_ready_for_cascade():
                     result += 1
@@ -169,7 +173,7 @@ class ImageBuffers:
 
     def frames_ready_for_aggregation(self) -> int:
         result = 0
-        with self.base_index_lock:
+        with self.general_lock:
             for buffer in self.circular_buffer:
                 if buffer.is_ready_for_aggregation():
                     result += 1
@@ -177,19 +181,20 @@ class ImageBuffers:
 
     def get_next_img_lock(self) -> int:
         index = -1
-        with self.base_index_lock:
-            for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+        with self.window_end_lock:
+            for i in range(self.window_end, self.window_end + len(self.circular_buffer)):
                 normalized_index = i % len(self.circular_buffer)
                 instance = self.circular_buffer[normalized_index]
                 if instance.try_acquire_img_lock():
                     index = normalized_index
+                    self.window_end = (self.window_end + 1) % len(self.circular_buffer)
                     break
         return index
 
     def get_next_casc_compute_lock(self) -> int:
         index = -1
-        with self.base_index_lock:
-            for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+        with self.window_start_lock:
+            for i in range(self.window_start, self.window_start + len(self.circular_buffer)):
                 normalized_index = i % len(self.circular_buffer)
                 instance = self.circular_buffer[normalized_index]
                 if instance.try_acquire_casc_compute_lock():
@@ -199,8 +204,8 @@ class ImageBuffers:
 
     def get_next_aggregation_lock(self) -> int:
         index = -1
-        with self.base_index_lock:
-            for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+        with self.window_start_lock:
+            for i in range(self.window_start, self.window_start + len(self.circular_buffer)):
                 normalized_index = i % len(self.circular_buffer)
                 instance = self.circular_buffer[normalized_index]
                 if instance.try_acquire_casc_result_available_lock():
@@ -209,6 +214,6 @@ class ImageBuffers:
         return index
 
     def reset_buffer(self, index):
-        with self.base_index_lock:
-            self.base_index = (self.base_index + 1) % len(self.circular_buffer)
+        with self.window_start_lock:
+            self.window_start = (self.window_start + 1) % len(self.circular_buffer)
             del self.circular_buffer[index]
