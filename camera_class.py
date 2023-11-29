@@ -66,5 +66,4 @@ class Camera:
             if self.stop_event.is_set():
                 logger.warning("Terminating camera thread - break B")
                 logger.warning("Terminating camera thread - B")
-                break
-        return
+                return

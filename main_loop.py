@@ -55,11 +55,11 @@ class FrameResultAggregator:
         self.verdict_sender_pool.terminate()
         if exception_type is not None:
             logger.error(f"Something wrong happened in the frame result aggregator thread")
-            logger.error(f"Exception type: {exception_type}")
+            logger.error(f"Exception type: {repr(exception_type)}")
         if exception_value is not None:
             logger.error(f"Exception value: {exception_value}")
         if traceback is not None:
-            logger.error(f"Traceback: {traceback}")
+            logger.error(f"Traceback: {repr(traceback)}")
             sys.exit(1)
         # We use a "successful" exit code to restart the script
         # This is interpreted as a call to restart the script
