@@ -223,8 +223,8 @@ class FrameProcessor:
         # Do this to force run all networks s.t. the network inference time stabilizes
         self.single_debug()
         # We need to submit the process tasks here
-        for _ in range(0, general_config.max_frame_processor_threads):
-            self.frame_processor_pool.apply_async(func=self.process_frame, args=())
+        for i in range(0, general_config.max_frame_processor_threads):
+            self.frame_processor_pool.apply_async(func=self.process_frame, args=(i,))
 
     def __exit__(self, exception_type, exception_value, traceback):
         self.frame_processor_pool.terminate()
@@ -237,11 +237,14 @@ class FrameProcessor:
             logger.error(f"Traceback: {traceback}")
         return True
 
-    def feed_to_cascade(self, target_img, img_name) -> tuple[float, EventElement]:
+    def feed_to_cascade(self, target_img, img_name, thread_id: int) -> tuple[float, EventElement]:
         target_event_obj = EventElement(img_name=img_name, cc_target_img=target_img)
 
         start_time = time.time()
-        single_cascade = self.base_cascade.do_single_cascade(event_img_object=target_event_obj)
+        single_cascade = self.base_cascade.do_single_cascade(
+            event_img_object=target_event_obj,
+            thread_id=thread_id
+        )
         single_cascade.total_inference_time = sum(filter(None, [
             single_cascade.cc_inference_time,
             single_cascade.cr_inference_time,
@@ -255,7 +258,7 @@ class FrameProcessor:
 
         return total_runtime, single_cascade
 
-    def process_frame(self):
+    def process_frame(self, thread_id: int):
         while not self.stop_event.is_set():
             frames_ready_for_cascade = self.frame_buffers.frames_ready_for_cascade()
             logger.info(f'Working the Queue with len: {frames_ready_for_cascade}')
@@ -269,7 +272,8 @@ class FrameProcessor:
 
             total_runtime, cascade_obj = self.feed_to_cascade(
                 target_img=next_frame.get_img_data(),
-                img_name=next_frame.get_timestamp()
+                img_name=next_frame.get_timestamp(),
+                thread_id=thread_id
             )
             overhead = datetime.now(pytz.timezone('Europe/Zurich')) - next_frame.get_timestamp()
             logger.debug(f'Overhead: {overhead.total_seconds()}')
@@ -284,7 +288,7 @@ class FrameProcessor:
         target_img = cv2.imread(
             os.path.join(cat_cam_py, 'readme_images/lenna_casc_Node1_001557_02_2020_05_24_09-49-35.jpg')
         )
-        cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name)[1]
+        cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name, thread_id=-1)[1]
         current_time = time.time()
         logger.debug(f'Debug cascade runtime: {current_time - start_time}')
         return cascade_obj
