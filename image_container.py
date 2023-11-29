@@ -158,6 +158,14 @@ class ImageBuffers:
             del buffer
         gc.collect()
 
+    def frames_ready_for_cascade(self) -> int:
+        result = 0
+        with self.base_index_lock:
+            for buffer in self.circular_buffer:
+                if buffer.is_ready_for_cascade():
+                    result += 1
+        return result
+
     def frames_ready_for_aggregation(self) -> int:
         result = 0
         with self.base_index_lock:
@@ -197,7 +205,6 @@ class ImageBuffers:
         return index
 
     def reset_buffer(self, index):
-        logger.debug(f"Releasing buffer # = {index}")
         with self.base_index_lock:
             self.base_index = (self.base_index + 1) % len(self.circular_buffer)
             self.circular_buffer[index].try_acquire_casc_result_available_lock()

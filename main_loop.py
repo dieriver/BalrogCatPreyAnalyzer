@@ -117,6 +117,9 @@ class FrameResultAggregator:
         self.bot.node_live_img = next_frame.get_img_data()
         self.bot.node_over_head_info = overhead
 
+        logger.debug(f"Releasing buffer # = {next_frame_index}")
+        self.frame_buffers.reset_buffer(next_frame_index)
+
         if cascade_obj.cc_cat_bool:
             # We are inside an event => add event_obj to list
             logger.info('**** CAT FOUND! ****')
@@ -220,7 +223,6 @@ class FrameProcessor:
         # Do this to force run all networks s.t. the network inference time stabilizes
         self.single_debug()
         # We need to submit the process tasks here
-        # TODO - submit as many tasks as configured threads
         for _ in range(0, general_config.max_frame_processor_threads):
             self.frame_processor_pool.apply_async(func=self.process_frame, args=())
 
@@ -255,7 +257,8 @@ class FrameProcessor:
 
     def process_frame(self):
         while not self.stop_event.is_set():
-            logger.info(f'Working the Queue with len: {len(self.frame_buffers)}')
+            frames_ready_for_cascade = self.frame_buffers.frames_ready_for_cascade()
+            logger.info(f'Working the Queue with len: {frames_ready_for_cascade}')
             # Feed the latest image in the Queue through the cascade
             next_frame_index = self.frame_buffers.get_next_casc_compute_lock()
             next_frame = self.frame_buffers[next_frame_index]

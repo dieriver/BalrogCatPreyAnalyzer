@@ -47,6 +47,7 @@ class Camera:
                     continue
 
                 next_buffer = self.frame_buffers[index]
+                logger.debug(f"Writing frame to buffer # {index}")
                 next_buffer.write_capture_data(frame, datetime.now(pytz.timezone('Europe/Zurich')))
                 next_buffer.release_casc_compute_lock()
 
