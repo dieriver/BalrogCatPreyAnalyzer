@@ -11,7 +11,7 @@ from telegram.ext.commandhandler import RT
 
 from config import flap_config
 from flap_locker import FlapLocker
-from utils import clean_logs
+from utils import clean_logs, logger
 
 
 class NodeBot:
@@ -45,22 +45,23 @@ class NodeBot:
 
     def _populate_supported_commands(self):
         self.commands['help'] = self.help_cmd_callback
-        self.commands['/clean'] = self.clean_cmd_callback
-        self.commands['/restart'] = self.restart_cmd_callback
-        self.commands['/nodestatus'] = self.send_status_cmd_callback
-        self.commands['/sendlivepic'] = self.send_status_cmd_callback
-        self.commands['/sendlastcascpic'] = self.send_last_casc_pic_cmd_callback
-        self.commands['/letin'] = self.let_in_cmd_callback
-        self.commands['/lock'] = self._lock_moria
-        self.commands['/lockin'] = self._lock_moria_in
-        self.commands['/lockout'] = self._lock_moria_out
-        self.commands['/curfew'] = self._set_curfew
-        self.commands['/unlock'] = self._unlock_moria
+        self.commands['clean'] = self.clean_cmd_callback
+        self.commands['restart'] = self.restart_cmd_callback
+        self.commands['nodestatus'] = self.send_status_cmd_callback
+        self.commands['sendlivepic'] = self.send_status_cmd_callback
+        self.commands['sendlastcascpic'] = self.send_last_casc_pic_cmd_callback
+        self.commands['letin'] = self.let_in_cmd_callback
+        self.commands['lock'] = self._lock_moria
+        self.commands['lockin'] = self._lock_moria_in
+        self.commands['lockout'] = self._lock_moria_out
+        self.commands['curfew'] = self._set_curfew
+        self.commands['unlock'] = self._unlock_moria
 
     def _init_bot_listener(self):
         self.telegram_bot.send_message(chat_id=self.CHAT_ID, text='Balrog is online!')
         # Add all commands to handler
         for command in self.commands:
+            logger.info(f"Registering command '{command}'")
             self._add_telegram_callback(command, self.commands[command])
 
         # Start the polling stuff
@@ -73,7 +74,7 @@ class NodeBot:
     def help_cmd_callback(self, update, context):
         bot_message = 'Following commands supported:'
         for command in self.commands:
-            bot_message += '\n ' + command
+            bot_message += '\n /' + command
         self.send_text(bot_message)
 
     def let_in_cmd_callback(self, update, context):
