@@ -5,10 +5,10 @@ from surepy.enums import LockState
 from surepy.entities.pet import Pet
 from surepy.entities.devices import Flap
 from utils import logger
-from telegram_bot import NodeBot
 
 
 class FlapLocker:
+    from telegram_bot import NodeBot
     def __init__(self):
         # user/password authentication (gets a token in background)
         if os.getenv('SUREPET_USER') == "":
