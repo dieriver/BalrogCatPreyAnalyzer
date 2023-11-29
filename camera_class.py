@@ -1,4 +1,5 @@
 from datetime import datetime
+from multiprocessing import Event
 from threading import Thread
 
 import pytz
@@ -10,13 +11,13 @@ from utils import logger
 
 
 class Camera:
-    def __init__(self, fps: int, cleanup_threshold: int, frame_buffers: ImageBuffers):
+    def __init__(self, fps: int, cleanup_threshold: int, frame_buffers: ImageBuffers, stop_event: Event):
         self.frame_rate = fps
         self.cleanup_threshold = cleanup_threshold
         if os.getenv('CAMERA_STREAM_URI') == "":
             raise Exception("Camera stream URI not set!. Please set the 'CAMERA_STREAM_URI' environment variable")
         self.stream_url = os.getenv('CAMERA_STREAM_URI')
-        self.stop_flag = False
+        self.stop_event = stop_event
         self.frame_buffers = frame_buffers
 
         self.camera_thread = Thread(target=self.fill_queue, args=(), daemon=True)
@@ -27,7 +28,8 @@ class Camera:
     def __exit__(self, exception_type, exception_value, traceback):
         logger.warning("Stopping camera thread")
         # We set the terminate flag and wait for the thread to terminate gracefully
-        self.stop_flag = True
+        if not self.stop_event.is_set():
+            self.stop_event.set()
         self.camera_thread.join()
 
     def fill_queue(self):
@@ -57,11 +59,12 @@ class Camera:
                     del camera
                     break
 
-                if self.stop_flag:
+                if self.stop_event.is_set():
                     logger.warning("Terminating camera thread - break A")
                     break
 
-            if self.stop_flag:
+            if self.stop_event.is_set():
+                logger.warning("Terminating camera thread - break B")
                 logger.warning("Terminating camera thread - B")
                 break
         return

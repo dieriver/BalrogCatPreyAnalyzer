@@ -27,9 +27,10 @@ class FrameResultAggregator:
       * Aggregates the results, computing cumulative with previous frames' results
       * Invokes the telegram callbacks with the verdicts.
     """
-    def __init__(self, frame_buffers: ImageBuffers):
+    def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
         self.clean_queue_event: Event = Event()
-        self.bot = NodeBot(self.clean_queue_event)
+        self.stop_event = stop_event
+        self.bot = NodeBot(self.clean_queue_event, stop_event)
         self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
         # Aggregation fields
         self.EVENT_FLAG = False
@@ -60,6 +61,9 @@ class FrameResultAggregator:
         if traceback is not None:
             logger.error(f"Traceback: {traceback}")
             sys.exit(1)
+        # We use a "successful" exit code to restart the script
+        # This is interpreted as a call to restart the script
+        sys.exit(0)
 
     def reset_aggregation_fields(self):
         self.EVENT_FLAG = False
@@ -80,7 +84,7 @@ class FrameResultAggregator:
         gc.collect()
 
     def queue_handler(self):
-        while True:
+        while not self.stop_event.is_set():
             # We check if there are enough frames to work with (according to the config)
             frames_rdy_for_aggregation = self.frame_buffers.frames_ready_for_aggregation()
 
@@ -108,6 +112,7 @@ class FrameResultAggregator:
         overhead = next_frame.get_overhead()
 
         # Add this such that the bot has some info
+        # TODO - Directly access this data is not recommended. Refactor this!
         self.bot.node_queue_info = self.frame_buffers.frames_ready_for_aggregation()
         self.bot.node_live_img = next_frame.get_img_data()
         self.bot.node_over_head_info = overhead
@@ -205,7 +210,8 @@ class FrameProcessor:
       * Writes the results to the circular buffer
       * Marks the buffer as ready to be aggregated
     """
-    def __init__(self, frame_buffers: ImageBuffers):
+    def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
+        self.stop_event = stop_event
         self.base_cascade = Cascade()
         self.frame_buffers = frame_buffers
         self.frame_processor_pool = ThreadPool(processes=general_config.max_message_sender_threads)
@@ -214,7 +220,9 @@ class FrameProcessor:
         # Do this to force run all networks s.t. the network inference time stabilizes
         self.single_debug()
         # We need to submit the process tasks here
-        self.frame_processor_pool.apply_async(func=self.process_frame, args=())
+        # TODO - submit as many tasks as configured threads
+        for _ in range(0, general_config.max_frame_processor_threads):
+            self.frame_processor_pool.apply_async(func=self.process_frame, args=())
 
     def __exit__(self, exception_type, exception_value, traceback):
         self.frame_processor_pool.terminate()
@@ -246,7 +254,7 @@ class FrameProcessor:
         return total_runtime, single_cascade
 
     def process_frame(self):
-        while True:
+        while not self.stop_event.is_set():
             logger.info(f'Working the Queue with len: {len(self.frame_buffers)}')
             # Feed the latest image in the Queue through the cascade
             next_frame_index = self.frame_buffers.get_next_casc_compute_lock()

@@ -15,7 +15,7 @@ from utils import clean_logs
 
 
 class NodeBot:
-    def __init__(self, clean_queue_event: Event):
+    def __init__(self, clean_queue_event: Event, stop_event: Event):
         # Insert Chat ID and Bot Token according to Telegram API
         if os.getenv('TELEGRAM_CHAT_ID') == "":
             raise Exception("Telegram CHAT ID not set!. Please set the 'TELEGRAM_CHAT_ID' environment variable")
@@ -30,6 +30,7 @@ class NodeBot:
         self._populate_supported_commands()
         # Event to signal the main loop that the queue needs to be cleaned
         self.clean_queue_event = clean_queue_event
+        self.stop_event = stop_event
 
         # Data coming and used form unexpected places (other files)
         # TODO - Directly access this data is not recommended. Refactor this!
@@ -82,10 +83,8 @@ class NodeBot:
 
     def restart_cmd_callback(self, update, context):
         self.send_text('Restarting script...')
-        # We use a "successful" exit code to restart the script
-        # This is interpreted as a call to restart the script
-        #sys.exit(0)
-        self.send_text("(Does not work yet)")
+        self.stop_event.set()
+        # self.send_text("(Does not work yet)")
 
     def clean_cmd_callback(self, update, context):
         self.send_text('Cleaning old logs...')
