@@ -8,6 +8,10 @@ class GeneralConfigs:
     max_frame_processor_threads: int
     min_aggregation_frames_threshold: int
     max_frame_buffers: int
+
+
+@dataclass
+class CameraConfigs:
     camera_fps: int
     camera_cleanup_frames_threshold: int
 
@@ -42,8 +46,15 @@ def load_general_config() -> GeneralConfigs:
             loaded_bytes["general"]["max_frame_processor_threads"],
             loaded_bytes["general"]["min_aggregation_frames_threshold"],
             loaded_bytes["general"]["max_frame_buffers"],
-            loaded_bytes["general"]["camera_fps"],
-            loaded_bytes["general"]["camera_cleanup_frames_threshold"]
+        )
+
+
+def load_camera_config() -> CameraConfigs:
+    with open("config.toml", "rb") as config_file:
+        loaded_bytes = load(config_file)
+        return CameraConfigs(
+            loaded_bytes["camera"]["camera_fps"],
+            loaded_bytes["camera"]["camera_cleanup_frames_threshold"]
         )
 
 
@@ -61,4 +72,5 @@ def load_model_config() -> ModelConfigs:
 
 general_config = load_general_config()
 model_config = load_model_config()
+camera_config = load_camera_config()
 flap_config = load_flap_config()
