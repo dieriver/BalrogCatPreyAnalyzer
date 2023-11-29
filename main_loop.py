@@ -87,8 +87,9 @@ class FrameResultAggregator:
         while not self.stop_event.is_set():
             # We check if there are enough frames to work with (according to the config)
             frames_rdy_for_aggregation = self.frame_buffers.frames_ready_for_aggregation()
+            logger.debug(f"Frames ready for aggregation: {frames_rdy_for_aggregation}")
 
-            if frames_rdy_for_aggregation > general_config.min_aggregation_frames_threshold:
+            if frames_rdy_for_aggregation >= general_config.min_aggregation_frames_threshold:
                 # Here we go :)
                 self.aggregate_available_frames()
             else:
@@ -261,7 +262,7 @@ class FrameProcessor:
     def process_frame(self, thread_id: int):
         while not self.stop_event.is_set():
             frames_ready_for_cascade = self.frame_buffers.frames_ready_for_cascade()
-            logger.info(f'Working the Queue with len: {frames_ready_for_cascade}')
+            logger.info(f'Frames ready for cascade: {frames_ready_for_cascade}')
             # Feed the latest image in the Queue through the cascade
             next_frame_index = self.frame_buffers.get_next_casc_compute_lock()
             next_frame = self.frame_buffers[next_frame_index]
@@ -280,7 +281,7 @@ class FrameProcessor:
 
             logger.debug(f"Writing cascade result of buffer # = {next_frame_index}")
             next_frame.write_cascade_data(cascade_obj, total_runtime, overhead.total_seconds())
-            next_frame.release_casc_res_available_lock()
+            next_frame.make_ready_for_aggregation()
 
     def single_debug(self):
         start_time = time.time()

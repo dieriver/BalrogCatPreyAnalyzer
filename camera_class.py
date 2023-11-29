@@ -49,7 +49,7 @@ class Camera:
                 logger.debug(f"Writing frame to buffer # {index}")
                 next_buffer = self.frame_buffers[index]
                 next_buffer.write_capture_data(frame, datetime.now(pytz.timezone('Europe/Zurich')))
-                next_buffer.release_casc_compute_lock()
+                next_buffer.make_ready_for_cascade()
 
                 i += 1
                 # print(f"Camera thread sleeping '{self.frame_rate}' (ms), before obtain the next frame (keep fps)")

@@ -80,11 +80,11 @@ class ImageContainer:
     def release_img_lock(self) -> None:
         self.img_semaphore.release()
 
-    def release_casc_compute_lock(self) -> None:
+    def make_ready_for_cascade(self) -> None:
         self.buffer_state = BufferState.WAITING_CASCADE
         self.casc_compute_semaphore.release()
 
-    def release_casc_res_available_lock(self) -> None:
+    def make_ready_for_aggregation(self) -> None:
         self.buffer_state = BufferState.WAITING_AGGREGATION
         self.casc_result_avail_semaphore.release()
 
