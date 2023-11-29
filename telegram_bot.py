@@ -28,7 +28,7 @@ class NodeBot:
         self.flap_handler = FlapLocker()
         self.commands: dict[str,  Callable[[Update, CallbackContext], RT]] = dict()
         self._populate_supported_commands()
-        # Event to signal the main loop that the queu needs to be cleaned
+        # Event to signal the main loop that the queue needs to be cleaned
         self.clean_queue_event = clean_queue_event
 
         # Data coming and used form unexpected places (other files)

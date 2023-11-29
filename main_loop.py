@@ -108,7 +108,7 @@ class FrameResultAggregator:
         overhead = next_frame.get_overhead()
 
         # Add this such that the bot has some info
-        self.bot.node_queue_info = len(self.frame_buffers)
+        self.bot.node_queue_info = self.frame_buffers.frames_ready_for_aggregation()
         self.bot.node_live_img = next_frame.get_img_data()
         self.bot.node_over_head_info = overhead
 

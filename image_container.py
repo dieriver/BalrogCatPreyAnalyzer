@@ -160,50 +160,45 @@ class ImageBuffers:
 
     def frames_ready_for_aggregation(self) -> int:
         result = 0
-        self.base_index_lock.acquire()
-        for buffer in self.circular_buffer:
-            if buffer.is_ready_for_aggregation():
-                result += 1
-        self.base_index_lock.release()
+        with self.base_index_lock:
+            for buffer in self.circular_buffer:
+                if buffer.is_ready_for_aggregation():
+                    result += 1
         return result
 
     def get_next_img_lock(self) -> int:
-        self.base_index_lock.acquire()
         index = -1
-        for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
-            instance = self.circular_buffer[i % len(self.circular_buffer)]
-            if instance.try_acquire_img_lock():
-                index = i
-                break
-        self.base_index_lock.release()
+        with self.base_index_lock:
+            for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+                instance = self.circular_buffer[i % len(self.circular_buffer)]
+                if instance.try_acquire_img_lock():
+                    index = i
+                    break
         return index
 
     def get_next_casc_compute_lock(self) -> int:
-        self.base_index_lock.acquire()
         index = -1
-        for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
-            instance = self.circular_buffer[i % len(self.circular_buffer)]
-            if instance.try_acquire_casc_compute_lock():
-                index = i
-                break
-        self.base_index_lock.release()
+        with self.base_index_lock:
+            for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+                instance = self.circular_buffer[i % len(self.circular_buffer)]
+                if instance.try_acquire_casc_compute_lock():
+                    index = i
+                    break
         return index
 
     def get_next_aggregation_lock(self) -> int:
-        self.base_index_lock.acquire()
         index = -1
-        for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
-            instance = self.circular_buffer[i % len(self.circular_buffer)]
-            if instance.try_acquire_casc_result_available_lock():
-                index = i
-                break
-        self.base_index_lock.release()
+        with self.base_index_lock:
+            for i in range(self.base_index, self.base_index + len(self.circular_buffer)):
+                instance = self.circular_buffer[i % len(self.circular_buffer)]
+                if instance.try_acquire_casc_result_available_lock():
+                    index = i
+                    break
         return index
 
     def reset_buffer(self, index):
         logger.debug(f"Releasing buffer # = {index}")
-        self.base_index_lock.acquire()
-        self.base_index = (self.base_index + 1) % len(self.circular_buffer)
-        self.circular_buffer[index].try_acquire_casc_result_available_lock()
-        self.circular_buffer[index].release_img_lock()
-        self.base_index_lock.release()
+        with self.base_index_lock:
+            self.base_index = (self.base_index + 1) % len(self.circular_buffer)
+            self.circular_buffer[index].try_acquire_casc_result_available_lock()
+            self.circular_buffer[index].release_img_lock()
