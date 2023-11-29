@@ -53,6 +53,7 @@ class ImageContainer:
         self.casc_result_avail_semaphore = BoundedSemaphore(1)
         self.casc_compute_semaphore.acquire()
         self.casc_result_avail_semaphore.acquire()
+        self.buffer_state = BufferState.WAITING_FRAME
 
     # Methods to check the state of the locks of this buffer
 
@@ -210,5 +211,4 @@ class ImageBuffers:
     def reset_buffer(self, index):
         with self.base_index_lock:
             self.base_index = (self.base_index + 1) % len(self.circular_buffer)
-            self.circular_buffer[index].try_acquire_casc_result_available_lock()
-            self.circular_buffer[index].release_img_lock()
+            del self.circular_buffer[index]
