@@ -1,18 +1,20 @@
-import os
 import gc
+import os
 import sys
 import time
-import cv2
-import pytz
 from datetime import datetime
+from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
 
+import cv2
+import pytz
+
 from cascade import Cascade, EventElement
+from config import general_config, model_config
 from detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
+from image_container import ImageBuffers
 from telegram_bot import NodeBot
 from utils import logger, cat_cam_py
-from config import general_config, model_config
-from image_container import ImageBuffers
 
 
 class FrameResultAggregator:
@@ -26,7 +28,8 @@ class FrameResultAggregator:
       * Invokes the telegram callbacks with the verdicts.
     """
     def __init__(self, frame_buffers: ImageBuffers):
-        self.bot = NodeBot()
+        self.clean_queue_event: Event = Event()
+        self.bot = NodeBot(self.clean_queue_event)
         self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
         # Aggregation fields
         self.EVENT_FLAG = False
@@ -71,11 +74,8 @@ class FrameResultAggregator:
         self.cat_counter = 0
         self.face_counter = 0
         self.event_objects.clear()
-        self.frame_buffers.clean()
-
-        # Close the node_letin flag
-        # TODO - This should not be modified here!
-        self.bot.node_let_in_flag = False
+        self.frame_buffers.clear()
+        self.clean_queue_event.clear()
 
         gc.collect()
 
@@ -93,7 +93,7 @@ class FrameResultAggregator:
                 time.sleep(0.25)
 
             # Check if user force opens the door
-            if self.bot.node_let_in_flag:
+            if self.clean_queue_event.is_set():
                 # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
                 self.reset_aggregation_fields()
 
@@ -260,9 +260,9 @@ class FrameProcessor:
                 target_img=next_frame.get_img_data(),
                 img_name=next_frame.get_timestamp()
             )
-            overhead = (datetime.now(pytz.timezone('Europe/Zurich')) - next_frame.get_timestamp())
+            overhead = datetime.now(pytz.timezone('Europe/Zurich')) - next_frame.get_timestamp()
             logger.debug(f'Overhead: {overhead.total_seconds()}')
-            # TODO - set the returned information in the buffer; then release the lock for aggregation
+
             logger.debug(f"Writing cascade result of buffer # = {next_frame_index}")
             next_frame.write_cascade_data(cascade_obj, total_runtime, overhead.total_seconds())
             next_frame.release_casc_res_available_lock()

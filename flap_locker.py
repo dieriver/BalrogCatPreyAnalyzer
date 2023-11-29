@@ -1,11 +1,11 @@
 import asyncio
 import os
-from typing import List, Dict
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
 from surepy.enums import LockState
 from surepy.entities.pet import Pet
 from surepy.entities.devices import Flap
 from utils import logger
+from telegram_bot import NodeBot
 
 
 class FlapLocker:
@@ -21,18 +21,18 @@ class FlapLocker:
         #token = 'XXXXX' # Complete if necessary
         #surepy = Surepy(auth_token=token)
 
-    async def list_pets(self, telegram_bot):
+    async def list_pets(self, telegram_bot: NodeBot):
         # list with all pets
-        pets: List[Pet] = await self.surepy.get_pets()
+        pets: list[Pet] = await self.surepy.get_pets()
         for pet in pets:
             telegram_bot.send_text(f"\n\n{pet.name}: {pet.state} | {pet.location}\n")
 
-    async def list_devices(self, telegram_bot):
+    async def list_devices(self, telegram_bot: NodeBot):
         # all entities as id-indexed dict
-        entities: Dict[int, SurepyEntity] = await self.surepy.get_entities()
+        entities: dict[int, SurepyEntity] = await self.surepy.get_entities()
 
         # list with all devices
-        devices: List[SurepyDevice] = await self.surepy.get_devices()
+        devices: list[SurepyDevice] = await self.surepy.get_devices()
         for device in devices:
             telegram_bot.send_text(f"{device.name = } | {device.serial = } | {device.battery_level = }")
             telegram_bot.send_text(f"{device.type = } | {device.unique_id = } | {device.id = }")
@@ -40,7 +40,7 @@ class FlapLocker:
 
     async def get_lock_state(self):
         try:
-            devices: List[SurepyDevice] = await self.surepy.get_devices()
+            devices: list[SurepyDevice] = await self.surepy.get_devices()
             for device in devices:
                 if device.type == EntityType.CAT_FLAP:
                     cat_flap: Flap = device
@@ -51,9 +51,9 @@ class FlapLocker:
             logger.debug('WARNING: We assume that the old state was "LOCKED_OUT"')
             return LockState.LOCKED_OUT
 
-    async def set_moria_lock_state(self, state: LockState, telegram_bot):
+    async def set_moria_lock_state(self, state: LockState, telegram_bot: NodeBot):
         # list with all devices
-        devices: List[SurepyDevice] = await self.surepy.get_devices()
+        devices: list[SurepyDevice] = await self.surepy.get_devices()
         for device in devices:
             # Search for the cat flap
             if device.type == EntityType.CAT_FLAP:
@@ -62,28 +62,28 @@ class FlapLocker:
                 if result_lock and result_device:
                     telegram_bot.send_text('Done')
 
-    async def unlock_moria(self, telegram_bot):
+    async def unlock_moria(self, telegram_bot: NodeBot):
         await self.set_moria_lock_state(LockState.UNLOCKED, telegram_bot)
 
-    async def lock_moria_in(self, telegram_bot):
+    async def lock_moria_in(self, telegram_bot: NodeBot):
         await self.set_moria_lock_state(LockState.LOCKED_IN, telegram_bot)
 
-    async def lock_moria_out(self, telegram_bot):
+    async def lock_moria_out(self, telegram_bot: NodeBot):
         await self.set_moria_lock_state(LockState.LOCKED_OUT, telegram_bot)
 
-    async def lock_moria(self, telegram_bot):
+    async def lock_moria(self, telegram_bot: NodeBot):
         await self.set_moria_lock_state(LockState.LOCKED_ALL, telegram_bot)
 
-    async def activate_curfew(self, telegram_bot):
+    async def activate_curfew(self, telegram_bot: NodeBot):
         await self.set_moria_lock_state(LockState.CURFEW, telegram_bot)
 
-    async def lock_moria_curfew(self, telegram_bot):
+    async def lock_moria_curfew(self, telegram_bot: NodeBot):
         await self.set_moria_lock_state(LockState.CURFEW_LOCKED, telegram_bot)
 
-    async def unlock_moria_curfew(self, telegram_bot):
+    async def unlock_moria_curfew(self, telegram_bot: NodeBot):
         await self.set_moria_lock_state(LockState.CURFEW_UNLOCKED, telegram_bot)
 
-    async def unlock_for_seconds(self, telegram_bot, seconds: int):
+    async def unlock_for_seconds(self, telegram_bot: NodeBot, seconds: int):
         old_state = await self.get_lock_state()
         logger.debug(f"Old state = {old_state}")
         if old_state >= LockState.CURFEW:

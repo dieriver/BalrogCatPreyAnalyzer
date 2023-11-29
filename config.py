@@ -21,15 +21,16 @@ class ModelConfigs:
     prey_val_hard_threshold: int
 
 
-def load_model_config() -> ModelConfigs:
+@dataclass
+class FlapConfigs:
+    let_in_open_seconds: int
+
+
+def load_flap_config() -> FlapConfigs:
     with open("config.toml", "rb") as config_file:
         loaded_bytes = load(config_file)
-        return ModelConfigs(
-            loaded_bytes["general"]["event_reset_threshold"],
-            loaded_bytes["general"]["cat_counter_threshold"],
-            loaded_bytes["general"]["cumulus_prey_threshold"],
-            loaded_bytes["general"]["cumulus_no_prey_threshold"],
-            loaded_bytes["general"]["prey_val_hard_threshold"]
+        return FlapConfigs(
+            loaded_bytes["flap"]["let_in_open_seconds"],
         )
 
 
@@ -46,5 +47,18 @@ def load_general_config() -> GeneralConfigs:
         )
 
 
+def load_model_config() -> ModelConfigs:
+    with open("config.toml", "rb") as config_file:
+        loaded_bytes = load(config_file)
+        return ModelConfigs(
+            loaded_bytes["general"]["event_reset_threshold"],
+            loaded_bytes["general"]["cat_counter_threshold"],
+            loaded_bytes["general"]["cumulus_prey_threshold"],
+            loaded_bytes["general"]["cumulus_no_prey_threshold"],
+            loaded_bytes["general"]["prey_val_hard_threshold"]
+        )
+
+
 general_config = load_general_config()
 model_config = load_model_config()
+flap_config = load_flap_config()

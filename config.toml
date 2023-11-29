@@ -12,3 +12,6 @@ cat_counter_threshold = 6
 cumulus_prey_threshold = -10
 cumulus_no_prey_threshold = 2.9603
 prey_val_hard_threshold = 0.6
+
+[flap]
+let_in_open_seconds = 40

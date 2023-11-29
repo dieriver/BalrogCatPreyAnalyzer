@@ -137,7 +137,7 @@ class ImageBuffers:
         return len(self.circular_buffer)
 
     def __del__(self):
-        self.clean()
+        self.clear()
 
     def __getitem__(self, item: int) -> ImageContainer:
         """
@@ -149,7 +149,7 @@ class ImageBuffers:
         """
         return self.circular_buffer[item]
 
-    def clean(self):
+    def clear(self):
         """
         Cleans the data in _all_ the buffers of this structure
         :return:
