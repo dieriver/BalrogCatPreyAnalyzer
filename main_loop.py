@@ -30,7 +30,7 @@ class FrameResultAggregator:
     def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
         self.clean_queue_event: Event = Event()
         self.stop_event = stop_event
-        if os.getenv("USE_NULL_BOT") is not None:
+        if os.getenv("BALROG_USE_NULL_BOT") is not None:
             self.bot = DebugBot()
         else:
             self.bot = BalrogTelegramBot(self.clean_queue_event, stop_event)

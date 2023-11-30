@@ -9,7 +9,7 @@ cat_cam_py = os.getenv('CAT_PREY_ANALYZER_PATH')
 
 # We configure the logging
 logger = logging.getLogger("cat_logger")
-log_base_folder = '/var/log/balrog-logs/'
+log_base_folder = '/var/log/balrog-logs/' if os.getenv("BALROG_LOG_FOLDER") is None else os.getenv("BALROG_LOG_FOLDER")
 log_filename = 'cat_logger.log'
 log_dbg_filename = 'cat_logger-dbg.log'
 
