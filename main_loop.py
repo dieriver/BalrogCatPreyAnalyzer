@@ -13,7 +13,7 @@ from cascade import Cascade, EventElement
 from config import general_config, model_config
 from detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
 from image_container import ImageBuffers
-from telegram_bot import NodeBot
+from telegram_bot import BalrogTelegramBot, DebugBot
 from utils import logger, cat_cam_py
 
 
@@ -22,7 +22,7 @@ class FrameResultAggregator:
     Implementation of the aggregation loop of the software. This class:
       * Starts the thread that reads the already-processed frames from the shared circular buffer
       * Starts the aggregation process which:
-      * Constantly checks the circular buffer for frames ready to be aggregared
+      * Constantly checks the circular buffer for frames ready to be aggregated
       * Reads a frame from the buffer (if there are enough ready frames)
       * Aggregates the results, computing cumulative with previous frames' results
       * Invokes the telegram callbacks with the verdicts.
@@ -30,7 +30,10 @@ class FrameResultAggregator:
     def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
         self.clean_queue_event: Event = Event()
         self.stop_event = stop_event
-        self.bot = NodeBot(self.clean_queue_event, stop_event)
+        if os.getenv("USE_NULL_BOT") is not None:
+            self.bot = DebugBot()
+        else:
+            self.bot = BalrogTelegramBot(self.clean_queue_event, stop_event)
         self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
         # Aggregation fields
         self.EVENT_FLAG = False

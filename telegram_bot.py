@@ -11,10 +11,21 @@ from telegram.ext.commandhandler import RT
 
 from config import flap_config
 from flap_locker import FlapLocker
-from utils import clean_logs, logger
+from utils import Logging, logger
+from abc import ABC, abstractmethod
 
 
-class NodeBot:
+class ITelegramBot(ABC):
+    @abstractmethod
+    def send_text(self, message: str):
+        pass
+
+    @abstractmethod
+    def send_img(self, img, caption):
+        pass
+
+
+class BalrogTelegramBot(ITelegramBot):
     def __init__(self, clean_queue_event: Event, stop_event: Event):
         # Insert Chat ID and Bot Token according to Telegram API
         if os.getenv('TELEGRAM_CHAT_ID') == "":
@@ -44,18 +55,20 @@ class NodeBot:
         self._init_bot_listener()
 
     def _populate_supported_commands(self):
-        self.commands['help'] = self.help_cmd_callback
-        self.commands['clean'] = self.clean_cmd_callback
-        self.commands['restart'] = self.restart_cmd_callback
-        self.commands['nodestatus'] = self.send_status_cmd_callback
-        self.commands['sendlivepic'] = self.send_status_cmd_callback
-        self.commands['sendlastcascpic'] = self.send_last_casc_pic_cmd_callback
-        self.commands['letin'] = self.let_in_cmd_callback
+        self.commands['help'] = self._help_cmd_callback
+        self.commands['clean'] = self._clean_cmd_callback
+        self.commands['restart'] = self._restart_cmd_callback
+        self.commands['nodestatus'] = self._send_status_cmd_callback
+        self.commands['sendlivepic'] = self._send_status_cmd_callback
+        self.commands['sendlastcascpic'] = self._send_last_casc_pic_cmd_callback
+        self.commands['letin'] = self._let_in_cmd_callback
         self.commands['lock'] = self._lock_moria
         self.commands['lockin'] = self._lock_moria_in
         self.commands['lockout'] = self._lock_moria_out
         self.commands['curfew'] = self._set_curfew
         self.commands['unlock'] = self._unlock_moria
+
+    # Constructor supporter functions
 
     def _init_bot_listener(self):
         self.telegram_bot.send_message(chat_id=self.CHAT_ID, text='Balrog is online!')
@@ -71,50 +84,6 @@ class NodeBot:
         command_handler = CommandHandler(command, callback)
         self.bot_updater.dispatcher.add_handler(command_handler)
 
-    def help_cmd_callback(self, update, context):
-        bot_message = 'Following commands supported:'
-        for command in self.commands:
-            bot_message += '\n /' + command
-        self.send_text(bot_message)
-
-    def let_in_cmd_callback(self, update, context):
-        self.send_text(f'Ok door is open for {flap_config.let_in_open_seconds}s...')
-        self._unlock_moria_for_seconds(flap_config.let_in_open_seconds)
-        self.clean_queue_event.set()
-
-    def restart_cmd_callback(self, update, context):
-        self.send_text('Restarting script...')
-        self.stop_event.set()
-        # self.send_text("(Does not work yet)")
-
-    def clean_cmd_callback(self, update, context):
-        self.send_text('Cleaning old logs...')
-        removed_paths = clean_logs()
-        self.send_text(f'Removed: [{*removed_paths,}]')
-
-    def send_last_casc_pic_cmd_callback(self, update, context):
-        if self.node_last_casc_img is not None:
-            cv2.imwrite('last_casc.jpg', self.node_last_casc_img)
-            caption = 'Last Cascade:'
-            self.send_img(self.node_last_casc_img, caption)
-        else:
-            self.send_text('No casc img available yet...')
-
-    def send_live_pic_cmd_callback(self, update, context):
-        if self.node_live_img is not None:
-            cv2.imwrite('live_img.jpg', self.node_live_img)
-            caption = 'Here ya go...'
-            self.send_img(self.node_live_img, caption)
-        else:
-            self.send_text('No img available yet...')
-
-    def send_status_cmd_callback(self, update, context):
-        if self.node_queue_info is not None and self.node_over_head_info is not None:
-            bot_message = f'Queue length: {self.node_queue_info}\nOverhead: {self.node_over_head_info}s'
-        else:
-            bot_message = 'No info yet...'
-        self.send_text(bot_message)
-
     # Raw send text and img functions
 
     def send_text(self, message: str):
@@ -123,6 +92,52 @@ class NodeBot:
     def send_img(self, img, caption):
         cv2.imwrite('degubi.jpg', img)
         self.telegram_bot.send_photo(chat_id=self.CHAT_ID, photo=open('degubi.jpg', 'rb'), caption=caption)
+
+    # Telegram Bot message handler callbacks
+
+    def _help_cmd_callback(self, update, context):
+        bot_message = 'Following commands supported:'
+        for command in self.commands:
+            bot_message += '\n /' + command
+        self.send_text(bot_message)
+
+    def _let_in_cmd_callback(self, update, context):
+        self.send_text(f'Ok door is open for {flap_config.let_in_open_seconds}s...')
+        self._unlock_moria_for_seconds(flap_config.let_in_open_seconds)
+        self.clean_queue_event.set()
+
+    def _restart_cmd_callback(self, update, context):
+        self.send_text('Restarting script...')
+        self.stop_event.set()
+        # self.send_text("(Does not work yet)")
+
+    def _clean_cmd_callback(self, update, context):
+        self.send_text('Cleaning old logs...')
+        removed_paths = Logging.clean_logs()
+        self.send_text(f'Removed: [{*removed_paths,}]')
+
+    def _send_last_casc_pic_cmd_callback(self, update, context):
+        if self.node_last_casc_img is not None:
+            cv2.imwrite('last_casc.jpg', self.node_last_casc_img)
+            caption = 'Last Cascade:'
+            self.send_img(self.node_last_casc_img, caption)
+        else:
+            self.send_text('No casc img available yet...')
+
+    def _send_live_pic_cmd_callback(self, update, context):
+        if self.node_live_img is not None:
+            cv2.imwrite('live_img.jpg', self.node_live_img)
+            caption = 'Here ya go...'
+            self.send_img(self.node_live_img, caption)
+        else:
+            self.send_text('No img available yet...')
+
+    def _send_status_cmd_callback(self, update, context):
+        if self.node_queue_info is not None and self.node_over_head_info is not None:
+            bot_message = f'Queue length: {self.node_queue_info}\nOverhead: {self.node_over_head_info}s'
+        else:
+            bot_message = 'No info yet...'
+        self.send_text(bot_message)
 
     # Internals to support the callbacks
 
@@ -178,3 +193,15 @@ class NodeBot:
             return asyncio.run(self.flap_handler.activate_curfew(self))
         else:
             return loop.run_until_complete(self.flap_handler.activate_curfew(self))
+
+
+class DebugBot(ITelegramBot):
+    def send_img(self, img, caption):
+        # Nothing to do here; we simply ignore the invocation
+        logger.warning(f"DebugTelegramBot - Ignoring sending image!")
+        pass
+
+    def send_text(self, message: str):
+        # Nothing to do here; we simply ignore the invocation
+        logger.warning(f"DebugTelegramBot - Ignoring sending text!")
+        pass

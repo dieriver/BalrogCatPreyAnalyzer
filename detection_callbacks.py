@@ -1,4 +1,4 @@
-from telegram_bot import NodeBot
+from telegram_bot import ITelegramBot
 from utils import logger
 
 
@@ -23,17 +23,17 @@ def __analyze_prey_vals(event_objects, cumuli, base_message, end_message=''):
         logger.exception('+++ Exception while sending img: ')
 
 
-def send_prey_message(bot: NodeBot, event_objects, cumuli):
+def send_prey_message(bot: ITelegramBot, event_objects, cumuli):
     sender_img, caption = __analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
     bot.send_img(img=sender_img, caption=caption)
 
 
-def send_no_prey_message(bot: NodeBot, event_objects, cumuli):
+def send_no_prey_message(bot: ITelegramBot, event_objects, cumuli):
     sender_img, caption = __analyze_prey_vals(event_objects, cumuli, 'Cat is clean...')
     bot.send_img(img=sender_img, caption=caption)
 
 
-def send_dk_message(bot: NodeBot, event_objects, cumuli):
+def send_dk_message(bot: ITelegramBot, event_objects, cumuli):
     sender_img, caption = __analyze_prey_vals(
         event_objects,
         cumuli,
@@ -43,7 +43,7 @@ def send_dk_message(bot: NodeBot, event_objects, cumuli):
     bot.send_img(img=sender_img, caption=caption)
 
 
-def send_cat_detected_message(bot: NodeBot, live_img, cumuli):
+def send_cat_detected_message(bot: ITelegramBot, live_img, cumuli):
     try:
         caption = f'Cumuli: {cumuli} => Gato incoming! \nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
         # sender_img = event_objects[-1].output_img

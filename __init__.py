@@ -1,13 +1,13 @@
 from threading import Event
 from main_loop import FrameResultAggregator, FrameProcessor
-from utils import init_logger
+from utils import Logging
 from config import general_config, camera_config
 from image_container import ImageBuffers
 from camera_class import Camera
 
 
 if __name__ == '__main__':
-    init_logger()
+    Logging.init_logger()
     stop_event = Event()
     frame_buffers = ImageBuffers(2 * general_config.max_frame_buffers)
 
