@@ -94,7 +94,6 @@ class FrameResultAggregator:
                 self.aggregate_available_frames()
             else:
                 # We simply wait for new frames to be ready (The camera thread should propulate the deque)
-                logger.info(f'Nothing to work with => Available buffers: {frames_rdy_for_aggregation}')
                 time.sleep(0.25)
 
             # Check if user force opens the door

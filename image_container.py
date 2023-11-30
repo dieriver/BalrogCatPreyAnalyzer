@@ -196,8 +196,9 @@ class ImageBuffers:
         with self.window_start_lock:
             for i in range(self.window_start, self.window_start + len(self.circular_buffer)):
                 normalized_index = i % len(self.circular_buffer)
+                # TODO - Check if the normalized index crossed the end of the window
                 instance = self.circular_buffer[normalized_index]
-                if instance.try_acquire_casc_compute_lock():
+                if instance.is_ready_for_cascade() and instance.try_acquire_casc_compute_lock():
                     index = normalized_index
                     break
         return index
@@ -207,8 +208,9 @@ class ImageBuffers:
         with self.window_start_lock:
             for i in range(self.window_start, self.window_start + len(self.circular_buffer)):
                 normalized_index = i % len(self.circular_buffer)
+                # TODO - Check if the normalized index crossed the end of the window
                 instance = self.circular_buffer[normalized_index]
-                if instance.try_acquire_casc_result_available_lock():
+                if instance.is_ready_for_aggregation() and instance.try_acquire_casc_result_available_lock():
                     index = normalized_index
                     break
         return index
