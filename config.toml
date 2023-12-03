@@ -1,8 +1,15 @@
 [general]
 max_message_sender_threads = 2
-max_frame_processor_threads = 1
+max_frame_processor_threads = 2
 min_aggregation_frames_threshold = 3
 max_frame_buffers = 10
+
+[logging]
+stdout_debug_level = "INFO"
+enable_cascade_logging = false
+enable_circular_buffer_logging = false
+max_log_file_size_mb = 500
+max_log_files_kept = 2
 
 [camera]
 camera_fps = 10

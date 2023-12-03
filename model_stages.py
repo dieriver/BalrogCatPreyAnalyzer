@@ -55,9 +55,6 @@ class CCMobileNetStage:
                                                                     use_display_name=True)
         category_index = label_map_util.create_category_index(categories)
 
-        # print(categories)
-        # print(category_index)
-
         # Load the Tensorflow model into memory.
         detection_graph = tf.Graph()
         with detection_graph.as_default():

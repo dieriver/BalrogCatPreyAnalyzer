@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from tomllib import load
 
@@ -8,6 +9,15 @@ class GeneralConfigs:
     max_frame_processor_threads: int
     min_aggregation_frames_threshold: int
     max_frame_buffers: int
+
+
+@dataclass
+class LoggingConfigs:
+    stdout_debug_level: int
+    enable_cascade_logging: bool
+    enable_circular_buffer_logging: bool
+    max_log_file_size_mb: int
+    max_log_files_kept: int
 
 
 @dataclass
@@ -49,6 +59,18 @@ def load_general_config() -> GeneralConfigs:
         )
 
 
+def load_logging_config() -> LoggingConfigs:
+    with open("config.toml", "rb") as config_file:
+        loaded_bytes = load(config_file)
+        return LoggingConfigs(
+            logging.getLevelName(loaded_bytes["logging"]["stdout_debug_level"]),
+            loaded_bytes["logging"]["enable_cascade_logging"],
+            loaded_bytes["logging"]["enable_circular_buffer_logging"],
+            loaded_bytes["logging"]["max_log_file_size_mb"],
+            loaded_bytes["logging"]["max_log_files_kept"]
+        )
+
+
 def load_camera_config() -> CameraConfigs:
     with open("config.toml", "rb") as config_file:
         loaded_bytes = load(config_file)
@@ -71,6 +93,7 @@ def load_model_config() -> ModelConfigs:
 
 
 general_config = load_general_config()
+logging_config = load_logging_config()
 model_config = load_model_config()
 camera_config = load_camera_config()
 flap_config = load_flap_config()

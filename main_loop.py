@@ -84,8 +84,6 @@ class FrameResultAggregator:
         self.frame_buffers.clear()
         self.clean_queue_event.clear()
 
-        gc.collect()
-
     def queue_handler(self):
         try:
             while not self.stop_event.is_set():
@@ -113,7 +111,6 @@ class FrameResultAggregator:
         if next_frame_index < 0:
             return
 
-        logger.debug(f"Aggregate thread - Buffer index {next_frame_index}, state = {self.frame_buffers[next_frame_index]}")
         next_frame = self.frame_buffers[next_frame_index]
         cascade_obj = next_frame.get_event_element()
         overhead = next_frame.get_overhead()

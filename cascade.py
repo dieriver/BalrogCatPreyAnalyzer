@@ -4,6 +4,7 @@ import time
 
 from model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
 from utils import logger
+from config import logging_config
 
 
 class EventElement:
@@ -45,6 +46,13 @@ class Cascade:
         self.eyes_stage = EyeStage()
         self.haar_stage = HaarStage()
 
+    @staticmethod
+    def _log(message: str, exception: Exception | None = None):
+        if exception is not None:
+            logger.exception(message)
+        elif logging_config.enable_cascade_logging:
+            logger.debug(message)
+
     def do_single_cascade(self, event_img_object, thread_id: int):
         logger.info(f'Thread {thread_id} - Processing image: {event_img_object.img_name}')
         cc_target_img = event_img_object.cc_target_img
@@ -55,14 +63,14 @@ class Cascade:
         dk_bool, cat_bool, bbs_target_img, pred_cc_bb_full, cc_inference_time = self.do_cc_mobile_stage(
             cc_target_img=cc_target_img)
         current_time = time.time()
-        logger.debug(f'CASCADE - CC compute Time: {current_time - start_time}')
+        Cascade._log(f'CASCADE - CC compute Time: {current_time - start_time}')
         event_img_object.cc_cat_bool = cat_bool
         event_img_object.cc_pred_bb = pred_cc_bb_full
         event_img_object.bbs_target_img = bbs_target_img
         event_img_object.cc_inference_time = cc_inference_time
 
         if cat_bool and bbs_target_img.size != 0:
-            logger.debug('CASCADE - Cat Detected!')
+            Cascade._log('CASCADE - Cat Detected!')
             rec_img = self.cc_mobile_stage.draw_rectangle(img=original_copy_img,
                                                           box=pred_cc_bb_full,
                                                           color=(255, 0, 0),
@@ -119,12 +127,12 @@ class Cascade:
             if face_bool:
                 rec_img = self.cc_mobile_stage.draw_rectangle(img=rec_img, box=inf_bb, color=(255, 255, 255),
                                                               text='INF_Pred')
-                logger.debug('CASCADE - Face Detected!')
+                Cascade._log('CASCADE - Face Detected!')
 
                 # Do PC
                 pred_class, pred_val, inference_time = self.do_pc_stage(pc_target_img=snout_crop)
-                logger.debug(f'CASCADE - Prey Prediction: {pred_class}')
-                logger.debug(f'CASCADE - Pred_Val: {pred_val:.2f}')
+                Cascade._log(f'CASCADE - Prey Prediction: {pred_class}')
+                Cascade._log(f'CASCADE - Pred_Val: {pred_val:.2f}')
                 pc_str = f' PC_Pred: {pred_class} @ {pred_val:.2f}'
                 color = (0, 0, 255) if pred_class else (0, 255, 0)
                 rec_img = self.input_text(img=rec_img, text=pc_str, text_pos=(15, 100), color=color)
@@ -134,12 +142,12 @@ class Cascade:
                 event_img_object.pc_inference_time = inference_time
 
             else:
-                logger.debug('CASCADE - No Face Found...')
+                Cascade._log('CASCADE - No Face Found...')
                 ff_str = 'No_Face'
                 rec_img = self.input_text(img=rec_img, text=ff_str, text_pos=(15, 100), color=(255, 255, 0))
 
         else:
-            logger.debug('CASCADE - No Cat Found...')
+            Cascade._log('CASCADE - No Cat Found...')
             rec_img = self.input_text(img=original_copy_img,
                                       text='CC_Pred: NoCat',
                                       text_pos=(15, 100),
@@ -154,7 +162,7 @@ class Cascade:
         cc_area = abs(cc_bbs[0][0] - cc_bbs[1][0]) * abs(cc_bbs[0][1] - cc_bbs[1][1])
         haar_area = abs(haar_bbs[0][0] - haar_bbs[1][0]) * abs(haar_bbs[0][1] - haar_bbs[1][1])
         overlap = haar_area / cc_area
-        logger.debug(f'CASCADE - Overlap: {overlap}')
+        Cascade._log(f'CASCADE - Overlap: {overlap}')
         return overlap
 
     def infere_snout_crop(self, bbs, haar_bbs, bbs_face_bool, bbs_ff_conf, haar_face_bool, haar_ff_conf, cc_target_img):

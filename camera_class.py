@@ -52,7 +52,6 @@ class Camera:
                 self.frame_buffers.mark_position_ready_for_cascade(index)
 
                 i += 1
-                # print(f"Camera thread sleeping '{self.frame_rate}' (ms), before obtain the next frame (keep fps)")
                 time.sleep(1 / self.frame_rate)
                 if i >= self.cleanup_threshold:
                     logger.info("Camera captures max configured frames; cleaning up and restarting")

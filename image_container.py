@@ -35,7 +35,8 @@ class BufferState(Enum):
 
 
 class ImageContainer:
-    def __init__(self):
+    def __init__(self, enable_logging: bool):
+        self.enable_logging = enable_logging
         self.capture_data: _CaptureImageData = _CaptureImageData()
         self.casc_result_data: _CascadeResultData = _CascadeResultData()
         self.buffer_state = BufferState.WAITING_FRAME
@@ -44,7 +45,6 @@ class ImageContainer:
         """
         Cleans the data in this image container.
         """
-        #logger.info("cleaning buffer")
         self.capture_data: _CaptureImageData = _CaptureImageData()
         self.casc_result_data: _CascadeResultData = _CascadeResultData()
         self.buffer_state = BufferState.WAITING_FRAME
@@ -104,13 +104,14 @@ class ImageContainer:
 
 
 class ImageBuffers:
-    def __init__(self, max_capacity):
+    def __init__(self, max_capacity: int, enable_logging: bool):
         """
         Creates a pre-allocated circular buffer with the given maximum capacity.
         All the indexes returned by methods of this class will return an integer in
         the range [0, max_capacity)
         :param max_capacity: the maximum capacity of the circular buffer
         """
+        self.enable_logging = enable_logging
         self.circular_buffer: deque[ImageContainer] = deque(maxlen=max_capacity)
         # To emulate the circular behavior, we will keep a reference _of the first and last_
         # index of the window that is in use. When computing any "next available index" we will iterate over the range:
@@ -124,7 +125,7 @@ class ImageBuffers:
         self.indexes_lock = RLock()
 
         for i in range(0, max_capacity):
-            self.circular_buffer.append(ImageContainer())
+            self.circular_buffer.append(ImageContainer(enable_logging))
 
         self.frames_available_for_frame = len(self.circular_buffer)
         self.frames_available_for_cascade = 0
@@ -146,12 +147,18 @@ class ImageBuffers:
         """
         return self.circular_buffer[item]
 
+    def _log(self, message, exception: Exception | None = None):
+        if exception is not None:
+            logger.exception(message)
+        elif self.enable_logging:
+            logger.debug(message)
+
     def clear(self):
         """
         Cleans the data in _all_ the buffers of this structure
         :return:
         """
-        logger.info("Cleaning all buffers")
+        self._log("Cleaning all buffers")
         with self.indexes_lock:
             for buffer in self.circular_buffer:
                 buffer.clean()
@@ -169,22 +176,10 @@ class ImageBuffers:
     def frames_ready_for_cascade(self) -> int:
         with self.indexes_lock:
             return self.frames_available_for_cascade
-        # result = 0
-        # with self.indexes_lock:
-        #     for buffer in self.circular_buffer:
-        #         if buffer.is_ready_for_cascade():
-        #             result += 1
-        # return result
 
     def frames_ready_for_aggregation(self) -> int:
         with self.indexes_lock:
             return self.frames_available_for_aggregation
-        # result = 0
-        # with self.indexes_lock:
-        #     for buffer in self.circular_buffer:
-        #         if buffer.is_ready_for_aggregation():
-        #             result += 1
-        # return result
 
     def get_next_index_for_frame(self) -> int:
         self.indexes_lock.acquire()
@@ -260,9 +255,8 @@ class ImageBuffers:
             return aggregate_index
 
     def reset_buffer(self, index):
-        logger.debug(f"Releasing buffer # {index}")
+        self._log(f"Releasing buffer # {index}")
         self.last_non_aggregated_frame = ((self.last_non_aggregated_frame + 1) % len(self.circular_buffer))
         self.circular_buffer[index].clean()
-        logger.debug(f"next_non_aggr {self.last_non_aggregated_frame}, state = {self.circular_buffer[self.last_non_aggregated_frame]}")
         self.frames_available_for_aggregation -= 1
         self.indexes_lock.release()

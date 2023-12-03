@@ -16,14 +16,14 @@ log_dbg_filename = 'cat_logger-dbg.log'
 
 class Logging:
     @staticmethod
-    def init_logger() -> None:
+    def init_logger(stdout_logging_level: int, max_log_size: int, max_log_files: int) -> None:
         logger.setLevel(logging.DEBUG)
 
         stdout_handler = logging.StreamHandler(stream=sys.stdout)
         file_handler = logging.handlers.RotatingFileHandler(
             filename=f'{log_base_folder}/{log_filename}',
-            maxBytes=(1024*1024*500),
-            backupCount=2,
+            maxBytes=(1024*1024*max_log_size),
+            backupCount=max_log_files,
             encoding='utf-8'
         )
         dbg_file_handler = logging.handlers.RotatingFileHandler(
@@ -32,8 +32,8 @@ class Logging:
             backupCount=2,
             encoding='utf-8'
         )
-        stdout_handler.setLevel(logging.DEBUG)
-        file_handler.setLevel(logging.INFO)
+        stdout_handler.setLevel(stdout_logging_level)
+        file_handler.setLevel(stdout_logging_level)
         dbg_file_handler.setLevel(logging.DEBUG)
 
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
