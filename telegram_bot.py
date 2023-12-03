@@ -196,6 +196,14 @@ class BalrogTelegramBot(ITelegramBot):
 
 
 class DebugBot(ITelegramBot):
+    def __init(self):
+        # TODO - Directly access this data is not recommended. Refactor this!
+        self.node_live_img = None
+        self.node_queue_info = None
+        self.node_over_head_info = None
+
+        self.node_last_casc_img = None
+
     def send_img(self, img, caption):
         # Nothing to do here; we simply ignore the invocation
         logger.warning(f"DebugTelegramBot - Ignoring sending image!")

@@ -2,7 +2,7 @@
 max_message_sender_threads = 2
 max_frame_processor_threads = 1
 min_aggregation_frames_threshold = 3
-max_frame_buffers = 100
+max_frame_buffers = 10
 
 [camera]
 camera_fps = 10

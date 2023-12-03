@@ -41,7 +41,7 @@ class Camera:
             while camera.isOpened():
                 ret, frame = camera.read()
 
-                index = self.frame_buffers.get_next_img_lock()
+                index = self.frame_buffers.get_next_index_for_frame()
                 if index < 0:
                     logger.warning("Could not find a buffer ready to write an image, discarding the frame")
                     continue
@@ -49,7 +49,7 @@ class Camera:
                 logger.debug(f"Writing frame to buffer # {index}")
                 next_buffer = self.frame_buffers[index]
                 next_buffer.write_capture_data(frame, datetime.now(pytz.timezone('Europe/Zurich')))
-                next_buffer.make_ready_for_cascade()
+                self.frame_buffers.mark_position_ready_for_cascade(index)
 
                 i += 1
                 # print(f"Camera thread sleeping '{self.frame_rate}' (ms), before obtain the next frame (keep fps)")
@@ -66,5 +66,4 @@ class Camera:
 
             if self.stop_event.is_set():
                 logger.warning("Terminating camera thread - break B")
-                logger.warning("Terminating camera thread - B")
                 return

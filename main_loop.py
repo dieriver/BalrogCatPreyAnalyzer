@@ -87,41 +87,46 @@ class FrameResultAggregator:
         gc.collect()
 
     def queue_handler(self):
-        while not self.stop_event.is_set():
-            # We check if there are enough frames to work with (according to the config)
-            frames_rdy_for_aggregation = self.frame_buffers.frames_ready_for_aggregation()
-            logger.debug(f"Frames ready for aggregation: {frames_rdy_for_aggregation}")
+        try:
+            while not self.stop_event.is_set():
+                # We check if there are enough frames to work with (according to the config)
+                frames_rdy_for_aggregation = self.frame_buffers.frames_ready_for_aggregation()
+                logger.debug(f"Frames ready for aggregation: {frames_rdy_for_aggregation}")
 
-            if frames_rdy_for_aggregation >= general_config.min_aggregation_frames_threshold:
-                # Here we go :)
-                self.aggregate_available_frames()
-            else:
-                # We simply wait for new frames to be ready (The camera thread should propulate the deque)
-                time.sleep(0.25)
+                if frames_rdy_for_aggregation >= general_config.min_aggregation_frames_threshold:
+                    # Here we go :)
+                    self.aggregate_available_frames(frames_rdy_for_aggregation)
+                else:
+                    # We simply wait for new frames to be ready (The camera thread should propulate the deque)
+                    time.sleep(0.25)
 
-            # Check if user force opens the door
-            if self.clean_queue_event.is_set():
-                # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
-                self.reset_aggregation_fields()
+                # Check if user force opens the door
+                if self.clean_queue_event.is_set():
+                    # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
+                    self.reset_aggregation_fields()
+        except Exception as e:
+            logger.exception("Exception in aggregation thread: ", e)
 
-    def aggregate_available_frames(self):
+    def aggregate_available_frames(self, frames_rdy_for_aggregation: int):
         # We get the last buffer, and extract its data
-        next_frame_index = self.frame_buffers.get_next_aggregation_lock()
+        next_frame_index = self.frame_buffers.get_next_index_for_aggregation()
         if next_frame_index < 0:
             return
 
+        logger.debug(f"Aggregate thread - Buffer index {next_frame_index}, state = {self.frame_buffers[next_frame_index]}")
         next_frame = self.frame_buffers[next_frame_index]
         cascade_obj = next_frame.get_event_element()
         overhead = next_frame.get_overhead()
+        image_data = next_frame.get_img_data()
+
+        # We release the lock asap
+        self.frame_buffers.reset_buffer(next_frame_index)
 
         # Add this such that the bot has some info
         # TODO - Directly access this data is not recommended. Refactor this!
-        self.bot.node_queue_info = self.frame_buffers.frames_ready_for_aggregation()
-        self.bot.node_live_img = next_frame.get_img_data()
+        self.bot.node_queue_info = frames_rdy_for_aggregation
+        self.bot.node_live_img = image_data
         self.bot.node_over_head_info = overhead
-
-        logger.debug(f"Releasing buffer # = {next_frame_index}")
-        self.frame_buffers.reset_buffer(next_frame_index)
 
         if cascade_obj.cc_cat_bool:
             # We are inside an event => add event_obj to list
@@ -262,32 +267,36 @@ class FrameProcessor:
         return total_runtime, single_cascade
 
     def process_frame(self, thread_id: int):
-        while not self.stop_event.is_set():
-            frames_ready_for_cascade = self.frame_buffers.frames_ready_for_cascade()
+        try:
+            while not self.stop_event.is_set():
+                # Feed the latest image in the Queue through the cascade
+                next_frame_index = self.frame_buffers.get_next_index_for_cascade()
 
-            # Feed the latest image in the Queue through the cascade
-            next_frame_index = self.frame_buffers.get_next_casc_compute_lock()
-            logger.debug(f'Frames ready for cascade: {frames_ready_for_cascade}')
-            logger.debug(f'Selected index for cascade: {next_frame_index}')
+                if next_frame_index < 0:
+                    # We couldn't acquire the lock of a frame to compute the cascade; pass
+                    time.sleep(0.25)
+                    continue
 
-            if next_frame_index < 0:
-                # We couldn't acquire the lock of a frame to compute the cascade; pass
-                time.sleep(0.25)
-                continue
+                logger.info(f'Selected index for cascade: {next_frame_index}')
+                next_frame = self.frame_buffers[next_frame_index]
+                image_data = next_frame.get_img_data()
+                frame_tstamp = next_frame.get_timestamp()
+                self.frame_buffers.release_buffers_lock()
 
-            next_frame = self.frame_buffers[next_frame_index]
+                total_runtime, cascade_obj = self.feed_to_cascade(
+                    target_img=image_data,
+                    img_name=frame_tstamp,
+                    thread_id=thread_id
+                )
+                overhead = datetime.now(pytz.timezone('Europe/Zurich')) - frame_tstamp
+                logger.debug(f'Overhead: {overhead.total_seconds()}')
 
-            total_runtime, cascade_obj = self.feed_to_cascade(
-                target_img=next_frame.get_img_data(),
-                img_name=next_frame.get_timestamp(),
-                thread_id=thread_id
-            )
-            overhead = datetime.now(pytz.timezone('Europe/Zurich')) - next_frame.get_timestamp()
-            logger.debug(f'Overhead: {overhead.total_seconds()}')
-
-            logger.debug(f"Writing cascade result of buffer # = {next_frame_index}")
-            next_frame.write_cascade_data(cascade_obj, total_runtime, overhead.total_seconds())
-            next_frame.make_ready_for_aggregation()
+                logger.debug(f"Writing cascade result of buffer # = {next_frame_index}")
+                was_written = next_frame.write_cascade_data(cascade_obj, total_runtime, overhead.total_seconds())
+                if was_written:
+                    self.frame_buffers.mark_position_ready_for_aggregation(next_frame_index)
+        except Exception as e:
+            logger.exception(f"Exception in processing thread:", e)
 
     def single_debug(self):
         start_time = time.time()

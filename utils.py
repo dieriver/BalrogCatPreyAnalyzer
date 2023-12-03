@@ -32,7 +32,7 @@ class Logging:
             backupCount=2,
             encoding='utf-8'
         )
-        stdout_handler.setLevel(logging.INFO)
+        stdout_handler.setLevel(logging.DEBUG)
         file_handler.setLevel(logging.INFO)
         dbg_file_handler.setLevel(logging.DEBUG)
 

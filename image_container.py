@@ -3,7 +3,7 @@ from enum import Enum
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from threading import BoundedSemaphore, Lock
+from threading import RLock
 
 from cv2.typing import MatLike
 
@@ -15,6 +15,9 @@ from cascade import EventElement
 class _CaptureImageData:
     img_data: MatLike | None = None
     timestamp: datetime | None = None
+
+    def __repr__(self) -> str:
+        return f"<img_data: {'present' if self.img_data is not None else 'empty'}, tstamp: {self.timestamp}>"
 
 
 @dataclass
@@ -35,27 +38,25 @@ class ImageContainer:
     def __init__(self):
         self.capture_data: _CaptureImageData = _CaptureImageData()
         self.casc_result_data: _CascadeResultData = _CascadeResultData()
-        self.img_semaphore = BoundedSemaphore(1)
-        self.casc_compute_semaphore = BoundedSemaphore(1)
-        self.casc_result_avail_semaphore = BoundedSemaphore(1)
-        self.casc_compute_semaphore.acquire()
-        self.casc_result_avail_semaphore.acquire()
         self.buffer_state = BufferState.WAITING_FRAME
 
-    def __del__(self) -> None:
+    def clean(self) -> None:
         """
         Cleans the data in this image container.
         """
-        self.capture_data: _CaptureImageData
-        self.casc_result_data: _CascadeResultData
-        self.img_semaphore = BoundedSemaphore(1)
-        self.casc_compute_semaphore = BoundedSemaphore(1)
-        self.casc_result_avail_semaphore = BoundedSemaphore(1)
-        self.casc_compute_semaphore.acquire()
-        self.casc_result_avail_semaphore.acquire()
+        #logger.info("cleaning buffer")
+        self.capture_data: _CaptureImageData = _CaptureImageData()
+        self.casc_result_data: _CascadeResultData = _CascadeResultData()
         self.buffer_state = BufferState.WAITING_FRAME
+        gc.collect()
+
+    def __repr__(self) -> str:
+        return f"<capture_data = {repr(self.capture_data)}, result_data = {repr(self.casc_result_data)}, buffer_state = {self.buffer_state}>"
 
     # Methods to check the state of the locks of this buffer
+
+    def is_ready_for_frame(self) -> bool:
+        return self.buffer_state == BufferState.WAITING_FRAME
 
     def is_ready_for_cascade(self) -> bool:
         return self.buffer_state == BufferState.WAITING_CASCADE
@@ -66,35 +67,23 @@ class ImageContainer:
     def has_been_used(self) -> bool:
         return self.buffer_state == BufferState.USED
 
-    # Methods to acquire and release the lock of this buffer
-
-    def try_acquire_img_lock(self) -> bool:
-        return self.img_semaphore.acquire(blocking=False)
-
-    def try_acquire_casc_compute_lock(self) -> bool:
-        return self.casc_compute_semaphore.acquire(blocking=False)
-
-    def try_acquire_casc_result_available_lock(self) -> bool:
-        return self.casc_result_avail_semaphore.acquire(blocking=False)
-
-    def release_img_lock(self) -> None:
-        self.img_semaphore.release()
-
-    def make_ready_for_cascade(self) -> None:
-        self.buffer_state = BufferState.WAITING_CASCADE
-        self.casc_compute_semaphore.release()
-
-    def make_ready_for_aggregation(self) -> None:
-        self.buffer_state = BufferState.WAITING_AGGREGATION
-        self.casc_result_avail_semaphore.release()
-
     # Methods used to store the data in this buffer
 
     def write_capture_data(self, img_data, timestamp: datetime) -> None:
         self.capture_data = _CaptureImageData(img_data, timestamp)
 
-    def write_cascade_data(self, event_elem: EventElement, total_time: float, overhead: float):
-        self.casc_result_data = _CascadeResultData(event_elem, total_time, overhead)
+    def write_cascade_data(self, event_elem: EventElement, total_time: float, overhead: float) -> bool:
+        """
+        Writes the cascade data to the given buffer ONLY if the buffer is waiting for cascade data.
+        :param event_elem:
+        :param total_time:
+        :param overhead:
+        :return: True if the data was written, False otherwise
+        """
+        if self.buffer_state is BufferState.WAITING_CASCADE:
+            self.casc_result_data = _CascadeResultData(event_elem, total_time, overhead)
+            return True
+        return False
 
     # Accessors for the data stored in this buffer
 
@@ -129,14 +118,17 @@ class ImageBuffers:
         # the outside of the max_capacity (length) of self.circular_buffer, however, to fix that
         # (and to keep the circular behavior) we will use the integers on that range _modulus_
         # max_capacity.
-        self.window_start = 0
-        self.window_start_lock = Lock()
-        self.window_end = 0
-        self.window_end_lock = Lock()
-        self.general_lock = Lock()
+        self.first_empty_frame = -1
+        self.first_unprocessed_cascade = -1
+        self.last_non_aggregated_frame = -1
+        self.indexes_lock = RLock()
 
-        for i in range(self.window_start, self.window_start + max_capacity):
+        for i in range(0, max_capacity):
             self.circular_buffer.append(ImageContainer())
+
+        self.frames_available_for_frame = len(self.circular_buffer)
+        self.frames_available_for_cascade = 0
+        self.frames_available_for_aggregation = 0
 
     def __len__(self):
         return len(self.circular_buffer)
@@ -159,63 +151,118 @@ class ImageBuffers:
         Cleans the data in _all_ the buffers of this structure
         :return:
         """
-        for buffer in self.circular_buffer:
-            del buffer
+        logger.info("Cleaning all buffers")
+        with self.indexes_lock:
+            for buffer in self.circular_buffer:
+                buffer.clean()
+
+            self.first_empty_frame = -1
+            self.first_unprocessed_cascade = -1
+            self.last_non_aggregated_frame = -1
+
+            self.frames_available_for_frame = len(self.circular_buffer)
+            self.frames_available_for_cascade = 0
+            self.frames_available_for_aggregation = 0
+
         gc.collect()
 
     def frames_ready_for_cascade(self) -> int:
-        result = 0
-        with self.general_lock:
-            for buffer in self.circular_buffer:
-                if buffer.is_ready_for_cascade():
-                    result += 1
-        return result
+        with self.indexes_lock:
+            return self.frames_available_for_cascade
+        # result = 0
+        # with self.indexes_lock:
+        #     for buffer in self.circular_buffer:
+        #         if buffer.is_ready_for_cascade():
+        #             result += 1
+        # return result
 
     def frames_ready_for_aggregation(self) -> int:
-        result = 0
-        with self.general_lock:
-            for buffer in self.circular_buffer:
-                if buffer.is_ready_for_aggregation():
-                    result += 1
-        return result
+        with self.indexes_lock:
+            return self.frames_available_for_aggregation
+        # result = 0
+        # with self.indexes_lock:
+        #     for buffer in self.circular_buffer:
+        #         if buffer.is_ready_for_aggregation():
+        #             result += 1
+        # return result
 
-    def get_next_img_lock(self) -> int:
-        index = -1
-        with self.window_end_lock:
-            for i in range(self.window_end, self.window_end + len(self.circular_buffer)):
-                normalized_index = i % len(self.circular_buffer)
-                instance = self.circular_buffer[normalized_index]
-                if instance.try_acquire_img_lock():
-                    index = normalized_index
-                    self.window_end = (self.window_end + 1) % len(self.circular_buffer)
-                    break
-        return index
+    def get_next_index_for_frame(self) -> int:
+        self.indexes_lock.acquire()
+        # Border case: at the start, all indexes are -1
+        if self.first_empty_frame < 0:
+            if not self.circular_buffer[0].is_ready_for_frame():
+                self.indexes_lock.release()
+                return -1
+            else:
+                self.first_empty_frame += 1
 
-    def get_next_casc_compute_lock(self) -> int:
-        index = -1
-        with self.window_start_lock:
-            for i in range(self.window_start, self.window_start + len(self.circular_buffer)):
-                normalized_index = i % len(self.circular_buffer)
-                # TODO - Check if the normalized index crossed the end of the window
-                instance = self.circular_buffer[normalized_index]
-                if instance.is_ready_for_cascade() and instance.try_acquire_casc_compute_lock():
-                    index = normalized_index
-                    break
-        return index
+        # We check the indexes of the first empty frame and the last aggregated
+        if self.frames_available_for_frame <= 0 or self.first_empty_frame == self.last_non_aggregated_frame:
+            # If they are equal, the circular buffer is full
+            self.indexes_lock.release()
+            return -1
+        else:
+            # If they are different, we assume the frame is available
+            empty_frame_index = self.first_empty_frame
+            return empty_frame_index
 
-    def get_next_aggregation_lock(self) -> int:
-        index = -1
-        with self.window_start_lock:
-            for i in range(self.window_start, self.window_start + len(self.circular_buffer)):
-                normalized_index = i % len(self.circular_buffer)
-                # TODO - Check if the normalized index crossed the end of the window
-                instance = self.circular_buffer[normalized_index]
-                if instance.is_ready_for_aggregation() and instance.try_acquire_casc_result_available_lock():
-                    index = normalized_index
-                    break
-        return index
+    def mark_position_ready_for_cascade(self, index: int):
+        self.first_empty_frame = ((self.first_empty_frame + 1) % len(self.circular_buffer))
+        self.circular_buffer[index].buffer_state = BufferState.WAITING_CASCADE
+        self.frames_available_for_frame -= 1
+        self.frames_available_for_cascade += 1
+        self.indexes_lock.release()
+
+    def get_next_index_for_cascade(self) -> int:
+        self.indexes_lock.acquire()
+        # Border case: at the start, all indexes are -1
+        if self.first_unprocessed_cascade < 0:
+            if not self.circular_buffer[0].is_ready_for_cascade():
+                self.indexes_lock.release()
+                return -1
+            else:
+                self.first_unprocessed_cascade += 1
+
+        if self.frames_available_for_cascade <= 0 or self.first_unprocessed_cascade == self.first_empty_frame:
+            # There are no available frames for cascade; first unprocessed cascade does not have frame
+            self.indexes_lock.release()
+            return -1
+        else:
+            cascade_index = self.first_unprocessed_cascade
+            return cascade_index
+
+    def release_buffers_lock(self):
+        self.indexes_lock.release()
+
+    def mark_position_ready_for_aggregation(self, index: int):
+        with self.indexes_lock:
+            self.first_unprocessed_cascade = ((self.first_unprocessed_cascade + 1) % len(self.circular_buffer))
+            self.circular_buffer[index].buffer_state = BufferState.WAITING_AGGREGATION
+            self.frames_available_for_cascade -= 1
+            self.frames_available_for_aggregation += 1
+
+    def get_next_index_for_aggregation(self) -> int:
+        self.indexes_lock.acquire()
+        # Border case: at the start, all indexes are -1
+        if self.last_non_aggregated_frame < 0:
+            if not self.circular_buffer[0].is_ready_for_aggregation():
+                self.indexes_lock.release()
+                return -1
+            else:
+                self.last_non_aggregated_frame += 1
+
+        if self.frames_available_for_aggregation <= 0 or self.last_non_aggregated_frame == self.first_unprocessed_cascade:
+            # No frames are available for aggregation; the last non aggregated frame has not gone through cascade
+            self.indexes_lock.release()
+            return -1
+        else:
+            aggregate_index = self.last_non_aggregated_frame
+            return aggregate_index
 
     def reset_buffer(self, index):
-        with self.window_start_lock:
-            self.window_start = (self.window_start + 1) % len(self.circular_buffer)
-            del self.circular_buffer[index]
+        logger.debug(f"Releasing buffer # {index}")
+        self.last_non_aggregated_frame = ((self.last_non_aggregated_frame + 1) % len(self.circular_buffer))
+        self.circular_buffer[index].clean()
+        logger.debug(f"next_non_aggr {self.last_non_aggregated_frame}, state = {self.circular_buffer[self.last_non_aggregated_frame]}")
+        self.frames_available_for_aggregation -= 1
+        self.indexes_lock.release()
