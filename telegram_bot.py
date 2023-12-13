@@ -59,7 +59,7 @@ class BalrogTelegramBot(ITelegramBot):
         self.commands['clean'] = self._clean_cmd_callback
         self.commands['restart'] = self._restart_cmd_callback
         self.commands['nodestatus'] = self._send_status_cmd_callback
-        self.commands['sendlivepic'] = self._send_status_cmd_callback
+        self.commands['sendlivepic'] = self._send_live_pic_cmd_callback
         self.commands['sendlastcascpic'] = self._send_last_casc_pic_cmd_callback
         self.commands['letin'] = self._let_in_cmd_callback
         self.commands['lock'] = self._lock_moria
