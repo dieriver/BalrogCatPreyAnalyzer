@@ -1,5 +1,5 @@
-from telegram_bot import ITelegramBot
-from utils import logger
+from balrog.interface import ITelegramBot
+from balrog.utils import logger
 
 
 def __analyze_prey_vals(event_objects, cumuli, base_message, end_message=''):

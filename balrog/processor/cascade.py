@@ -1,10 +1,11 @@
-import numpy as np
-import cv2
 import time
 
+import cv2
+import numpy as np
+
+from balrog.utils.utils import logger
 from model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
-from utils import logger
-from config import logging_config
+from balrog.config import logging_config
 
 
 class EventElement:
@@ -53,7 +54,7 @@ class Cascade:
         elif logging_config.enable_cascade_logging:
             logger.debug(message)
 
-    def do_single_cascade(self, event_img_object, thread_id: int):
+    def do_single_cascade(self, event_img_object: EventElement, thread_id: int):
         logger.info(f'Thread {thread_id} - Processing image: {event_img_object.img_name}')
         cc_target_img = event_img_object.cc_target_img
         original_copy_img = cc_target_img.copy()

@@ -13,6 +13,9 @@ class GeneralConfigs:
 
 @dataclass
 class LoggingConfigs:
+    log_base_folder: str
+    log_file_name: str
+    log_dbg_file_name: str
     stdout_debug_level: int
     enable_cascade_logging: bool
     enable_circular_buffer_logging: bool
@@ -28,6 +31,7 @@ class CameraConfigs:
 
 @dataclass
 class ModelConfigs:
+    tensorflow_models_path: str
     event_reset_threshold: int
     cat_counter_threshold: int
     cumulus_prey_threshold: int
@@ -41,7 +45,7 @@ class FlapConfigs:
 
 
 def load_flap_config() -> FlapConfigs:
-    with open("config.toml", "rb") as config_file:
+    with open("../config.toml", "rb") as config_file:
         loaded_bytes = load(config_file)
         return FlapConfigs(
             loaded_bytes["flap"]["let_in_open_seconds"],
@@ -49,7 +53,7 @@ def load_flap_config() -> FlapConfigs:
 
 
 def load_general_config() -> GeneralConfigs:
-    with open("config.toml", "rb") as config_file:
+    with open("../config.toml", "rb") as config_file:
         loaded_bytes = load(config_file)
         return GeneralConfigs(
             loaded_bytes["general"]["max_message_sender_threads"],
@@ -60,9 +64,12 @@ def load_general_config() -> GeneralConfigs:
 
 
 def load_logging_config() -> LoggingConfigs:
-    with open("config.toml", "rb") as config_file:
+    with open("../config.toml", "rb") as config_file:
         loaded_bytes = load(config_file)
         return LoggingConfigs(
+            loaded_bytes["logging"]["log_base_folder"],
+            loaded_bytes["logging"]["log_file_name"],
+            loaded_bytes["logging"]["log_dbg_file_name"],
             logging.getLevelName(loaded_bytes["logging"]["stdout_debug_level"]),
             loaded_bytes["logging"]["enable_cascade_logging"],
             loaded_bytes["logging"]["enable_circular_buffer_logging"],
@@ -72,7 +79,7 @@ def load_logging_config() -> LoggingConfigs:
 
 
 def load_camera_config() -> CameraConfigs:
-    with open("config.toml", "rb") as config_file:
+    with open("../config.toml", "rb") as config_file:
         loaded_bytes = load(config_file)
         return CameraConfigs(
             loaded_bytes["camera"]["camera_fps"],
@@ -81,9 +88,10 @@ def load_camera_config() -> CameraConfigs:
 
 
 def load_model_config() -> ModelConfigs:
-    with open("config.toml", "rb") as config_file:
+    with open("../config.toml", "rb") as config_file:
         loaded_bytes = load(config_file)
         return ModelConfigs(
+            loaded_bytes["model"]["tensorflow_models_path"],
             loaded_bytes["model"]["event_reset_threshold"],
             loaded_bytes["model"]["cat_counter_threshold"],
             loaded_bytes["model"]["cumulus_prey_threshold"],

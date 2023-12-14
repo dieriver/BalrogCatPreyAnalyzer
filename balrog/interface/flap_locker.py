@@ -1,10 +1,12 @@
 import asyncio
 import os
+
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
-from surepy.enums import LockState
-from surepy.entities.pet import Pet
 from surepy.entities.devices import Flap
-from utils import logger
+from surepy.entities.pet import Pet
+from surepy.enums import LockState
+
+from balrog.utils import logger
 
 
 class FlapLocker:

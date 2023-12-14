@@ -1,17 +1,14 @@
-import sys
-import os
 import logging
-from pathlib import Path
+import sys
+from contextlib import AbstractContextManager
 from logging import handlers
+from pathlib import Path
+import importlib.resources as resources
 
-cat_cam_py = os.getenv('CAT_PREY_ANALYZER_PATH')
+from balrog.config import logging_config
 
-
-# We configure the logging
-logger = logging.getLogger("cat_logger")
-log_base_folder = '/var/log/balrog-logs/' if os.getenv("BALROG_LOG_FOLDER") is None else os.getenv("BALROG_LOG_FOLDER")
-log_filename = 'cat_logger.log'
-log_dbg_filename = 'cat_logger-dbg.log'
+# We declare the logger that we use in this package
+logger = logging.getLogger(__name__)
 
 
 class Logging:
@@ -21,13 +18,13 @@ class Logging:
 
         stdout_handler = logging.StreamHandler(stream=sys.stdout)
         file_handler = logging.handlers.RotatingFileHandler(
-            filename=f'{log_base_folder}/{log_filename}',
+            filename=f'{logging_config.log_base_folder}/{logging_config.log_file_name}',
             maxBytes=(1024*1024*max_log_size),
             backupCount=max_log_files,
             encoding='utf-8'
         )
         dbg_file_handler = logging.handlers.RotatingFileHandler(
-            filename=f'{log_base_folder}/{log_dbg_filename}',
+            filename=f'{logging_config.log_base_folder}/{logging_config.log_dbg_file_name}',
             maxBytes=(1024*1024*500),
             backupCount=2,
             encoding='utf-8'
@@ -48,12 +45,16 @@ class Logging:
 
     @staticmethod
     def clean_logs() -> list[str]:
-        base_path = Path(log_base_folder)
+        base_path = Path(logging_config.log_base_folder)
         removed_files = []
         for file in base_path.iterdir():
-            if file.is_dir() or (file.is_file() and (file.name == log_filename or file.name == log_dbg_filename)):
+            if file.is_dir() or (file.is_file() and (file.name == logging_config.log_file_name or file.name == logging_config.log_dbg_file_name)):
                 continue
             else:
                 removed_files.append(str(file))
                 file.unlink(missing_ok=True)
         return removed_files
+
+
+def get_resource_path(resource_name: str) -> AbstractContextManager[Path]:
+    return resources.as_file(resources.files("resources").joinpath(resource_name))

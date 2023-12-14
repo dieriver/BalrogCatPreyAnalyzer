@@ -1,14 +1,14 @@
 import gc
-from enum import Enum
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from threading import RLock
 
 from cv2.typing import MatLike
 
-from utils import logger
-from cascade import EventElement
+from balrog.utils import logger
+from .cascade import EventElement
 
 
 @dataclass

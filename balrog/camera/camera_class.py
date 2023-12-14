@@ -1,13 +1,15 @@
+import gc
+import os
+import time
 from datetime import datetime
 from multiprocessing import Event
 from threading import Thread
 
-import pytz
-import time
 import cv2
-import gc
-import os
-from utils import logger
+import pytz
+
+from balrog.processor import ImageBuffers
+from balrog.utils import logger
 
 
 class Camera:

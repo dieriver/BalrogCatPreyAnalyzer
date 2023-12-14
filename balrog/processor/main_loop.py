@@ -1,20 +1,21 @@
-import gc
 import os
 import sys
 import time
 from datetime import datetime
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
+import importlib.resources as resources
 
 import cv2
 import pytz
+from cv2.typing import MatLike
 
-from cascade import Cascade, EventElement
-from config import general_config, model_config
+from balrog.config import general_config, model_config
+from balrog.interface import ITelegramBot
+from balrog.processor.cascade import Cascade, EventElement
+from balrog.processor.image_container import ImageBuffers
+from balrog.utils import logger, get_resource_path
 from detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
-from image_container import ImageBuffers
-from telegram_bot import BalrogTelegramBot, DebugBot
-from utils import logger, cat_cam_py
 
 
 class FrameResultAggregator:
@@ -30,10 +31,11 @@ class FrameResultAggregator:
     def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
         self.clean_queue_event: Event = Event()
         self.stop_event = stop_event
-        if os.getenv("BALROG_USE_NULL_BOT") is not None:
-            self.bot = DebugBot()
-        else:
-            self.bot = BalrogTelegramBot(self.clean_queue_event, stop_event)
+        self.bot = ITelegramBot.get_bot_instance(
+            is_debug=os.getenv("BALROG_USE_NULL_BOT") is not None,
+            clean_queue_event=self.clean_queue_event,
+            stop_event=stop_event
+        )
         self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
         # Aggregation fields
         self.EVENT_FLAG = False
@@ -242,7 +244,7 @@ class FrameProcessor:
             logger.error(f"Traceback: {traceback}")
         return True
 
-    def feed_to_cascade(self, target_img, img_name, thread_id: int) -> tuple[float, EventElement]:
+    def feed_to_cascade(self, target_img: MatLike, img_name: str, thread_id: int) -> tuple[float, EventElement]:
         target_event_obj = EventElement(img_name=img_name, cc_target_img=target_img)
 
         start_time = time.time()
@@ -263,7 +265,7 @@ class FrameProcessor:
 
         return total_runtime, single_cascade
 
-    def process_frame(self, thread_id: int):
+    def process_frame(self, thread_id: int) -> None:
         try:
             while not self.stop_event.is_set():
                 # Feed the latest image in the Queue through the cascade
@@ -282,7 +284,7 @@ class FrameProcessor:
 
                 total_runtime, cascade_obj = self.feed_to_cascade(
                     target_img=image_data,
-                    img_name=frame_tstamp,
+                    img_name=str(frame_tstamp),
                     thread_id=thread_id
                 )
                 overhead = datetime.now(pytz.timezone('Europe/Zurich')) - frame_tstamp
@@ -298,9 +300,12 @@ class FrameProcessor:
     def single_debug(self):
         start_time = time.time()
         target_img_name = 'dummy_img.jpg'
-        target_img = cv2.imread(
-            os.path.join(cat_cam_py, 'readme_images/lenna_casc_Node1_001557_02_2020_05_24_09-49-35.jpg')
-        )
+        with get_resource_path("dbg_casc.jpg") as resource:
+            print(resource)
+            target_img = cv2.imread(
+                str(resource.resolve())
+                #os.path.join(cat_cam_py, 'readme_images/dbg_casc.jpg')
+            )
         cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name, thread_id=-1)[1]
         current_time = time.time()
         logger.debug(f'Debug cascade runtime: {current_time - start_time}')

@@ -5,6 +5,9 @@ min_aggregation_frames_threshold = 3
 max_frame_buffers = 10
 
 [logging]
+log_base_folder = "/var/log/balrog-logs"
+log_file_name = "cat_logger.log"
+log_dbg_file_name = "cat_logger-dbg.log"
 stdout_debug_level = "INFO"
 enable_cascade_logging = false
 enable_circular_buffer_logging = false
@@ -16,6 +19,7 @@ camera_fps = 10
 camera_cleanup_frames_threshold = 60
 
 [model]
+tensorflow_models_path = ' /home/diego/tensorflow1/models/research'
 event_reset_threshold = 6
 cat_counter_threshold = 6
 cumulus_prey_threshold = -10

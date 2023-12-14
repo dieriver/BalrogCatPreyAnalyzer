@@ -1,10 +1,10 @@
 from threading import Event
-from main_loop import FrameResultAggregator, FrameProcessor
-from utils import Logging
-from config import general_config, camera_config, logging_config
-from image_container import ImageBuffers
-from camera_class import Camera
 
+from balrog.processor.image_container import ImageBuffers
+from balrog.processor.main_loop import FrameResultAggregator, FrameProcessor
+from balrog.utils.utils import Logging
+from camera import Camera
+from config import general_config, camera_config, logging_config
 
 if __name__ == '__main__':
     Logging.init_logger(

@@ -1,7 +1,8 @@
 import asyncio
 import os
+from abc import ABC, abstractmethod
 from threading import Event
-from typing import Callable
+from typing import Callable, Self
 
 import cv2
 from telegram import Bot, Update, ParseMode
@@ -9,13 +10,24 @@ from telegram.ext import Updater, CommandHandler
 from telegram.ext.callbackcontext import CallbackContext
 from telegram.ext.commandhandler import RT
 
-from config import flap_config
+from balrog.config import flap_config
+from balrog.utils import Logging, logger
 from flap_locker import FlapLocker
-from utils import Logging, logger
-from abc import ABC, abstractmethod
 
 
 class ITelegramBot(ABC):
+    @classmethod
+    def get_bot_instance(
+            cls,
+            is_debug: bool = False,
+            clean_queue_event: Event = None,
+            stop_event: Event = None
+    ) -> Self:
+        if is_debug:
+            return DebugBot()
+        else:
+            return BalrogTelegramBot(clean_queue_event, stop_event)
+
     @abstractmethod
     def send_text(self, message: str):
         pass

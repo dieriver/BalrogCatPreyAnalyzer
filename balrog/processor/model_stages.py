@@ -1,33 +1,59 @@
-import tensorflow as tf
-import numpy as np
 import os
-import cv2
-import time
 import sys
+import time
+
+import cv2
+import numpy as np
+import tensorflow as tf
+
+from balrog.utils import logger, get_resource_path
+from balrog.config import model_config
+
+sys.path.append(model_config.tensorflow_models_path)
 
 from object_detection.utils import label_map_util
-from utils import logger, cat_cam_py
 
-PC_models_dir = os.path.join(cat_cam_py, 'models/Prey_Classifier')
-FF_models_dir = os.path.join(cat_cam_py, 'models/Face_Fur_Classifier')
-EYE_models_dir = os.path.join(cat_cam_py, 'models/Eye_Detector')
-HAAR_models_dir = os.path.join(cat_cam_py, 'models/Haar_Classifier')
-CR_models_dir = os.path.join(cat_cam_py, 'models/Cat_Recognizer')
+
+_PC_model_file = 'models/Prey_Classifier/0.86_512_05_VGG16_ownData_FTfrom15_350_Epochs_2020_05_15_11_40_56.h5'
+_FF_model_file = 'models/Face_Fur_Classifier/256_05_mobileNet_50_Epochs_2020_05_07_14_56_25.h5'
+_EYE_model_file = 'models/Eye_Detector/trainwhole100_Epochs_2020_04_30_18_05_25.h5'
+_HAAR_model_file = 'models/Haar_Classifier/haarcascade_frontalcatface_extended.xml'
+
+_TF_OD_model_name = 'ssdlite_mobilenet_v2_coco_2018_05_09'
+_TF_OD_frozen_model_filename = 'frozen_inference_graph.pb'
+_TF_OD_labels_filename = 'data/mscoco_label_map.pbtxt'
+
+_CR_model_file = 'models/Cat_Recognizer'
 
 
 class CCMobileNetStage:
     def __init__(self):
-        self.MODEL_NAME = 'ssdlite_mobilenet_v2_coco_2018_05_09'
         self.img_org = None
+
+        # Number of classes the object detector can identify
+        self.num_classes = 90
+
+        # Path to frozen detection graph .pb file, which contains the model that is used
+        # for object detection.
+        self.frozen_model_file_ctx = get_resource_path(f'{model_config.tensorflow_models_path}/{_TF_OD_model_name}/{_TF_OD_frozen_model_filename}')
+        self.frozen_model_file = self.frozen_model_file_ctx.__enter__()
+
+        # Path to label map file
+        self.labels_file_ctx = get_resource_path(f'{model_config.tensorflow_models_path}/{_TF_OD_labels_filename}')
+        self.labels_file = self.labels_file_ctx.__enter__()
 
         # Start the CNN
         self.sess, self.detection_boxes, self.detection_scores, self.detection_classes, self.num_detections, self.image_tensor, self.category_index = self.init_cnn_model()
+
+    def __del__(self):
+        self.frozen_model_file_ctx.__exit__(None, None, None)
+        self.labels_file_ctx.__exit__(None, None, None)
 
     def init_cnn_model(self):
         #### Initialize TensorFlow model ####
 
         # This is needed since the working directory is the object_detection folder.
-        sys.path.append('..')
+        sys.path.append('../..')
 
         # Grab path to current working directory
         pythonpath = os.environ['PYTHONPATH'].split(os.pathsep)[1]
@@ -35,31 +61,23 @@ class CCMobileNetStage:
         TF_OD_PATH = f"{pythonpath}/object_detection"
         logger.debug(f'PYTHONPATH2 = {TF_OD_PATH}')
 
-        # Path to frozen detection graph .pb file, which contains the model that is used
-        # for object detection.
-        PATH_TO_CKPT = os.path.join(TF_OD_PATH, self.MODEL_NAME, 'frozen_inference_graph.pb')
-
-        # Path to label map file
-        PATH_TO_LABELS = os.path.join(TF_OD_PATH, 'data', 'mscoco_label_map.pbtxt')
-
-        # Number of classes the object detector can identify
-        NUM_CLASSES = 90
-
         ## Load the label map.
         # Label maps map indices to category names, so that when the convolution
         # network predicts `5`, we know that this corresponds to `airplane`.
         # Here we use internal utility functions, but anything that returns a
         # dictionary mapping integers to appropriate string labels would be fine
-        label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
-        categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES,
-                                                                    use_display_name=True)
+        label_map = label_map_util.load_labelmap(str(self.labels_file))
+        categories = label_map_util.convert_label_map_to_categories(label_map,
+                                                                    max_num_classes=self.num_classes,
+                                                                    use_display_name=True
+                                                                    )
         category_index = label_map_util.create_category_index(categories)
 
         # Load the Tensorflow model into memory.
         detection_graph = tf.Graph()
         with detection_graph.as_default():
             od_graph_def = tf.compat.v1.GraphDef()
-            with tf.compat.v2.io.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
+            with tf.compat.v2.io.gfile.GFile(str(self.frozen_model_file), 'rb') as fid:
                 serialized_graph = fid.read()
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
@@ -157,9 +175,12 @@ class HaarStage:
         self.IoU = 0
         self.ACC = 0
 
-        self.models_dir = HAAR_models_dir
-        self.model = 'haarcascade_frontalcatface_extended.xml'
-        self.face_cascade = cv2.CascadeClassifier(os.path.join(HAAR_models_dir, self.model))
+        self.model_file_ctx = get_resource_path(_HAAR_model_file)
+        self.model_file = self.model_file_ctx.__enter__()
+        self.face_cascade = cv2.CascadeClassifier(str(self.model_file))
+
+    def __del__(self):
+        self.model_file_ctx.__exit__(None, None, None)
 
     def haar_do(self, target_img, full_img, cc_bbs):
         pred_bb, inference_time, haar_found_bool = self.haar_predict(input=target_img)
@@ -260,17 +281,20 @@ class PCStage:
         self.inference_time_list = []
 
         # Handle args
-        self.models_dir = PC_models_dir
-        self.pc_model_name = '0.86_512_05_VGG16_ownData_FTfrom15_350_Epochs_2020_05_15_11_40_56.h5'
+        self.model_file_ctx = get_resource_path(_PC_model_file)
+        self.model_file = self.model_file_ctx.__enter__()
 
         dependencies = {
             'get_f1': self.get_f1
         }
-        if 'F1' in self.pc_model_name:
-            self.pc_model = tf.keras.models.load_model(os.path.join(PC_models_dir, self.pc_model_name),
+        if 'F1' in _PC_model_file:
+            self.pc_model = tf.keras.models.load_model(str(self.model_file),
                                                        custom_objects=dependencies)
         else:
-            self.pc_model = tf.keras.models.load_model(os.path.join(PC_models_dir, self.pc_model_name))
+            self.pc_model = tf.keras.models.load_model(str(self.model_file))
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.model_file_ctx.__exit__(None, None, None)
 
     def get_f1(self, y_true, y_pred):  # taken from old keras source code
         K = tf.keras.backend
@@ -325,9 +349,12 @@ class FFStage:
         self.inference_time_list = []
 
         # Handle args
-        self.models_dir = FF_models_dir
-        self.ff_model_name = '256_05_mobileNet_50_Epochs_2020_05_07_14_56_25.h5'
-        self.ff_model = tf.keras.models.load_model(os.path.join(self.models_dir, self.ff_model_name))
+        self.model_file_ctx = get_resource_path(_FF_model_file)
+        self.model_file = self.model_file_ctx.__enter__()
+        self.ff_model = tf.keras.models.load_model(str(self.model_file))
+
+    def __del__(self):
+        self.model_file_ctx.__exit__(None, None, None)
 
     def resize_img(self, img_org):
         return cv2.resize(img_org, (self.TARGET_SIZE, self.TARGET_SIZE)) * (1. / 255)
@@ -353,8 +380,12 @@ class FFStage:
 class EyeStage:
     def __init__(self):
         self.TARGET_SIZE = 224
-        model_name = 'trainwhole100_Epochs_2020_04_30_18_05_25.h5'
-        self.eye_model = tf.keras.models.load_model(os.path.join(EYE_models_dir, model_name))
+        self.model_file_ctx = get_resource_path(_EYE_model_file)
+        self.model_file = self.model_file_ctx.__enter__()
+        self.eye_model = tf.keras.models.load_model(str(self.model_file))
+
+    def __del__(self):
+        self.model_file_ctx.__exit__(None, None, None)
 
     def resize_img(self, img_resize):
         old_size = img_resize.shape[:2]  # old_size is in (height, width) format
