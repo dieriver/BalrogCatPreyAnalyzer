@@ -4,7 +4,6 @@ import time
 from datetime import datetime
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
-import importlib.resources as resources
 
 import cv2
 import pytz

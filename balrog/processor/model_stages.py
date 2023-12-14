@@ -6,8 +6,8 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
-from balrog.utils import logger, get_resource_path
 from balrog.config import model_config
+from balrog.utils import logger, get_resource_path
 
 sys.path.append(model_config.tensorflow_models_path)
 

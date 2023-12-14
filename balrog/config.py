@@ -2,6 +2,8 @@ import logging
 from dataclasses import dataclass
 from tomllib import load
 
+config_file_path = 'config.toml'
+
 
 @dataclass
 class GeneralConfigs:
@@ -45,7 +47,7 @@ class FlapConfigs:
 
 
 def load_flap_config() -> FlapConfigs:
-    with open("../config.toml", "rb") as config_file:
+    with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
         return FlapConfigs(
             loaded_bytes["flap"]["let_in_open_seconds"],
@@ -53,7 +55,7 @@ def load_flap_config() -> FlapConfigs:
 
 
 def load_general_config() -> GeneralConfigs:
-    with open("../config.toml", "rb") as config_file:
+    with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
         return GeneralConfigs(
             loaded_bytes["general"]["max_message_sender_threads"],
@@ -64,7 +66,7 @@ def load_general_config() -> GeneralConfigs:
 
 
 def load_logging_config() -> LoggingConfigs:
-    with open("../config.toml", "rb") as config_file:
+    with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
         return LoggingConfigs(
             loaded_bytes["logging"]["log_base_folder"],
@@ -79,7 +81,7 @@ def load_logging_config() -> LoggingConfigs:
 
 
 def load_camera_config() -> CameraConfigs:
-    with open("../config.toml", "rb") as config_file:
+    with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
         return CameraConfigs(
             loaded_bytes["camera"]["camera_fps"],
@@ -88,7 +90,7 @@ def load_camera_config() -> CameraConfigs:
 
 
 def load_model_config() -> ModelConfigs:
-    with open("../config.toml", "rb") as config_file:
+    with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
         return ModelConfigs(
             loaded_bytes["model"]["tensorflow_models_path"],

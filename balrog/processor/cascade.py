@@ -3,9 +3,9 @@ import time
 import cv2
 import numpy as np
 
+from balrog.config import logging_config
 from balrog.utils.utils import logger
 from model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
-from balrog.config import logging_config
 
 
 class EventElement:

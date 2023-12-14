@@ -1,9 +1,9 @@
+import importlib.resources as resources
 import logging
 import sys
 from contextlib import AbstractContextManager
 from logging import handlers
 from pathlib import Path
-import importlib.resources as resources
 
 from balrog.config import logging_config
 
