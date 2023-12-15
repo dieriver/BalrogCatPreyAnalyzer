@@ -37,11 +37,11 @@ class ITelegramBot(ABC):
             return BalrogTelegramBot(clean_queue_event, stop_event)
 
     @abstractmethod
-    def send_text(self, message: str):
+    def send_text(self, message: str) -> None:
         pass
 
     @abstractmethod
-    def send_img(self, img, caption):
+    def send_img(self, img, caption) -> None:
         pass
 
     @property
@@ -99,7 +99,7 @@ class BalrogTelegramBot(ITelegramBot):
         # Init the listener
         self._init_bot_listener()
 
-    def _populate_supported_commands(self):
+    def _populate_supported_commands(self) -> None:
         self.commands['help'] = self._help_cmd_callback
         self.commands['clean'] = self._clean_cmd_callback
         self.commands['restart'] = self._restart_cmd_callback
@@ -115,7 +115,7 @@ class BalrogTelegramBot(ITelegramBot):
 
     # Constructor supporter functions
 
-    def _init_bot_listener(self):
+    def _init_bot_listener(self) -> None:
         self.telegram_bot.send_message(chat_id=self.CHAT_ID, text='Balrog is online!')
         # Add all commands to handler
         for command in self.commands:
@@ -125,43 +125,43 @@ class BalrogTelegramBot(ITelegramBot):
         # Start the polling stuff
         self.bot_updater.start_polling()
 
-    def _add_telegram_callback(self, command: str, callback: Callable[[Update, CallbackContext], RT]):
+    def _add_telegram_callback(self, command: str, callback: Callable[[Update, CallbackContext], RT]) -> None:
         command_handler = CommandHandler(command, callback)
         self.bot_updater.dispatcher.add_handler(command_handler)
 
     # Raw send text and img functions
 
-    def send_text(self, message: str):
+    def send_text(self, message: str) -> None:
         self.telegram_bot.send_message(chat_id=self.CHAT_ID, text=message, parse_mode=ParseMode.MARKDOWN)
 
-    def send_img(self, img, caption):
+    def send_img(self, img: MatLike, caption: str) -> None:
         cv2.imwrite('degubi.jpg', img)
         self.telegram_bot.send_photo(chat_id=self.CHAT_ID, photo=open('degubi.jpg', 'rb'), caption=caption)
 
     # Telegram Bot message handler callbacks
 
-    def _help_cmd_callback(self, update, context):
+    def _help_cmd_callback(self, update, context) -> None:
         bot_message = 'Following commands supported:'
         for command in self.commands:
             bot_message += '\n /' + command
         self.send_text(bot_message)
 
-    def _let_in_cmd_callback(self, update, context):
+    def _let_in_cmd_callback(self, update, context) -> None:
         self.send_text(f'Ok door is open for {flap_config.let_in_open_seconds}s...')
         self._unlock_moria_for_seconds(flap_config.let_in_open_seconds)
         self.clean_queue_event.set()
 
-    def _restart_cmd_callback(self, update, context):
+    def _restart_cmd_callback(self, update, context) -> None:
         self.send_text('Restarting script...')
         self.stop_event.set()
         # self.send_text("(Does not work yet)")
 
-    def _clean_cmd_callback(self, update, context):
+    def _clean_cmd_callback(self, update, context) -> None:
         self.send_text('Cleaning old logs...')
         removed_paths = Logging.clean_logs()
         self.send_text(f'Removed: [{*removed_paths,}]')
 
-    def _send_last_casc_pic_cmd_callback(self, update, context):
+    def _send_last_casc_pic_cmd_callback(self, update, context) -> None:
         if self.node_last_casc_img is not None:
             cv2.imwrite('last_casc.jpg', self.node_last_casc_img)
             caption = 'Last Cascade:'
@@ -169,7 +169,7 @@ class BalrogTelegramBot(ITelegramBot):
         else:
             self.send_text('No casc img available yet...')
 
-    def _send_live_pic_cmd_callback(self, update, context):
+    def _send_live_pic_cmd_callback(self, update, context) -> None:
         if self.node_live_img is not None:
             cv2.imwrite('live_img.jpg', self.node_live_img)
             caption = 'Here ya go...'
@@ -177,7 +177,7 @@ class BalrogTelegramBot(ITelegramBot):
         else:
             self.send_text('No img available yet...')
 
-    def _send_status_cmd_callback(self, update, context):
+    def _send_status_cmd_callback(self, update, context) -> None:
         if self.node_queue_info is not None and self.node_over_head_info is not None:
             bot_message = f'Queue length: {self.node_queue_info}\nOverhead: {self.node_over_head_info}s'
         else:
@@ -186,7 +186,7 @@ class BalrogTelegramBot(ITelegramBot):
 
     # Internals to support the callbacks
 
-    def _unlock_moria_for_seconds(self, seconds):
+    def _unlock_moria_for_seconds(self, seconds) -> None:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -194,7 +194,7 @@ class BalrogTelegramBot(ITelegramBot):
         else:
             return loop.run_until_complete(self.flap_handler.unlock_for_seconds(self, seconds))
 
-    def _lock_moria(self, update, context):
+    def _lock_moria(self, update, context) -> None:
         self.send_text("Locking Moria!")
         try:
             loop = asyncio.get_running_loop()
@@ -203,7 +203,7 @@ class BalrogTelegramBot(ITelegramBot):
         else:
             return loop.run_until_complete(self.flap_handler.lock_moria(self))
 
-    def _unlock_moria(self, update, context):
+    def _unlock_moria(self, update, context) -> None:
         self.send_text("Unlocking Moria!")
         try:
             loop = asyncio.get_running_loop()
@@ -212,7 +212,7 @@ class BalrogTelegramBot(ITelegramBot):
         else:
             return loop.run_until_complete(self.flap_handler.unlock_moria(self))
 
-    def _lock_moria_in(self, update, context):
+    def _lock_moria_in(self, update, context) -> None:
         self.send_text("Locking Moria for outgoing gatos!")
         try:
             loop = asyncio.get_running_loop()
@@ -221,7 +221,7 @@ class BalrogTelegramBot(ITelegramBot):
         else:
             return loop.run_until_complete(self.flap_handler.lock_moria_in(self))
 
-    def _lock_moria_out(self, update, context):
+    def _lock_moria_out(self, update, context) -> None:
         self.send_text("Locking Moria for incoming gatos!")
         try:
             loop = asyncio.get_running_loop()
@@ -230,7 +230,7 @@ class BalrogTelegramBot(ITelegramBot):
         else:
             return loop.run_until_complete(self.flap_handler.lock_moria_out(self))
 
-    def _set_curfew(self, update, context):
+    def _set_curfew(self, update, context) -> None:
         self.send_text("Activating curfew!")
         try:
             loop = asyncio.get_running_loop()
@@ -241,15 +241,13 @@ class BalrogTelegramBot(ITelegramBot):
 
 
 class DebugBot(ITelegramBot):
-    def __init(self):
+    def __init__(self):
         super().__init__()
 
-    def send_img(self, img, caption):
+    def send_img(self, img, caption) -> None:
         # Nothing to do here; we simply ignore the invocation
         logger.warning(f"DebugTelegramBot - Ignoring sending image!")
-        pass
 
-    def send_text(self, message: str):
+    def send_text(self, message: str) -> None:
         # Nothing to do here; we simply ignore the invocation
         logger.warning(f"DebugTelegramBot - Ignoring sending text!")
-        pass
