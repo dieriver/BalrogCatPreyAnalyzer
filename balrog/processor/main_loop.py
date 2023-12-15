@@ -121,7 +121,6 @@ class FrameResultAggregator:
         self.frame_buffers.reset_buffer(next_frame_index)
 
         # Add this such that the bot has some info
-        # TODO - Directly access this data is not recommended. Refactor this!
         self.bot.node_queue_info = frames_rdy_for_aggregation
         self.bot.node_live_img = image_data
         self.bot.node_over_head_info = overhead

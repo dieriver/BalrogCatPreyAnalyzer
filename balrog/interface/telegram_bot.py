@@ -5,6 +5,7 @@ from threading import Event
 from typing import Callable, Self
 
 import cv2
+from cv2.typing import MatLike
 from telegram import Bot, Update, ParseMode
 from telegram.ext import Updater, CommandHandler
 from telegram.ext.callbackcontext import CallbackContext
@@ -16,6 +17,13 @@ from .flap_locker import FlapLocker
 
 
 class ITelegramBot(ABC):
+    def __init__(self):
+        # Data coming and used form unexpected places (other files)
+        self._node_live_img: MatLike | None = None
+        self._node_last_casc_img: MatLike | None = None
+        self._node_queue_info: int | None = None
+        self._node_over_head_info: float | None = None
+
     @classmethod
     def get_bot_instance(
             cls,
@@ -36,10 +44,43 @@ class ITelegramBot(ABC):
     def send_img(self, img, caption):
         pass
 
+    @property
+    def node_live_img(self) -> MatLike | None:
+        return self._node_live_img
+
+    @node_live_img.setter
+    def node_live_img(self, node_live_img: MatLike) -> None:
+        self._node_live_img = node_live_img
+
+    @property
+    def node_last_casc_img(self) -> MatLike | None:
+        return self._node_last_casc_img
+
+    @node_last_casc_img.setter
+    def node_last_casc_img(self, node_last_casc_img: MatLike) -> None:
+        self._node_last_casc_img = node_last_casc_img
+
+    @property
+    def node_queue_info(self) -> int | None:
+        return self._node_queue_info
+
+    @node_queue_info.setter
+    def node_queue_info(self, node_queue_info: int) -> None:
+        self._node_queue_info = node_queue_info
+
+    @property
+    def node_over_head_info(self):
+        return self._node_over_head_info
+
+    @node_over_head_info.setter
+    def node_over_head_info(self, node_over_head_info: float) -> None:
+        self._node_over_head_info = node_over_head_info
+
 
 class BalrogTelegramBot(ITelegramBot):
     def __init__(self, clean_queue_event: Event, stop_event: Event):
         # Insert Chat ID and Bot Token according to Telegram API
+        super().__init__()
         if os.getenv('TELEGRAM_CHAT_ID') == "":
             raise Exception("Telegram CHAT ID not set!. Please set the 'TELEGRAM_CHAT_ID' environment variable")
         if os.getenv('TELEGRAM_BOT_TOKEN') == "":
@@ -54,14 +95,6 @@ class BalrogTelegramBot(ITelegramBot):
         # Event to signal the main loop that the queue needs to be cleaned
         self.clean_queue_event = clean_queue_event
         self.stop_event = stop_event
-
-        # Data coming and used form unexpected places (other files)
-        # TODO - Directly access this data is not recommended. Refactor this!
-        self.node_live_img = None
-        self.node_queue_info = None
-        self.node_over_head_info = None
-
-        self.node_last_casc_img = None
 
         # Init the listener
         self._init_bot_listener()
@@ -209,12 +242,7 @@ class BalrogTelegramBot(ITelegramBot):
 
 class DebugBot(ITelegramBot):
     def __init(self):
-        # TODO - Directly access this data is not recommended. Refactor this!
-        self.node_live_img = None
-        self.node_queue_info = None
-        self.node_over_head_info = None
-
-        self.node_last_casc_img = None
+        super().__init__()
 
     def send_img(self, img, caption):
         # Nothing to do here; we simply ignore the invocation
