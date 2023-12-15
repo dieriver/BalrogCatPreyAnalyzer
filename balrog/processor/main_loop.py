@@ -14,7 +14,7 @@ from balrog.interface import ITelegramBot
 from balrog.processor.cascade import Cascade, EventElement
 from balrog.processor.image_container import ImageBuffers
 from balrog.utils import logger, get_resource_path
-from detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
+from .detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
 
 
 class FrameResultAggregator:

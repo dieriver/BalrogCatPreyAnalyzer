@@ -5,7 +5,7 @@ import numpy as np
 
 from balrog.config import logging_config
 from balrog.utils.utils import logger
-from model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
+from .model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
 
 
 class EventElement:

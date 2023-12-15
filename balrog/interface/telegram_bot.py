@@ -12,7 +12,7 @@ from telegram.ext.commandhandler import RT
 
 from balrog.config import flap_config
 from balrog.utils import Logging, logger
-from flap_locker import FlapLocker
+from .flap_locker import FlapLocker
 
 
 class ITelegramBot(ABC):
