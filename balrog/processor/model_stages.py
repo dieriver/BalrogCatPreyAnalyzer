@@ -47,21 +47,12 @@ class CCMobileNetStage:
     def init_cnn_model(self):
         #### Initialize TensorFlow model ####
 
-        # This is needed since the working directory is the object_detection folder.
-        sys.path.append('../..')
-
-        # Grab path to current working directory
-        pythonpath = os.environ['PYTHONPATH'].split(os.pathsep)[1]
-        logger.debug(f"PYTHONPATH = {pythonpath}")
-        TF_OD_PATH = f"{pythonpath}/object_detection"
-        logger.debug(f'PYTHONPATH2 = {TF_OD_PATH}')
-
         ## Load the label map.
         # Label maps map indices to category names, so that when the convolution
         # network predicts `5`, we know that this corresponds to `airplane`.
         # Here we use internal utility functions, but anything that returns a
         # dictionary mapping integers to appropriate string labels would be fine
-        label_map = label_map_util.load_labelmap(str(self.labels_file))
+        label_map = label_map_util.load_labelmap(str(self.labels_file).strip())
         categories = label_map_util.convert_label_map_to_categories(label_map,
                                                                     max_num_classes=self.num_classes,
                                                                     use_display_name=True
@@ -72,7 +63,7 @@ class CCMobileNetStage:
         detection_graph = tf.Graph()
         with detection_graph.as_default():
             od_graph_def = tf.compat.v1.GraphDef()
-            with tf.compat.v2.io.gfile.GFile(str(self.frozen_model_file), 'rb') as fid:
+            with tf.compat.v2.io.gfile.GFile(str(self.frozen_model_file).strip(), 'rb') as fid:
                 serialized_graph = fid.read()
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
@@ -172,7 +163,7 @@ class HaarStage:
 
         self.model_file_ctx = get_resource_path(_HAAR_model_file)
         self.model_file = self.model_file_ctx.__enter__()
-        self.face_cascade = cv2.CascadeClassifier(str(self.model_file))
+        self.face_cascade = cv2.CascadeClassifier(str(self.model_file).strip())
 
     def __del__(self):
         self.model_file_ctx.__exit__(None, None, None)
@@ -283,10 +274,10 @@ class PCStage:
             'get_f1': self.get_f1
         }
         if 'F1' in _PC_model_file:
-            self.pc_model = tf.keras.models.load_model(str(self.model_file),
+            self.pc_model = tf.keras.models.load_model(str(self.model_file).strip(),
                                                        custom_objects=dependencies)
         else:
-            self.pc_model = tf.keras.models.load_model(str(self.model_file))
+            self.pc_model = tf.keras.models.load_model(str(self.model_file).strip())
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.model_file_ctx.__exit__(None, None, None)
@@ -346,7 +337,7 @@ class FFStage:
         # Handle args
         self.model_file_ctx = get_resource_path(_FF_model_file)
         self.model_file = self.model_file_ctx.__enter__()
-        self.ff_model = tf.keras.models.load_model(str(self.model_file))
+        self.ff_model = tf.keras.models.load_model(str(self.model_file).strip())
 
     def __del__(self):
         self.model_file_ctx.__exit__(None, None, None)
@@ -377,7 +368,7 @@ class EyeStage:
         self.TARGET_SIZE = 224
         self.model_file_ctx = get_resource_path(_EYE_model_file)
         self.model_file = self.model_file_ctx.__enter__()
-        self.eye_model = tf.keras.models.load_model(str(self.model_file))
+        self.eye_model = tf.keras.models.load_model(str(self.model_file).strip())
 
     def __del__(self):
         self.model_file_ctx.__exit__(None, None, None)
