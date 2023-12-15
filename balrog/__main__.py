@@ -1,10 +1,10 @@
 from threading import Event
 
+from balrog.camera import Camera
 from balrog.processor.image_container import ImageBuffers
 from balrog.processor.main_loop import FrameResultAggregator, FrameProcessor
 from balrog.utils.utils import Logging
-from .camera import Camera
-from .config import general_config, camera_config, logging_config
+from balrog.config import general_config, camera_config, logging_config
 
 Logging.init_logger(
     stdout_logging_level=logging_config.stdout_debug_level,

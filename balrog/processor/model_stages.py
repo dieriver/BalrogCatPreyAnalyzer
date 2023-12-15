@@ -1,11 +1,10 @@
-import os
 import sys
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
 import tensorflow as tf
-from pathlib import Path
 
 from balrog.config import model_config
 from balrog.utils import logger, get_resource_path

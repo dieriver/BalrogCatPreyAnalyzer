@@ -29,7 +29,12 @@ def send_prey_message(bot: ITelegramBot, event_objects, cumuli):
 
 
 def send_no_prey_message(bot: ITelegramBot, event_objects, cumuli):
-    sender_img, caption = __analyze_prey_vals(event_objects, cumuli, 'Cat is clean...')
+    sender_img, caption = __analyze_prey_vals(
+        event_objects,
+        cumuli,
+        'Cat is clean...',
+        '\nMaybe use /letin?'
+    )
     bot.send_img(img=sender_img, caption=caption)
 
 

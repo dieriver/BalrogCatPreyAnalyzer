@@ -11,7 +11,7 @@ while : ; do
     ;;
   *)
     # Whatever else will be interpreted as a restart of teh script
-    echo "Restarting balrog script"
+    echo "Restarting balrog script in 5 seconds"
     sleep 5
     true
     ;;
