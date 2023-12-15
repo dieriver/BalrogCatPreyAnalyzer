@@ -20,7 +20,7 @@ camera = ICamera.get_instance(
     frame_buffers=frame_buffers,
     stop_event=stop_event,
     cleanup_threshold=camera_config.camera_cleanup_frames_threshold,
-    is_debug=getenv("BALROG_USE_NULL_INTERFACE") is not None
+    is_debug=getenv("BALROG_USE_NULL_CAMERA") is not None
 )
 frame_processor = FrameProcessor(frame_buffers, stop_event)
 frame_aggregator = FrameResultAggregator(frame_buffers, stop_event)
