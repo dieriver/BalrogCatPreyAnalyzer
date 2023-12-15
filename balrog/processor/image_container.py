@@ -259,4 +259,5 @@ class ImageBuffers:
         self.last_non_aggregated_frame = ((self.last_non_aggregated_frame + 1) % len(self.circular_buffer))
         self.circular_buffer[index].clean()
         self.frames_available_for_aggregation -= 1
+        self.frames_available_for_frame += 1
         self.indexes_lock.release()
