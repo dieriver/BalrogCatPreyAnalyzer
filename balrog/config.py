@@ -34,6 +34,7 @@ class CameraConfigs:
 @dataclass
 class ModelConfigs:
     tensorflow_models_path: str
+    object_detection_models_path: str
     event_reset_threshold: int
     cat_counter_threshold: int
     cumulus_prey_threshold: int
@@ -94,6 +95,7 @@ def load_model_config() -> ModelConfigs:
         loaded_bytes = load(config_file)
         return ModelConfigs(
             loaded_bytes["model"]["tensorflow_models_path"],
+            f'{loaded_bytes["model"]["tensorflow_models_path"]}/object_detection',
             loaded_bytes["model"]["event_reset_threshold"],
             loaded_bytes["model"]["cat_counter_threshold"],
             loaded_bytes["model"]["cumulus_prey_threshold"],

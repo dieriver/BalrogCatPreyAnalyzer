@@ -35,10 +35,10 @@ class CCMobileNetStage:
 
         # Path to frozen detection graph .pb file, which contains the model that is used
         # for object detection.
-        self.frozen_model_file = Path(f'{model_config.tensorflow_models_path}/{_TF_OD_model_name}/{_TF_OD_frozen_model_filename}')
+        self.frozen_model_file = Path(f'{model_config.object_detection_models_path}/{_TF_OD_model_name}/{_TF_OD_frozen_model_filename}')
 
         # Path to label map file
-        self.labels_file = Path(f'{model_config.tensorflow_models_path}/{_TF_OD_labels_filename}')
+        self.labels_file = Path(f'{model_config.object_detection_models_path}/{_TF_OD_labels_filename}')
 
         # Start the CNN
         self.sess, self.detection_boxes, self.detection_scores, self.detection_classes, self.num_detections, self.image_tensor, self.category_index = self.init_cnn_model()
