@@ -57,4 +57,4 @@ class Logging:
 
 
 def get_resource_path(resource_name: str) -> AbstractContextManager[Path]:
-    return resources.as_file(resources.files("resources").joinpath(resource_name))
+    return resources.as_file(resources.files("balrog.resources").joinpath(resource_name))
