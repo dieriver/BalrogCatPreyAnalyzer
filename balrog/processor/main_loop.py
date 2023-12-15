@@ -31,7 +31,7 @@ class FrameResultAggregator:
         self.clean_queue_event: Event = Event()
         self.stop_event = stop_event
         self.bot = ITelegramBot.get_bot_instance(
-            is_debug=os.getenv("BALROG_USE_NULL_BOT") is not None,
+            is_debug=os.getenv("BALROG_USE_NULL_INTERFACE") is not None,
             clean_queue_event=self.clean_queue_event,
             stop_event=stop_event
         )

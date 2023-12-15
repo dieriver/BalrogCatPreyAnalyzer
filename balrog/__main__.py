@@ -1,6 +1,7 @@
+from os import getenv
 from threading import Event
 
-from balrog.camera import Camera
+from balrog.camera import ICamera
 from balrog.processor.image_container import ImageBuffers
 from balrog.processor.main_loop import FrameResultAggregator, FrameProcessor
 from balrog.utils.utils import Logging
@@ -14,11 +15,12 @@ Logging.init_logger(
 stop_event = Event()
 frame_buffers = ImageBuffers(2 * general_config.max_frame_buffers, logging_config.enable_circular_buffer_logging)
 
-camera = Camera(
+camera = ICamera.get_instance(
     fps=camera_config.camera_fps,
-    cleanup_threshold=camera_config.camera_cleanup_frames_threshold,
     frame_buffers=frame_buffers,
-    stop_event=stop_event
+    stop_event=stop_event,
+    cleanup_threshold=camera_config.camera_cleanup_frames_threshold,
+    is_debug=getenv("BALROG_USE_NULL_INTERFACE") is not None
 )
 frame_processor = FrameProcessor(frame_buffers, stop_event)
 frame_aggregator = FrameResultAggregator(frame_buffers, stop_event)

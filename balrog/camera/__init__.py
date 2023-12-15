@@ -1,1 +1,1 @@
-from balrog.camera.camera_class import Camera
+from balrog.camera.camera_class import ICamera
