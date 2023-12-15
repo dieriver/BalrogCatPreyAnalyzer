@@ -274,7 +274,7 @@ class FrameProcessor:
                     time.sleep(0.25)
                     continue
 
-                logger.info(f'Selected index for cascade: {next_frame_index}')
+                logger.debug(f'Selected index for cascade: {next_frame_index}')
                 next_frame = self.frame_buffers[next_frame_index]
                 image_data = next_frame.get_img_data()
                 frame_tstamp = next_frame.get_timestamp()

@@ -21,6 +21,17 @@ class ICamera(abc.ABC):
         self.cleanup_threshold = cleanup_threshold
         self.frame_buffers = frame_buffers
         self.stop_event = stop_event
+        self.camera_thread = Thread(target=self.fill_queue, args=(), daemon=True)
+
+    def __enter__(self):
+        self.camera_thread.start()
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        logger.warning("Stopping camera thread")
+        # We set the terminate flag and wait for the thread to terminate gracefully
+        if not self.stop_event.is_set():
+            self.stop_event.set()
+        self.camera_thread.join()
 
     @classmethod
     def get_instance(
@@ -74,6 +85,7 @@ class DbgCamera(ICamera):
 
 class Camera(ICamera):
     def __init__(self, fps: int, frame_buffers: ImageBuffers, stop_event: Event, cleanup_threshold: int):
+        super().__init__(fps, frame_buffers, stop_event, cleanup_threshold)
         self.frame_rate = fps
         self.cleanup_threshold = cleanup_threshold
         if os.getenv('CAMERA_STREAM_URI') == "":
@@ -81,18 +93,6 @@ class Camera(ICamera):
         self.stream_url = os.getenv('CAMERA_STREAM_URI')
         self.stop_event = stop_event
         self.frame_buffers = frame_buffers
-
-        self.camera_thread = Thread(target=self.fill_queue, args=(), daemon=True)
-
-    def __enter__(self):
-        self.camera_thread.start()
-
-    def __exit__(self, exception_type, exception_value, traceback):
-        logger.warning("Stopping camera thread")
-        # We set the terminate flag and wait for the thread to terminate gracefully
-        if not self.stop_event.is_set():
-            self.stop_event.set()
-        self.camera_thread.join()
 
     def fill_queue(self) -> None:
         while True:
