@@ -25,5 +25,5 @@ camera = ICamera.get_instance(
 frame_processor = FrameProcessor(frame_buffers, stop_event)
 frame_aggregator = FrameResultAggregator(frame_buffers, stop_event)
 
-with camera, frame_processor, frame_aggregator:
-    frame_aggregator.queue_handler()
+with frame_aggregator, frame_processor, camera:
+    frame_aggregator.aggregator_thread()

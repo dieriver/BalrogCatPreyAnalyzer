@@ -85,7 +85,7 @@ class FrameResultAggregator:
         self.frame_buffers.clear()
         self.clean_queue_event.clear()
 
-    def queue_handler(self):
+    def aggregator_thread(self):
         try:
             while not self.stop_event.is_set():
                 # We check if there are enough frames to work with (according to the config)
