@@ -30,8 +30,9 @@ class _CascadeResultData:
 class BufferState(Enum):
     WAITING_FRAME = 1
     WAITING_CASCADE = 2
-    WAITING_AGGREGATION = 3
-    USED = 4
+    IN_CASCADE = 3
+    WAITING_AGGREGATION = 4
+    USED = 5
 
 
 class ImageContainer:
@@ -74,31 +75,36 @@ class ImageContainer:
 
     def write_cascade_data(self, event_elem: EventElement, total_time: float, overhead: float) -> bool:
         """
-        Writes the cascade data to the given buffer ONLY if the buffer is waiting for cascade data.
+        Writes the cascade data to the given buffer ONLY if the buffer is going through cascade
         :param event_elem:
         :param total_time:
         :param overhead:
         :return: True if the data was written, False otherwise
         """
-        if self.buffer_state is BufferState.WAITING_CASCADE:
+        if self.buffer_state is BufferState.IN_CASCADE:
             self.casc_result_data = _CascadeResultData(event_elem, total_time, overhead)
             return True
         return False
 
     # Accessors for the data stored in this buffer
 
+    @property
     def get_img_data(self):
         return self.capture_data.img_data
 
+    @property
     def get_timestamp(self) -> datetime:
         return self.capture_data.timestamp
 
+    @property
     def get_event_element(self) -> EventElement:
         return self.casc_result_data.event_element
 
+    @property
     def get_total_runtime(self) -> float:
         return self.casc_result_data.total_runtime
 
+    @property
     def get_overhead(self) -> float:
         return self.casc_result_data.overhead
 
@@ -226,14 +232,15 @@ class ImageBuffers:
             cascade_index = self.first_unprocessed_cascade
             return cascade_index
 
-    def release_buffers_lock(self):
+    def buffer_is_going_through_cascade(self, index: int):
+        self.first_unprocessed_cascade = ((self.first_unprocessed_cascade + 1) % len(self.circular_buffer))
+        self.circular_buffer[index].buffer_state = BufferState.IN_CASCADE
+        self.frames_available_for_cascade -= 1
         self.indexes_lock.release()
 
     def mark_position_ready_for_aggregation(self, index: int):
         with self.indexes_lock:
-            self.first_unprocessed_cascade = ((self.first_unprocessed_cascade + 1) % len(self.circular_buffer))
             self.circular_buffer[index].buffer_state = BufferState.WAITING_AGGREGATION
-            self.frames_available_for_cascade -= 1
             self.frames_available_for_aggregation += 1
 
     def get_next_index_for_aggregation(self) -> int:

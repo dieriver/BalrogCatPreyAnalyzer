@@ -113,9 +113,9 @@ class FrameResultAggregator:
             return
 
         next_frame = self.frame_buffers[next_frame_index]
-        cascade_obj = next_frame.get_event_element()
-        overhead = next_frame.get_overhead()
-        image_data = next_frame.get_img_data()
+        cascade_obj = next_frame.get_event_element
+        overhead = next_frame.get_overhead
+        image_data = next_frame.get_img_data
 
         # We release the lock asap
         self.frame_buffers.reset_buffer(next_frame_index)
@@ -276,9 +276,9 @@ class FrameProcessor:
 
                 logger.debug(f'Selected index for cascade: {next_frame_index}')
                 next_frame = self.frame_buffers[next_frame_index]
-                image_data = next_frame.get_img_data()
-                frame_tstamp = next_frame.get_timestamp()
-                self.frame_buffers.release_buffers_lock()
+                image_data = next_frame.get_img_data
+                frame_tstamp = next_frame.get_timestamp
+                self.frame_buffers.buffer_is_going_through_cascade(next_frame_index)
 
                 total_runtime, cascade_obj = self.feed_to_cascade(
                     target_img=image_data,
@@ -292,17 +292,15 @@ class FrameProcessor:
                 was_written = next_frame.write_cascade_data(cascade_obj, total_runtime, overhead.total_seconds())
                 if was_written:
                     self.frame_buffers.mark_position_ready_for_aggregation(next_frame_index)
-        except Exception as e:
-            logger.exception(f"Exception in processing thread:", e)
+        except Exception:
+            logger.exception(f"Exception in processing thread:")
 
     def single_debug(self):
         start_time = time.time()
         target_img_name = 'dummy_img.jpg'
         with get_resource_path("dbg_casc.jpg") as resource:
-            print(resource)
             target_img = cv2.imread(
                 str(resource.resolve())
-                #os.path.join(cat_cam_py, 'readme_images/dbg_casc.jpg')
             )
         cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name, thread_id=-1)[1]
         current_time = time.time()
