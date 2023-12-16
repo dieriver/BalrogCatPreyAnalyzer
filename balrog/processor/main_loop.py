@@ -161,7 +161,7 @@ class FrameResultAggregator:
                         send_no_prey_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                    self.reset_aggregation_fields()
+                    #self.reset_aggregation_fields()
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('**** IT IS A PREY!!!!! ****')
@@ -171,7 +171,7 @@ class FrameResultAggregator:
                         send_prey_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                    self.reset_aggregation_fields()
+                    #self.reset_aggregation_fields()
                 else:
                     self.NO_PREY_FLAG = False
                     self.PREY_FLAG = False
@@ -197,7 +197,7 @@ class FrameResultAggregator:
                         send_dk_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                self.reset_aggregation_fields()
+                #self.reset_aggregation_fields()
 
         if self.EVENT_FLAG and self.FACE_FOUND_FLAG:
             self.patience_counter += 1
@@ -278,7 +278,6 @@ class FrameProcessor:
                 next_frame = self.frame_buffers[next_frame_index]
                 image_data = next_frame.get_img_data
                 frame_tstamp = next_frame.get_timestamp
-                self.frame_buffers.buffer_is_going_through_cascade(next_frame_index)
 
                 total_runtime, cascade_obj = self.feed_to_cascade(
                     target_img=image_data,
