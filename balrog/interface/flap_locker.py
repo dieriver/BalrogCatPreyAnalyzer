@@ -1,5 +1,7 @@
 import asyncio
 import os
+from datetime import datetime
+from typing import Any
 
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
 from surepy.entities.devices import Flap
@@ -31,11 +33,13 @@ class FlapLocker:
 
     async def list_pets_data(self, telegram_bot):
         # list with all pets
-        pets: list[Pet] = await self.surepy.get_pets()
+        pets: list[dict[str, Any]] = await self.surepy.sac.get_pets()
         message = f"I found this:"
         for pet in pets:
-            message += (f"\nPet '{pet.name}', location: {pet.location.where}, "
-                        f"since: {pet.location.since if pet.location.since is not None else 'Unknown'}")
+            location: Location = Location(pet['status']['activity']['where'])
+            location_since: datetime = datetime.fromisoformat(pet['status']['activity']['since'])
+            message += (f"\nPet '{pet['name']}', location: {location}, "
+                        f"since: {location_since}")
         telegram_bot.send_text(message)
 
     async def list_devices(self, telegram_bot):
@@ -108,15 +112,26 @@ class FlapLocker:
         await self.set_moria_lock_state(old_state, telegram_bot)
 
     async def switch_pet_location(self, telegram_bot, pet_id: int):
-        pet: Pet = await self.surepy.get_pet(pet_id)
-        if pet is None:
+        pets: list[dict[str, Any]] = await self.surepy.sac.get_pets()
+        if pets is None:
+            telegram_bot.send_text(f"No pet was found int he server")
+            return
+
+        chosen_pet: dict[str, Any] | None = None
+        for pet in pets:
+            if pet["id"] == pet_id:
+                chosen_pet = pet
+                break
+
+        if chosen_pet is None:
             telegram_bot.send_text(f"Pet with id = '{pet_id}' could not be found")
             return
-        logger.debug(f"Pet: id= '{pet.id}', name= '{pet.name}', old location = '{pet.location.where}'")
-        old_location = pet.location.where
+
+        old_location: Location = Location(chosen_pet['status']['activity']['where'])
+        logger.debug(f"Pet: id= '{chosen_pet['id']}', name= '{chosen_pet['name']}', old location = '{old_location}'")
         if old_location == Location.INSIDE:
             new_location = Location.OUTSIDE
         else:
             new_location = Location.INSIDE
         await self.surepy.sac.set_pet_location(pet_id, new_location)
-        telegram_bot.send_text(f"Pet with name = '{pet.name}' was marked as '{new_location}'")
+        telegram_bot.send_text(f"Pet with name = '{chosen_pet['name']}' was marked as '{new_location}'")
