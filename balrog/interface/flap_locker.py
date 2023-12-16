@@ -4,7 +4,7 @@ import os
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
 from surepy.entities.devices import Flap
 from surepy.entities.pet import Pet
-from surepy.enums import LockState
+from surepy.enums import LockState, Location
 
 from balrog.utils import logger
 
@@ -22,11 +22,14 @@ class FlapLocker:
         #token = 'XXXXX' # Complete if necessary
         #surepy = Surepy(auth_token=token)
 
-    async def list_pets(self, telegram_bot):
+    async def list_pets_data(self, telegram_bot):
         # list with all pets
         pets: list[Pet] = await self.surepy.get_pets()
+        message = f"I found this:"
         for pet in pets:
-            telegram_bot.send_text(f"\n\n{pet.name}: {pet.state} | {pet.location}\n")
+            message += (f"\nPet '{pet.name}', location: {pet.location.where}, "
+                        f"since: {pet.location.since if pet.location.since is not None else 'Unknown'}")
+        telegram_bot.send_text(message)
 
     async def list_devices(self, telegram_bot):
         # all entities as id-indexed dict
@@ -96,3 +99,17 @@ class FlapLocker:
         await asyncio.sleep(seconds)
         logger.debug(f"Setting back old state = {old_state}")
         await self.set_moria_lock_state(old_state, telegram_bot)
+
+    async def switch_pet_location(self, telegram_bot, pet_id: int):
+        pet: Pet = await self.surepy.get_pet(pet_id)
+        if pet is None:
+            telegram_bot.send_text(f"Pet with id = '{pet_id}' could not be found")
+            return
+        logger.debug(f"Pet: id= '{pet.id}', name= '{pet.name}', old location = '{pet.location.where}'")
+        old_location = pet.location.where
+        if old_location is Location.INSIDE:
+            new_location = Location.OUTSIDE
+        else:
+            new_location = Location.INSIDE
+        await self.surepy.sac.set_pet_location(pet_id, new_location)
+        telegram_bot.send_text(f"Pet with name = '{pet.name}' was marked as '{new_location}'")
