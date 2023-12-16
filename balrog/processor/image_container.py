@@ -197,8 +197,9 @@ class ImageBuffers:
             else:
                 self.first_empty_frame += 1
 
-        # We check the indexes of the first empty frame and the last aggregated
-        if self.frames_available_for_frame <= 0 or self.first_empty_frame == self.last_non_aggregated_frame:
+        # We check the state of the potential next buffer
+        buffer_state = self.circular_buffer[self.first_empty_frame].buffer_state
+        if self.frames_available_for_frame <= 0 or buffer_state != BufferState.WAITING_FRAME:
             # If they are equal, the circular buffer is full
             self.indexes_lock.release()
             return -1
@@ -224,7 +225,8 @@ class ImageBuffers:
             else:
                 self.first_unprocessed_cascade += 1
 
-        if self.frames_available_for_cascade <= 0 or self.first_unprocessed_cascade == self.first_empty_frame:
+        buffer_state = self.circular_buffer[self.first_unprocessed_cascade].buffer_state
+        if self.frames_available_for_cascade <= 0 or buffer_state != BufferState.WAITING_CASCADE:
             # There are no available frames for cascade; first unprocessed cascade does not have frame
             self.indexes_lock.release()
             return -1
@@ -253,7 +255,8 @@ class ImageBuffers:
             else:
                 self.last_non_aggregated_frame += 1
 
-        if self.frames_available_for_aggregation <= 0 or self.last_non_aggregated_frame == self.first_unprocessed_cascade:
+        buffer_state = self.circular_buffer[self.last_non_aggregated_frame].buffer_state
+        if self.frames_available_for_aggregation <= 0 or buffer_state != BufferState.WAITING_AGGREGATION:
             # No frames are available for aggregation; the last non aggregated frame has not gone through cascade
             self.indexes_lock.release()
             return -1
