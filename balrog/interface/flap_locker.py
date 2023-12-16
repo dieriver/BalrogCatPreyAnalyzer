@@ -114,7 +114,7 @@ class FlapLocker:
             return
         logger.debug(f"Pet: id= '{pet.id}', name= '{pet.name}', old location = '{pet.location.where}'")
         old_location = pet.location.where
-        if old_location is Location.INSIDE:
+        if old_location == Location.INSIDE:
             new_location = Location.OUTSIDE
         else:
             new_location = Location.INSIDE
