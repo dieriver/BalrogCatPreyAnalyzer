@@ -90,7 +90,8 @@ class BalrogTelegramBot(ITelegramBot):
         self.bot_updater = Updater(token=self.BOT_TOKEN, use_context=True)
         self.flap_handler = FlapLocker()
         self.commands: dict[str,  Callable[[Update, CallbackContext], None]] = dict()
-        self._populate_supported_commands()
+        pets_data = self._list_pets()
+        self._populate_supported_commands(pets_data)
         # Event to signal the main loop that the queue needs to be cleaned
         self.clean_queue_event = clean_queue_event
         self.stop_event = stop_event
@@ -98,7 +99,7 @@ class BalrogTelegramBot(ITelegramBot):
         # Init the listener
         self._init_bot_listener()
 
-    def _populate_supported_commands(self) -> None:
+    def _populate_supported_commands(self, pets_data: dict[str, int]) -> None:
         self.commands['help'] = self._help_cmd_callback
         self.commands['clean'] = self._clean_cmd_callback
         self.commands['restart'] = self._restart_cmd_callback
@@ -112,11 +113,7 @@ class BalrogTelegramBot(ITelegramBot):
         self.commands['unlock'] = self._unlock_moria
         self.commands['petsstate'] = self._list_pets_state
         # create callbacks for switching the state of pets
-        pets = {
-            'coffee': 355269,
-            'truffle': 355270
-        }
-        for name, pet_id in pets.items():
+        for name, pet_id in pets_data.items():
             self.commands[f'switch{name}'] = self._create_pet_switch_function(pet_id)
         # Not very used commands
         self.commands['curfew'] = self._set_curfew
@@ -268,6 +265,14 @@ class BalrogTelegramBot(ITelegramBot):
             return asyncio.run(self.flap_handler.list_pets_data(self))
         else:
             return loop.run_until_complete(self.flap_handler.list_pets_data(self))
+
+    def _list_pets(self) -> dict[str, int]:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.flap_handler.get_pets_data())
+        else:
+            return loop.run_until_complete(self.flap_handler.get_pets_data())
 
 
 class DebugBot(ITelegramBot):

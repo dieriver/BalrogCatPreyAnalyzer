@@ -22,6 +22,13 @@ class FlapLocker:
         #token = 'XXXXX' # Complete if necessary
         #surepy = Surepy(auth_token=token)
 
+    async def get_pets_data(self) -> dict[str, int]:
+        registered_pets: list[Pet] = await self.surepy.get_pets()
+        pets_data: dict[str, int] = dict()
+        for registered_pet in registered_pets:
+            pets_data[registered_pet.name] = registered_pet.pet_id
+        return pets_data
+
     async def list_pets_data(self, telegram_bot):
         # list with all pets
         pets: list[Pet] = await self.surepy.get_pets()
