@@ -109,8 +109,17 @@ class BalrogTelegramBot(ITelegramBot):
         self.commands['lock'] = self._lock_moria
         self.commands['lockin'] = self._lock_moria_in
         self.commands['lockout'] = self._lock_moria_out
-        self.commands['curfew'] = self._set_curfew
         self.commands['unlock'] = self._unlock_moria
+        self.commands['petsstate'] = self._list_pets_state
+        # create callbacks for switching the state of pets
+        pets = {
+            'coffee': 355269,
+            'truffle': 355270
+        }
+        for name, pet_id in pets.items():
+            self.commands[f'switch{name}'] = self._create_pet_switch_function(pet_id)
+        # Not very used commands
+        self.commands['curfew'] = self._set_curfew
 
     # Constructor supporter functions
 
@@ -241,6 +250,24 @@ class BalrogTelegramBot(ITelegramBot):
             return asyncio.run(self.flap_handler.activate_curfew(self))
         else:
             return loop.run_until_complete(self.flap_handler.activate_curfew(self))
+
+    def _create_pet_switch_function(self, pet_id: int) -> Callable[[Update, CallbackContext], None]:
+        def _switch_pet_state(update: Update, context: CallbackContext) -> None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(self.flap_handler.switch_pet_location(self, pet_id))
+            else:
+                return loop.run_until_complete(self.flap_handler.switch_pet_location(self, pet_id))
+        return _switch_pet_state
+
+    def _list_pets_state(self, update: Update, context: CallbackContext) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.flap_handler.list_pets_data(self))
+        else:
+            return loop.run_until_complete(self.flap_handler.list_pets_data(self))
 
 
 class DebugBot(ITelegramBot):
