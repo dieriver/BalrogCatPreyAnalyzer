@@ -8,7 +8,7 @@ from threading import RLock
 from cv2.typing import MatLike
 
 from balrog.utils import logger
-from .cascade import EventElement
+from balrog.processor import EventElement
 
 
 @dataclass

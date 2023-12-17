@@ -5,37 +5,8 @@ import numpy as np
 
 from balrog.config import logging_config
 from balrog.utils.utils import logger
+from balrog.processor import EventElement
 from .model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
-
-
-class EventElement:
-    def __init__(self, img_name, cc_target_img):
-        self.img_name = img_name
-        self.cc_target_img = cc_target_img
-        self.cc_cat_bool = None
-        self.cc_pred_bb = None
-        self.cc_inference_time = None
-        self.cr_class = None
-        self.cr_val = None
-        self.cr_inference_time = None
-        self.bbs_target_img = None
-        self.bbs_pred_bb = None
-        self.bbs_inference_time = None
-        self.haar_pred_bb = None
-        self.haar_inference_time = None
-        self.ff_haar_bool = None
-        self.ff_haar_val = None
-        self.ff_haar_inference_time = None
-        self.ff_bbs_bool = None
-        self.ff_bbs_val = None
-        self.ff_bbs_inference_time = None
-        self.face_box = None
-        self.face_bool = None
-        self.pc_prey_class = None
-        self.pc_prey_val = None
-        self.pc_inference_time = None
-        self.total_inference_time = None
-        self.output_img = None
 
 
 class Cascade:
@@ -48,13 +19,13 @@ class Cascade:
         self.haar_stage = HaarStage()
 
     @staticmethod
-    def _log(message: str, exception: Exception | None = None):
+    def _log(message: str, exception: Exception | None = None) -> None:
         if exception is not None:
             logger.exception(message)
         elif logging_config.enable_cascade_logging:
             logger.debug(message)
 
-    def do_single_cascade(self, event_img_object: EventElement, thread_id: int, frame_index: int):
+    def do_single_cascade(self, event_img_object: EventElement, thread_id: int, frame_index: int) -> None:
         logger.info(f"Thread {thread_id} - Processing index: '{frame_index}', name: '{event_img_object.img_name}'")
         cc_target_img = event_img_object.cc_target_img
         original_copy_img = cc_target_img.copy()
@@ -157,7 +128,6 @@ class Cascade:
 
         # Always save rec_img in event_img object
         event_img_object.output_img = rec_img
-        return event_img_object
 
     def cc_haar_overlap(self, cc_bbs, haar_bbs):
         cc_area = abs(cc_bbs[0][0] - cc_bbs[1][0]) * abs(cc_bbs[0][1] - cc_bbs[1][1])

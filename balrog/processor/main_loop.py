@@ -1,3 +1,4 @@
+import copy
 import os
 import sys
 import time
@@ -11,7 +12,7 @@ from cv2.typing import MatLike
 
 from balrog.config import general_config, model_config
 from balrog.interface import ITelegramBot
-from balrog.processor.cascade import Cascade, EventElement
+from balrog.processor import Cascade, EventElement
 from balrog.processor.image_container import ImageBuffers
 from balrog.utils import logger, get_resource_path
 from .detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
@@ -48,7 +49,7 @@ class FrameResultAggregator:
         self.cumulus_points = 0
         self.cat_counter = 0
         self.face_counter = 0
-        self.event_objects = []
+        self.event_objects: list[EventElement] = []
         self.frame_buffers = frame_buffers
 
     def __enter__(self):
@@ -117,9 +118,9 @@ class FrameResultAggregator:
             return
 
         next_frame = self.frame_buffers[next_frame_index]
-        cascade_obj = next_frame.get_event_element
-        overhead = next_frame.get_overhead
-        image_data = next_frame.get_img_data
+        cascade_obj: EventElement = next_frame.get_event_element
+        overhead: float = next_frame.get_overhead
+        image_data: MatLike = next_frame.get_img_data
 
         # We release the lock asap
         self.frame_buffers.reset_buffer(next_frame_index)
@@ -159,7 +160,7 @@ class FrameResultAggregator:
                 if self.cumulus_points / self.face_counter > model_config.cumulus_no_prey_threshold:
                     self.NO_PREY_FLAG = True
                     logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
-                    events_cpy = self.event_objects.copy()
+                    events_cpy = copy.deepcopy(self.event_objects)
                     cumuli_cpy = self.cumulus_points / self.face_counter
                     self.verdict_sender_pool.apply_async(
                         send_no_prey_message,
@@ -169,7 +170,7 @@ class FrameResultAggregator:
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('**** IT IS A PREY!!!!! ****')
-                    events_cpy = self.event_objects.copy()
+                    events_cpy = copy.deepcopy(self.event_objects)
                     cumuli_cpy = self.cumulus_points / self.face_counter
                     self.verdict_sender_pool.apply_async(
                         send_prey_message,
@@ -250,23 +251,23 @@ class FrameProcessor:
         target_event_obj = EventElement(img_name=img_name, cc_target_img=target_img)
 
         start_time = time.time()
-        single_cascade = self.base_cascade.do_single_cascade(
+        self.base_cascade.do_single_cascade(
             event_img_object=target_event_obj,
             thread_id=thread_id,
             frame_index=frame_index
         )
-        single_cascade.total_inference_time = sum(filter(None, [
-            single_cascade.cc_inference_time,
-            single_cascade.cr_inference_time,
-            single_cascade.bbs_inference_time,
-            single_cascade.haar_inference_time,
-            single_cascade.ff_bbs_inference_time,
-            single_cascade.ff_haar_inference_time,
-            single_cascade.pc_inference_time]))
+        target_event_obj.total_inference_time = sum(filter(None, [
+            target_event_obj.cc_inference_time,
+            target_event_obj.cr_inference_time,
+            target_event_obj.bbs_inference_time,
+            target_event_obj.haar_inference_time,
+            target_event_obj.ff_bbs_inference_time,
+            target_event_obj.ff_haar_inference_time,
+            target_event_obj.pc_inference_time]))
         total_runtime = time.time() - start_time
         logger.debug(f'Total Runtime: {total_runtime}')
 
-        return total_runtime, single_cascade
+        return total_runtime, target_event_obj
 
     def process_frame(self, thread_id: int) -> None:
         while not self.stop_event.is_set():
