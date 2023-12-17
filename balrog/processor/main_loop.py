@@ -70,6 +70,7 @@ class FrameResultAggregator:
         sys.exit(0)
 
     def reset_aggregation_fields(self):
+        # TODO - Do not rely on this "static" state that needs to be reset every time we reach a verdict
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
@@ -82,8 +83,9 @@ class FrameResultAggregator:
         self.cat_counter = 0
         self.face_counter = 0
         self.event_objects.clear()
-        self.frame_buffers.clear()
         self.clean_queue_event.clear()
+        # The next operation is expensive, maybe we don't need to perform it every single time
+        #self.frame_buffers.clear()
 
     def aggregator_thread(self):
         while not self.stop_event.is_set():
@@ -163,7 +165,7 @@ class FrameResultAggregator:
                         send_no_prey_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                    #self.reset_aggregation_fields()
+                    self.reset_aggregation_fields()
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('**** IT IS A PREY!!!!! ****')
@@ -173,7 +175,7 @@ class FrameResultAggregator:
                         send_prey_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                    #self.reset_aggregation_fields()
+                    self.reset_aggregation_fields()
                 else:
                     self.NO_PREY_FLAG = False
                     self.PREY_FLAG = False
@@ -199,7 +201,7 @@ class FrameResultAggregator:
                         send_dk_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
-                #self.reset_aggregation_fields()
+                self.reset_aggregation_fields()
 
         if self.EVENT_FLAG and self.FACE_FOUND_FLAG:
             self.patience_counter += 1
