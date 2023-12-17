@@ -1,12 +1,46 @@
 import time
+from dataclasses import dataclass
+from typing import Any
 
 import cv2
 import numpy as np
+from cv2.typing import MatLike
 
 from balrog.config import logging_config
 from balrog.utils.utils import logger
-from balrog.processor import EventElement
 from .model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
+
+
+@dataclass
+class EventElement:
+        img_name: str
+        cc_target_img: MatLike
+        cc_cat_bool: bool = None
+        cc_pred_bb = None
+        cc_inference_time: float = None
+        bbs_target_img: Any = None
+        bbs_pred_bb: Any = None
+        bbs_inference_time: float = None
+        haar_pred_bb: Any = None
+        haar_inference_time: float = None
+        ff_bbs_bool: bool = None
+        ff_bbs_val: Any = None
+        ff_bbs_inference_time: float = None
+        face_box: Any = None
+        face_bool: bool = None
+        pc_prey_class: bool = None
+        pc_prey_val: Any = None
+        pc_inference_time: float = None
+        total_inference_time = None
+        output_img: MatLike = None
+        # Fields never assigned?
+        cr_inference_time = None
+        ff_haar_inference_time = None
+        # Fields never used?
+        cr_class = None
+        cr_val = None
+        ff_haar_bool = None
+        ff_haar_val = None
 
 
 class Cascade:
