@@ -86,8 +86,8 @@ class FrameResultAggregator:
         self.clean_queue_event.clear()
 
     def aggregator_thread(self):
-        try:
-            while not self.stop_event.is_set():
+        while not self.stop_event.is_set():
+            try:
                 # We check if there are enough frames to work with (according to the config)
                 frames_rdy_for_aggregation = self.frame_buffers.frames_ready_for_aggregation()
                 logger.debug(f"Frames ready for aggregation: {frames_rdy_for_aggregation}")
@@ -103,8 +103,10 @@ class FrameResultAggregator:
                 if self.clean_queue_event.is_set():
                     # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
                     self.reset_aggregation_fields()
-        except Exception as e:
-            logger.exception("Exception in aggregation thread: ", e)
+            except Exception as e:
+                logger.exception("Exception in aggregation thread: ", e)
+                logger.info("Cleaning queue since exception")
+                self.frame_buffers.clear()
 
     def aggregate_available_frames(self, frames_rdy_for_aggregation: int):
         # We get the last buffer, and extract its data
@@ -242,13 +244,14 @@ class FrameProcessor:
             logger.error(f"Traceback: {traceback}")
         return True
 
-    def feed_to_cascade(self, target_img: MatLike, img_name: str, thread_id: int) -> tuple[float, EventElement]:
+    def feed_to_cascade(self, target_img: MatLike, img_name: str, thread_id: int = -1, frame_index: int = -1) -> tuple[float, EventElement]:
         target_event_obj = EventElement(img_name=img_name, cc_target_img=target_img)
 
         start_time = time.time()
         single_cascade = self.base_cascade.do_single_cascade(
             event_img_object=target_event_obj,
-            thread_id=thread_id
+            thread_id=thread_id,
+            frame_index=frame_index
         )
         single_cascade.total_inference_time = sum(filter(None, [
             single_cascade.cc_inference_time,
@@ -264,8 +267,8 @@ class FrameProcessor:
         return total_runtime, single_cascade
 
     def process_frame(self, thread_id: int) -> None:
-        try:
-            while not self.stop_event.is_set():
+        while not self.stop_event.is_set():
+            try:
                 # Feed the latest image in the Queue through the cascade
                 next_frame_index = self.frame_buffers.get_next_index_for_cascade()
 
@@ -282,7 +285,8 @@ class FrameProcessor:
                 total_runtime, cascade_obj = self.feed_to_cascade(
                     target_img=image_data,
                     img_name=str(frame_tstamp),
-                    thread_id=thread_id
+                    thread_id=thread_id,
+                    frame_index=next_frame_index
                 )
                 overhead = datetime.now(pytz.timezone('Europe/Zurich')) - frame_tstamp
                 logger.debug(f'Overhead: {overhead.total_seconds()}')
@@ -291,8 +295,11 @@ class FrameProcessor:
                 was_written = next_frame.write_cascade_data(cascade_obj, total_runtime, overhead.total_seconds())
                 if was_written:
                     self.frame_buffers.mark_position_ready_for_aggregation(next_frame_index)
-        except Exception:
-            logger.exception(f"Exception in processing thread:")
+            except Exception:
+                logger.exception(f"Exception in processing thread:")
+                logger.info("Cleaning queue since exception")
+                self.frame_buffers.clear()
+
 
     def single_debug(self):
         start_time = time.time()
@@ -301,7 +308,7 @@ class FrameProcessor:
             target_img = cv2.imread(
                 str(resource.resolve())
             )
-        cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name, thread_id=-1)[1]
+        cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name)[1]
         current_time = time.time()
         logger.debug(f'Debug cascade runtime: {current_time - start_time}')
         return cascade_obj

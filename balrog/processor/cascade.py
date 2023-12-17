@@ -54,8 +54,8 @@ class Cascade:
         elif logging_config.enable_cascade_logging:
             logger.debug(message)
 
-    def do_single_cascade(self, event_img_object: EventElement, thread_id: int):
-        logger.info(f'Thread {thread_id} - Processing image: {event_img_object.img_name}')
+    def do_single_cascade(self, event_img_object: EventElement, thread_id: int, frame_index: int):
+        logger.info(f"Thread {thread_id} - Processing index: '{frame_index}', name: '{event_img_object.img_name}'")
         cc_target_img = event_img_object.cc_target_img
         original_copy_img = cc_target_img.copy()
 
