@@ -266,7 +266,7 @@ class FrameProcessor:
             target_event_obj.ff_haar_inference_time,
             target_event_obj.pc_inference_time]))
         total_runtime = time.time() - start_time
-        logger.debug(f'Total Runtime: {total_runtime}')
+        logger.debug(f'Thread {thread_id} - Total Runtime: {total_runtime}')
 
         return total_runtime, target_event_obj
 

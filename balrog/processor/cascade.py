@@ -66,25 +66,31 @@ class Cascade:
 
         # Do CC
         start_time = time.time()
-        dk_bool, cat_bool, bbs_target_img, pred_cc_bb_full, cc_inference_time = self.do_cc_mobile_stage(
-            cc_target_img=cc_target_img)
+        dk_bool, cat_bool, bbs_target_img, pred_cc_bb_full, cc_inference_time =(
+            Cascade._do_cc_mobile_stage(
+                cc_mobile_stage=self.cc_mobile_stage,
+                cc_target_img=cc_target_img
+        ))
         current_time = time.time()
-        Cascade._log(f'CASCADE - CC compute Time: {current_time - start_time}')
+        Cascade._log(f'Thread {thread_id} - CASCADE - CC compute Time: {current_time - start_time}')
         event_img_object.cc_cat_bool = cat_bool
         event_img_object.cc_pred_bb = pred_cc_bb_full
         event_img_object.bbs_target_img = bbs_target_img
         event_img_object.cc_inference_time = cc_inference_time
 
         if cat_bool and bbs_target_img.size != 0:
-            Cascade._log('CASCADE - Cat Detected!')
-            rec_img = self.cc_mobile_stage.draw_rectangle(img=original_copy_img,
-                                                          box=pred_cc_bb_full,
-                                                          color=(255, 0, 0),
-                                                          text='CC_Pred')
+            Cascade._log(f'Thread {thread_id} - CASCADE - Cat Detected!')
+            rec_img = self.cc_mobile_stage.draw_rectangle(
+                img=original_copy_img,
+                box=pred_cc_bb_full,
+                color=(255, 0, 0),
+                text='CC_Pred'
+            )
 
             # Do HAAR
             haar_snout_crop, haar_bbs, haar_inference_time, haar_found_bool = (
-                self.do_haar_stage(
+                Cascade._do_haar_stage(
+                    haar_stage=self.haar_stage,
                     target_img=bbs_target_img,
                     pred_cc_bb_full=pred_cc_bb_full,
                     cc_target_img=cc_target_img
@@ -100,25 +106,32 @@ class Cascade:
             event_img_object.haar_pred_bb = haar_bbs
             event_img_object.haar_inference_time = haar_inference_time
 
-            if haar_found_bool and haar_snout_crop.size != 0 and self.cc_haar_overlap(cc_bbs=pred_cc_bb_full,
-                                                                                      haar_bbs=haar_bbs) >= 0.1:
+            if (haar_found_bool and
+                    haar_snout_crop.size != 0 and
+                    Cascade._cc_haar_overlap(cc_bbs=pred_cc_bb_full, haar_bbs=haar_bbs, thread_id= thread_id) >= 0.1
+            ):
                 inf_bb = haar_bbs
                 face_bool = True
                 snout_crop = haar_snout_crop
 
             else:
                 # Do EYES
-                bbs_snout_crop, bbs, eye_inference_time = self.do_eyes_stage(eye_target_img=bbs_target_img,
-                                                                             cc_pred_bb=pred_cc_bb_full,
-                                                                             cc_target_img=cc_target_img)
+                bbs_snout_crop, bbs, eye_inference_time = Cascade._do_eyes_stage(
+                    eyes_stage=self.eyes_stage,
+                    eye_target_img=bbs_target_img,
+                    cc_pred_bb=pred_cc_bb_full,
+                    cc_target_img=cc_target_img
+                )
                 rec_img = self.cc_mobile_stage.draw_rectangle(img=rec_img, box=bbs, color=(255, 0, 255),
                                                               text='BBS_Pred')
                 event_img_object.bbs_pred_bb = bbs
                 event_img_object.bbs_inference_time = eye_inference_time
 
                 # Do FF for Haar and EYES
-                bbs_dk_bool, bbs_face_bool, bbs_ff_conf, bbs_ff_inference_time = self.do_ff_stage(
-                    snout_crop=bbs_snout_crop)
+                bbs_dk_bool, bbs_face_bool, bbs_ff_conf, bbs_ff_inference_time = Cascade._do_ff_stage(
+                    ff_stage=self.ff_stage,
+                    snout_crop=bbs_snout_crop
+                )
                 event_img_object.ff_bbs_bool = bbs_face_bool
                 event_img_object.ff_bbs_val = bbs_ff_conf
                 event_img_object.ff_bbs_inference_time = bbs_ff_inference_time
@@ -133,41 +146,46 @@ class Cascade:
             if face_bool:
                 rec_img = self.cc_mobile_stage.draw_rectangle(img=rec_img, box=inf_bb, color=(255, 255, 255),
                                                               text='INF_Pred')
-                Cascade._log('CASCADE - Face Detected!')
+                Cascade._log(f'Thread {thread_id} - CASCADE - Face Detected!')
 
                 # Do PC
-                pred_class, pred_val, inference_time = self.do_pc_stage(pc_target_img=snout_crop)
-                Cascade._log(f'CASCADE - Prey Prediction: {pred_class}')
-                Cascade._log(f'CASCADE - Pred_Val: {pred_val:.2f}')
+                pred_class, pred_val, inference_time = Cascade._do_pc_stage(
+                    pc_stage=self.pc_stage,
+                    pc_target_img=snout_crop
+                )
+                Cascade._log(f'Thread {thread_id} -  CASCADE - Prey Prediction: {pred_class}')
+                Cascade._log(f'Thread {thread_id} - CASCADE - Pred_Val: {pred_val:.2f}')
                 pc_str = f' PC_Pred: {pred_class} @ {pred_val:.2f}'
                 color = (0, 0, 255) if pred_class else (0, 255, 0)
-                rec_img = self.input_text(img=rec_img, text=pc_str, text_pos=(15, 100), color=color)
+                rec_img = Cascade._input_text(img=rec_img, text=pc_str, text_pos=(15, 100), color=color)
 
                 event_img_object.pc_prey_class = pred_class
                 event_img_object.pc_prey_val = pred_val
                 event_img_object.pc_inference_time = inference_time
 
             else:
-                Cascade._log('CASCADE - No Face Found...')
+                Cascade._log(f'Thread {thread_id} - CASCADE - No Face Found...')
                 ff_str = 'No_Face'
-                rec_img = self.input_text(img=rec_img, text=ff_str, text_pos=(15, 100), color=(255, 255, 0))
+                rec_img = Cascade._input_text(img=rec_img, text=ff_str, text_pos=(15, 100), color=(255, 255, 0))
 
         else:
-            Cascade._log('CASCADE - No Cat Found...')
-            rec_img = self.input_text(img=original_copy_img,
-                                      text='CC_Pred: NoCat',
-                                      text_pos=(15, 100),
-                                      color=(255, 255, 0)
-                                      )
+            Cascade._log(f'Thread {thread_id} - CASCADE - No Cat Found...')
+            rec_img = Cascade._input_text(
+                img=original_copy_img,
+                text='CC_Pred: NoCat',
+                text_pos=(15, 100),
+                color=(255, 255, 0)
+            )
 
         # Always save rec_img in event_img object
         event_img_object.output_img = rec_img
 
-    def cc_haar_overlap(self, cc_bbs, haar_bbs):
+    @staticmethod
+    def _cc_haar_overlap(cc_bbs: Any, haar_bbs: Any, thread_id: int) -> float:
         cc_area = abs(cc_bbs[0][0] - cc_bbs[1][0]) * abs(cc_bbs[0][1] - cc_bbs[1][1])
         haar_area = abs(haar_bbs[0][0] - haar_bbs[1][0]) * abs(haar_bbs[0][1] - haar_bbs[1][1])
         overlap = haar_area / cc_area
-        Cascade._log(f'CASCADE - Overlap: {overlap}')
+        Cascade._log(f'Thread {thread_id} - CASCADE - Overlap: {overlap}')
         return overlap
 
     def infere_snout_crop(self, bbs, haar_bbs, bbs_face_bool, bbs_ff_conf, haar_face_bool, haar_ff_conf, cc_target_img):
@@ -248,8 +266,12 @@ class Cascade:
 
         return intersection_area / union_area
 
-    def do_cc_mobile_stage(self, cc_target_img):
-        pred_cc_bb_full, cat_bool, inference_time = self.cc_mobile_stage.do_cc(target_img=cc_target_img)
+    @staticmethod
+    def _do_cc_mobile_stage(
+            cc_mobile_stage: CCMobileNetStage,
+            cc_target_img: MatLike
+    ) -> tuple[bool, bool, Any, Any, float]:
+        pred_cc_bb_full, cat_bool, inference_time = cc_mobile_stage.do_cc(target_img=cc_target_img)
         dk_bool = False if cat_bool is True else True
         if cat_bool:
             bbs_xmin = pred_cc_bb_full[0][0]
@@ -261,14 +283,28 @@ class Cascade:
         else:
             return dk_bool, cat_bool, None, None, inference_time
 
-    def do_eyes_stage(self, eye_target_img, cc_pred_bb, cc_target_img):
-        snout_crop, bbs, inference_time = self.eyes_stage.do_eyes(cc_target_img, eye_target_img, cc_pred_bb)
+    @staticmethod
+    def _do_eyes_stage(
+            eyes_stage: EyeStage,
+            eye_target_img: Any,
+            cc_pred_bb: Any,
+            cc_target_img: MatLike
+    ) -> tuple[Any, Any, float]:
+        snout_crop, bbs, inference_time = eyes_stage.do_eyes(cc_target_img, eye_target_img, cc_pred_bb)
         return snout_crop, bbs, inference_time
 
-    def do_haar_stage(self, target_img, pred_cc_bb_full, cc_target_img):
-        haar_bbs, haar_inference_time, haar_found_bool = self.haar_stage.haar_do(target_img=target_img,
-                                                                                 cc_bbs=pred_cc_bb_full,
-                                                                                 full_img=cc_target_img)
+    @staticmethod
+    def _do_haar_stage(
+            haar_stage: HaarStage,
+            target_img: Any,
+            pred_cc_bb_full: Any,
+            cc_target_img: MatLike
+    ) -> tuple[Any, Any, float, bool]:
+        haar_bbs, haar_inference_time, haar_found_bool = haar_stage.haar_do(
+            target_img=target_img,
+            cc_bbs=pred_cc_bb_full,
+            full_img=cc_target_img
+        )
         pc_xmin = int(haar_bbs[0][0])
         pc_ymin = int(haar_bbs[0][1])
         pc_xmax = int(haar_bbs[1][0])
@@ -277,24 +313,28 @@ class Cascade:
 
         return snout_crop, haar_bbs, haar_inference_time, haar_found_bool
 
-    def do_ff_stage(self, snout_crop):
-        face_bool, ff_conf, ff_inference_time = self.ff_stage.ff_do(target_img=snout_crop)
+    @staticmethod
+    def _do_ff_stage(ff_stage: FFStage, snout_crop: Any) -> tuple[bool, bool, Any, float]:
+        face_bool, ff_conf, ff_inference_time = ff_stage.ff_do(target_img=snout_crop)
         dk_bool = False if face_bool is True else True
         return dk_bool, face_bool, ff_conf, ff_inference_time
 
-    def do_pc_stage(self, pc_target_img):
-        pred_class, pred_val, inference_time = self.pc_stage.pc_do(target_img=pc_target_img)
+    @staticmethod
+    def _do_pc_stage(pc_stage: PCStage, pc_target_img: Any) -> tuple[bool, Any, float]:
+        pred_class, pred_val, inference_time = pc_stage.pc_do(target_img=pc_target_img)
         return pred_class, pred_val, inference_time
 
-    def input_text(self, img, text, text_pos, color):
+    @staticmethod
+    def _input_text(img: MatLike, text: str, text_pos: tuple[int, int], color: tuple[float, float, float]) -> MatLike:
         font = cv2.FONT_HERSHEY_SIMPLEX
-        fontScale = 2
-        lineType = 3
+        font_scale = 2
+        line_type = 3
 
-        cv2.putText(img, text,
+        cv2.putText(img,
+                    text,
                     text_pos,
                     font,
-                    fontScale,
+                    font_scale,
                     color,
-                    lineType)
+                    line_type)
         return img
