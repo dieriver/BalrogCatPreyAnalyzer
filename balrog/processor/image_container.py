@@ -1,9 +1,11 @@
+import copy
 import gc
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from threading import RLock
+from typing import Self
 
 from cv2.typing import MatLike
 
@@ -38,11 +40,25 @@ class BufferState(Enum):
 
 
 class ImageContainer:
-    def __init__(self, enable_logging: bool):
+    def __init__(
+            self,
+            enable_logging: bool,
+            capture_data: _CaptureImageData = None,
+            casc_result_data: _CascadeResultData = None,
+            buffer_state: BufferState = None
+    ):
         self._enable_logging = enable_logging
         self._capture_data: _CaptureImageData = _CaptureImageData()
         self._casc_result_data: _CascadeResultData = _CascadeResultData()
         self._buffer_state = BufferState.WAITING_FRAME
+
+    def clone(self) -> Self:
+        return ImageContainer(
+            self.enable_logging,
+            copy.deepcopy(self.capture_data),
+            copy.deepcopy(self.casc_result_data),
+            self.buffer_state
+        )
 
     def clean(self) -> None:
         """
@@ -55,6 +71,10 @@ class ImageContainer:
 
     def __repr__(self) -> str:
         return f"<capture_data = {repr(self.capture_data)}, result_data = {repr(self.casc_result_data)}, buffer_state = {self.buffer_state}>"
+
+    @property
+    def enable_logging(self) -> bool:
+        return self._enable_logging
 
     @property
     def buffer_state(self) -> BufferState:
@@ -101,39 +121,26 @@ class ImageContainer:
     def write_capture_data(self, img_data, timestamp: datetime) -> None:
         self.capture_data = _CaptureImageData(img_data, timestamp)
 
-    def write_cascade_data(self, event_elem: EventElement, total_time: float, overhead: float) -> bool:
-        """
-        Writes the cascade data to the given buffer ONLY if the buffer is going through cascade
-        :param event_elem:
-        :param total_time:
-        :param overhead:
-        :return: True if the data was written, False otherwise
-        """
-        if self.buffer_state is BufferState.IN_CASCADE:
-            self.casc_result_data = _CascadeResultData(event_elem, total_time, overhead)
-            return True
-        return False
-
     # Accessors for the data stored in this buffer
 
     @property
-    def get_img_data(self):
+    def img_data(self):
         return self.capture_data.img_data
 
     @property
-    def get_timestamp(self) -> datetime:
+    def timestamp(self) -> datetime:
         return self.capture_data.timestamp
 
     @property
-    def get_event_element(self) -> EventElement:
+    def event_element(self) -> EventElement:
         return self.casc_result_data.event_element
 
     @property
-    def get_total_runtime(self) -> float:
+    def total_runtime(self) -> float:
         return self.casc_result_data.total_runtime
 
     @property
-    def get_overhead(self) -> float:
+    def overhead(self) -> float:
         return self.casc_result_data.overhead
 
 
@@ -262,10 +269,12 @@ class ImageBuffers:
                 self.frames_available_for_cascade -= 1
                 return cascade_index
 
-    def mark_position_ready_for_aggregation(self, index: int) -> None:
+    def write_cascade_data(self, index: int, event_elem: EventElement, total_time: float, overhead: float) -> None:
         with self.indexes_lock:
-            self.circular_buffer[index].buffer_state = BufferState.WAITING_AGGREGATION
-            self.frames_available_for_aggregation += 1
+            if self.circular_buffer[index].buffer_state == BufferState.IN_CASCADE:
+                self.circular_buffer[index].casc_result_data = _CascadeResultData(event_elem, total_time, overhead)
+                self.circular_buffer[index].buffer_state = BufferState.WAITING_AGGREGATION
+                self.frames_available_for_aggregation += 1
 
     def get_next_index_for_aggregation(self) -> int:
         with self.indexes_lock:

@@ -117,13 +117,14 @@ class FrameResultAggregator:
         if next_frame_index < 0:
             return
 
-        next_frame = self.frame_buffers[next_frame_index]
-        cascade_obj: EventElement = next_frame.get_event_element
-        overhead: float = next_frame.get_overhead
-        image_data: MatLike = next_frame.get_img_data
-
+        next_frame = self.frame_buffers[next_frame_index].clone()
         # We release the lock asap
         self.frame_buffers.reset_buffer(next_frame_index)
+
+        cascade_obj: EventElement = next_frame.event_element
+        overhead: float = next_frame.overhead
+        image_data: MatLike = next_frame.img_data
+
 
         # Add this such that the bot has some info
         self.bot.node_queue_info = frames_rdy_for_aggregation
@@ -281,9 +282,9 @@ class FrameProcessor:
                     continue
 
                 logger.debug(f'Selected index for cascade: {next_frame_index}')
-                next_frame = self.frame_buffers[next_frame_index]
-                image_data = next_frame.get_img_data
-                frame_tstamp = next_frame.get_timestamp
+                next_frame = self.frame_buffers[next_frame_index].clone()
+                image_data = next_frame.img_data
+                frame_tstamp = next_frame.timestamp
 
                 total_runtime, cascade_obj = self.feed_to_cascade(
                     target_img=image_data,
@@ -295,9 +296,7 @@ class FrameProcessor:
                 logger.debug(f'Overhead: {overhead.total_seconds()}')
 
                 logger.debug(f"Writing cascade result of buffer # = {next_frame_index}")
-                was_written = next_frame.write_cascade_data(cascade_obj, total_runtime, overhead.total_seconds())
-                if was_written:
-                    self.frame_buffers.mark_position_ready_for_aggregation(next_frame_index)
+                self.frame_buffers.write_cascade_data(next_frame_index, cascade_obj, total_runtime, overhead.total_seconds())
             except Exception:
                 logger.exception(f"Exception in processing thread:")
                 logger.info("Cleaning queue since exception")
