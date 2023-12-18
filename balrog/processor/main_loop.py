@@ -281,7 +281,7 @@ class FrameProcessor:
                     time.sleep(0.25)
                     continue
 
-                logger.debug(f'Selected index for cascade: {next_frame_index}')
+                logger.debug(f'Thread {thread_id} - Index for cascade: {next_frame_index}')
                 next_frame = self.frame_buffers[next_frame_index].clone()
                 image_data = next_frame.img_data
                 frame_tstamp = next_frame.timestamp
@@ -293,13 +293,13 @@ class FrameProcessor:
                     frame_index=next_frame_index
                 )
                 overhead = datetime.now(pytz.timezone('Europe/Zurich')) - frame_tstamp
-                logger.debug(f'Overhead: {overhead.total_seconds()}')
+                logger.debug(f'Thread {thread_id} - Overhead: {overhead.total_seconds()}')
 
-                logger.debug(f"Writing cascade result of buffer # = {next_frame_index}")
+                logger.debug(f"Thread {thread_id} - Writing cascade result of buffer # = {next_frame_index}")
                 self.frame_buffers.write_cascade_data(next_frame_index, cascade_obj, total_runtime, overhead.total_seconds())
             except Exception:
-                logger.exception(f"Exception in processing thread:")
-                logger.info("Cleaning queue since exception")
+                logger.exception(f"Thread {thread_id} - Exception in processing thread:")
+                logger.info(f"Thread {thread_id} - Cleaning queue since exception")
                 self.frame_buffers.clear()
 
 

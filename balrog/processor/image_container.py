@@ -48,9 +48,9 @@ class ImageContainer:
             buffer_state: BufferState = None
     ):
         self._enable_logging = enable_logging
-        self._capture_data: _CaptureImageData = _CaptureImageData()
-        self._casc_result_data: _CascadeResultData = _CascadeResultData()
-        self._buffer_state = BufferState.WAITING_FRAME
+        self._capture_data: _CaptureImageData = _CaptureImageData() if capture_data is None else capture_data
+        self._casc_result_data: _CascadeResultData = _CascadeResultData() if casc_result_data is None else casc_result_data
+        self._buffer_state = BufferState.WAITING_FRAME if buffer_state is None else buffer_state
 
     def clone(self) -> Self:
         return ImageContainer(
