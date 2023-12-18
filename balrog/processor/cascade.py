@@ -7,7 +7,7 @@ import numpy as np
 from cv2.typing import MatLike
 
 from balrog.config import logging_config
-from balrog.utils.utils import logger
+from balrog.utils import logger
 from .model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
 
 

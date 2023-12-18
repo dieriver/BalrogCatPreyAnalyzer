@@ -5,10 +5,18 @@ from balrog.processor import EventElement
 from balrog.utils import logger
 
 
-def __analyze_prey_vals(event_objects: list[EventElement], cumuli: float, base_message: str, end_message: str = ''):
+def __analyze_prey_vals(
+        event_objects: list[EventElement],
+        cumuli: float,
+        base_message: str,
+        end_message: str = ''
+) -> tuple[MatLike | None, str | None]:
     try:
         prey_vals = [x.pc_prey_val for x in event_objects]
         filtered_values = filter(lambda x: x is not None, prey_vals)
+        if len(filtered_values) <= 0:
+            logger.debug(f"Filtered all prey vals: {prey_vals}")
+            return None, None
         min_prey_index = prey_vals.index(min(filtered_values))
 
         event_str = ''
@@ -27,32 +35,39 @@ def __analyze_prey_vals(event_objects: list[EventElement], cumuli: float, base_m
         logger.exception('+++ Exception while sending img: ')
 
 
-def send_prey_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float):
+def send_prey_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float) -> None:
+    logger.debug("Sending prey message")
     sender_img, caption = __analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
-    bot.send_img(img=sender_img, caption=caption)
+    if sender_img is not None and caption is not None:
+        bot.send_img(img=sender_img, caption=caption)
 
 
-def send_no_prey_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float):
+def send_no_prey_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float) -> None:
+    logger.debug("Sending no prey message")
     sender_img, caption = __analyze_prey_vals(
         event_objects,
         cumuli,
         'Cat is clean...',
         'Maybe use /letin?'
     )
-    bot.send_img(img=sender_img, caption=caption)
+    if sender_img is not None and caption is not None:
+        bot.send_img(img=sender_img, caption=caption)
 
 
-def send_dk_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float):
+def send_dont_know_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float) -> None:
+    logger.debug("Sending don't know message")
     sender_img, caption = __analyze_prey_vals(
         event_objects,
         cumuli,
         'Cant say for sure...',
         'Maybe use /letin?'
     )
-    bot.send_img(img=sender_img, caption=caption)
+    if sender_img is not None and caption is not None:
+        bot.send_img(img=sender_img, caption=caption)
 
 
-def send_cat_detected_message(bot: ITelegramBot, live_img: MatLike, cumuli: float):
+def send_cat_detected_message(bot: ITelegramBot, live_img: MatLike, cumuli: float) -> None:
+    logger.debug("Sending cat detected message")
     try:
         caption = f'Cumuli: {cumuli} => Gato incoming! \nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
         # sender_img = event_objects[-1].output_img

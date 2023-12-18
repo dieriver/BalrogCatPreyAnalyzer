@@ -15,7 +15,7 @@ from balrog.interface import ITelegramBot
 from balrog.processor import Cascade, EventElement
 from balrog.processor.image_container import ImageBuffers
 from balrog.utils import logger, get_resource_path
-from .detection_callbacks import send_cat_detected_message, send_dk_message, send_prey_message, send_no_prey_message
+from .detection_callbacks import send_cat_detected_message, send_dont_know_message, send_prey_message, send_no_prey_message
 
 
 class FrameResultAggregator:
@@ -199,7 +199,7 @@ class FrameResultAggregator:
                     events_cpy = self.event_objects.copy()
                     cumuli_cpy = self.cumulus_points / self.face_counter
                     self.verdict_sender_pool.apply_async(
-                        send_dk_message,
+                        send_dont_know_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
                 self.reset_aggregation_fields()
