@@ -2,6 +2,7 @@ import copy
 import os
 import sys
 import time
+import traceback
 from datetime import datetime
 from multiprocessing import Event
 from multiprocessing.pool import ThreadPool
@@ -56,15 +57,15 @@ class FrameResultAggregator:
         # We don't do anything here
         pass
 
-    def __exit__(self, exception_type, exception_value, traceback):
+    def __exit__(self, exception_type, exception_value, tb):
         self.verdict_sender_pool.terminate()
         if exception_type is not None:
             logger.error(f"Something wrong happened in the frame result aggregator thread")
             logger.error(f"Exception type: {repr(exception_type)}")
         if exception_value is not None:
             logger.error(f"Exception value: {exception_value}")
-        if traceback is not None:
-            logger.error(f"Traceback: {repr(traceback)}")
+        if tb is not None:
+            logger.error(f"Traceback: {''.join(traceback.format_exception(tb))}")
             sys.exit(1)
         # We use a "successful" exit code to restart the script
         # This is interpreted as a call to restart the script
@@ -237,15 +238,15 @@ class FrameProcessor:
         for i in range(0, general_config.max_frame_processor_threads):
             self.frame_processor_pool.apply_async(func=self.process_frame, args=(i,))
 
-    def __exit__(self, exception_type, exception_value, traceback):
+    def __exit__(self, exception_type, exception_value, tb):
         self.frame_processor_pool.terminate()
         if exception_type is not None:
             logger.error(f"Something wrong happened in the frame processor thread")
             logger.error(f"Exception type: {exception_type}")
         if exception_value is not None:
             logger.error(f"Exception value: {exception_value}")
-        if traceback is not None:
-            logger.error(f"Traceback: {traceback}")
+        if tb is not None:
+            logger.error(f"Traceback: {''.join(traceback.format_exception(tb))}")
         return True
 
     def feed_to_cascade(self, target_img: MatLike, img_name: str, thread_id: int = -1, frame_index: int = -1) -> tuple[float, EventElement]:
