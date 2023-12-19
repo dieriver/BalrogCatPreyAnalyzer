@@ -55,7 +55,7 @@ class ImageContainer:
     def clone(self) -> Self:
         return ImageContainer(
             self.enable_logging,
-            copy.deepcopy(self.capture_data),
+            _CaptureImageData(self.capture_data.img_data.copy(), self.capture_data.timestamp),
             copy.deepcopy(self.casc_result_data),
             self.buffer_state
         )

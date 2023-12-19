@@ -60,16 +60,18 @@ class Cascade:
             logger.debug(message)
 
     def do_single_cascade(self, event_img_object: EventElement, thread_id: int, frame_index: int) -> None:
-        logger.info(f"Thread {thread_id} - Processing index: '{frame_index}', name: '{event_img_object.img_name}'")
-        cc_target_img = event_img_object.cc_target_img
-        original_copy_img = cc_target_img.copy()
+        cc_target_image = event_img_object.cc_target_img
+        logger.info(f"Thread {thread_id} - Processing index: '{frame_index}', "
+                    f"img_data: {'ABSENT' if event_img_object.cc_target_img is None else 'Present' }, "
+                    f"name: '{event_img_object.img_name}'")
+        original_copy_img = cc_target_image.copy()
 
         # Do CC
         start_time = time.time()
         dk_bool, cat_bool, bbs_target_img, pred_cc_bb_full, cc_inference_time =(
             Cascade._do_cc_mobile_stage(
                 cc_mobile_stage=self.cc_mobile_stage,
-                cc_target_img=cc_target_img
+                cc_target_img=cc_target_image
         ))
         current_time = time.time()
         Cascade._log(f'Thread {thread_id} - CASCADE - CC compute Time: {current_time - start_time}')

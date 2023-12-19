@@ -282,17 +282,15 @@ class FrameProcessor:
                     continue
 
                 logger.debug(f'Thread {thread_id} - Index for cascade: {next_frame_index}')
-                next_frame = self.frame_buffers[next_frame_index].clone()
-                image_data = next_frame.img_data
-                frame_tstamp = next_frame.timestamp
+                next_frame_copy = self.frame_buffers[next_frame_index].clone()
 
                 total_runtime, cascade_obj = self.feed_to_cascade(
-                    target_img=image_data,
-                    img_name=str(frame_tstamp),
+                    target_img=next_frame_copy.img_data,
+                    img_name=str(next_frame_copy.timestamp),
                     thread_id=thread_id,
                     frame_index=next_frame_index
                 )
-                overhead = datetime.now(pytz.timezone('Europe/Zurich')) - frame_tstamp
+                overhead = datetime.now(pytz.timezone('Europe/Zurich')) - next_frame_copy.timestamp
                 logger.debug(f'Thread {thread_id} - Overhead: {overhead.total_seconds()}')
 
                 logger.debug(f"Thread {thread_id} - Writing cascade result of buffer # = {next_frame_index}")
