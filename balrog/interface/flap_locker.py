@@ -53,9 +53,10 @@ class FlapLocker:
                     lock_status = device.state
                 else:
                     lock_status = LockState.UNLOCKED
+                lock_status_str = str(lock_status).replace('_', ' ')
                 telegram_bot.send_text(f"I found this:\n"
                                        f"Device: '{device.name}', "
-                                       f"Lock State: '{lock_status}', "
+                                       f"Lock State: '{lock_status_str}', "
                                        f"Battery Level: '{device.battery_level}'")
                 return
         telegram_bot.send_text(f"I could not find the device")
