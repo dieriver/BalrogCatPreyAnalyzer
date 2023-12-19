@@ -95,7 +95,7 @@ class Cascade:
                     haar_stage=self.haar_stage,
                     target_img=bbs_target_img,
                     pred_cc_bb_full=pred_cc_bb_full,
-                    cc_target_img=cc_target_img
+                    cc_target_img=cc_target_image
                 )
             )
             rec_img = self.cc_mobile_stage.draw_rectangle(
@@ -122,7 +122,7 @@ class Cascade:
                     eyes_stage=self.eyes_stage,
                     eye_target_img=bbs_target_img,
                     cc_pred_bb=pred_cc_bb_full,
-                    cc_target_img=cc_target_img
+                    cc_target_img=cc_target_image
                 )
                 rec_img = self.cc_mobile_stage.draw_rectangle(img=rec_img, box=bbs, color=(255, 0, 255),
                                                               text='BBS_Pred')
