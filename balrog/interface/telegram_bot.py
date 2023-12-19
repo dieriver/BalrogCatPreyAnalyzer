@@ -91,7 +91,8 @@ class BalrogTelegramBot(ITelegramBot):
         self.flap_handler = FlapLocker()
         self.commands: dict[str,  Callable[[Update, CallbackContext], None]] = dict()
         pets_data = self._list_pets()
-        self._populate_supported_commands(pets_data)
+        devices_data = self._list_devices()
+        self._populate_supported_commands(pets_data, devices_data)
         # Event to signal the main loop that the queue needs to be cleaned
         self.clean_queue_event = clean_queue_event
         self.stop_event = stop_event
@@ -99,7 +100,7 @@ class BalrogTelegramBot(ITelegramBot):
         # Init the listener
         self._init_bot_listener()
 
-    def _populate_supported_commands(self, pets_data: dict[str, int]) -> None:
+    def _populate_supported_commands(self, pets_data: dict[str, int], devices_data: dict[str, int]) -> None:
         self.commands['help'] = self._help_cmd_callback
         self.commands['clean'] = self._clean_cmd_callback
         self.commands['restart'] = self._restart_cmd_callback
@@ -115,6 +116,9 @@ class BalrogTelegramBot(ITelegramBot):
         # create callbacks for switching the state of pets
         for name, pet_id in pets_data.items():
             self.commands[f'switch{name}'] = self._create_pet_switch_function(pet_id)
+        # create callbacks for status of the devices
+        for name, device_id in devices_data.items():
+            self.commands[f'status{name}'] = self._create_device_status_function(device_id)
         # Not very used commands
         self.commands['curfew'] = self._set_curfew
 
@@ -258,6 +262,16 @@ class BalrogTelegramBot(ITelegramBot):
                 return loop.run_until_complete(self.flap_handler.switch_pet_location(self, pet_id))
         return _switch_pet_state
 
+    def _create_device_status_function(self, device_id: int) -> Callable[[Update, CallbackContext], None]:
+        def _get_device_status(update: Update, context: CallbackContext) -> None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(self.flap_handler.send_device_data(self, device_id))
+            else:
+                return loop.run_until_complete(self.flap_handler.send_device_data(self, device_id))
+        return _get_device_status
+
     def _list_pets_state(self, update: Update, context: CallbackContext) -> None:
         try:
             loop = asyncio.get_running_loop()
@@ -273,6 +287,14 @@ class BalrogTelegramBot(ITelegramBot):
             return asyncio.run(self.flap_handler.get_pets_data())
         else:
             return loop.run_until_complete(self.flap_handler.get_pets_data())
+
+    def _list_devices(self) -> dict[str, int]:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.flap_handler.get_devices_data())
+        else:
+            return loop.run_until_complete(self.flap_handler.get_devices_data())
 
 
 class DebugBot(ITelegramBot):

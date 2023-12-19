@@ -20,16 +20,19 @@ class FlapLocker:
             raise Exception("Surepet password not set!. Please set the 'SUREPET_PASSWORD' environment variable")
         self.surepy = Surepy(email=os.getenv('SUREPET_USER'), password=os.getenv('SUREPET_PASSWORD'))
 
-        # token authentication (token supplied via SUREPY_TOKEN env var)
-        #token = 'XXXXX' # Complete if necessary
-        #surepy = Surepy(auth_token=token)
-
     async def get_pets_data(self) -> dict[str, int]:
         registered_pets: list[Pet] = await self.surepy.get_pets()
         pets_data: dict[str, int] = dict()
         for registered_pet in registered_pets:
             pets_data[registered_pet.name] = registered_pet.pet_id
         return pets_data
+
+    async def get_devices_data(self) -> dict[str, int]:
+        registered_devices: list[SurepyDevice] = await self.surepy.get_devices()
+        devices_data: dict[str, int] = dict()
+        for registered_device in registered_devices:
+            devices_data[registered_device.name] = registered_device.id
+        return devices_data
 
     async def list_pets_data(self, telegram_bot) -> None:
         # list with all pets
@@ -41,6 +44,21 @@ class FlapLocker:
             message += (f"\nPet '{pet['name']}', location: {location}, "
                         f"since: {location_since}")
         telegram_bot.send_text(message)
+
+    async def send_device_data(self, telegram_bot, device_id: int) -> None:
+        devices: list[SurepyDevice] = await self.surepy.get_devices()
+        for device in devices:
+            if device.id == device_id:
+                if isinstance(device, Flap):
+                    lock_status = device.state
+                else:
+                    lock_status = LockState.UNLOCKED
+                telegram_bot.send_text(f"I found this:\n"
+                                       f"Device: '{device.name}', "
+                                       f"Lock State: '{lock_status}', "
+                                       f"Battery Level: '{device.battery_level}'")
+                return
+        telegram_bot.send_text(f"I could not find the device")
 
     async def list_devices(self, telegram_bot) -> None:
         # all entities as id-indexed dict
