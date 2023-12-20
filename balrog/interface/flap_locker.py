@@ -46,7 +46,7 @@ class FlapLocker:
         telegram_bot.send_text(message)
 
     async def send_device_data(self, telegram_bot, device_id: int) -> None:
-        devices: list[SurepyDevice] = await self.surepy.get_devices()
+        devices: list[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
             if device.id == device_id:
                 if isinstance(device, Flap):
@@ -60,6 +60,13 @@ class FlapLocker:
                                        f"Battery Level: '{device.battery_level}'")
                 return
         telegram_bot.send_text(f"I could not find the device")
+
+    async def _get_fresh_devices(self) -> list[SurepyDevice]:
+        return [
+            device
+            for device in (await self.surepy.get_entities(refresh=True)).values()
+            if isinstance(device, SurepyDevice)
+        ]
 
     async def list_devices(self, telegram_bot) -> None:
         # all entities as id-indexed dict
