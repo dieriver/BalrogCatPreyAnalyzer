@@ -162,11 +162,11 @@ class FrameResultAggregator:
                 if self.cumulus_points / self.face_counter > model_config.cumulus_no_prey_threshold:
                     self.NO_PREY_FLAG = True
                     logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
-                    events_cpy = copy.deepcopy(self.event_objects)
+                    #events_cpy = copy.deepcopy(self.event_objects)
                     cumuli_cpy = self.cumulus_points / self.face_counter
                     self.verdict_sender_pool.apply_async(
                         send_no_prey_message,
-                        args=(self.bot, events_cpy, cumuli_cpy,)
+                        args=(self.bot, copy.deepcopy(self.event_objects), cumuli_cpy,)
                     )
                     self.reset_aggregation_fields()
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
@@ -197,11 +197,11 @@ class FrameResultAggregator:
                     # TODO QUICK FIX
                     if self.face_counter == 0:
                         self.face_counter = 1
-                    events_cpy = self.event_objects.copy()
+                    #events_cpy = copy.deepcopy(self.event_objects)
                     cumuli_cpy = self.cumulus_points / self.face_counter
                     self.verdict_sender_pool.apply_async(
                         send_dont_know_message,
-                        args=(self.bot, events_cpy, cumuli_cpy,)
+                        args=(self.bot, copy.deepcopy(self.event_objects), cumuli_cpy,)
                     )
                 logger.debug(f'---- CLEARED QUEUE BECAUSE EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ----')
                 self.reset_aggregation_fields()

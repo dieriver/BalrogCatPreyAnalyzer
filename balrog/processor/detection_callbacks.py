@@ -1,3 +1,7 @@
+import sys
+import traceback
+from typing import Optional
+
 from cv2.typing import MatLike
 
 from balrog.interface import ITelegramBot
@@ -5,19 +9,27 @@ from balrog.processor import EventElement
 from balrog.utils import logger
 
 
-def __analyze_prey_vals(
+def _get_min_prey_tuple(events: list[EventElement]) -> tuple[int, float]:
+    minimum: float = sys.float_info.max
+    min_index: int = -1
+    for index, event in enumerate(events):
+        if event.pc_prey_val is not None and event.pc_prey_val < minimum:
+            minimum = event.pc_prey_val
+            min_index = index
+    return min_index, minimum
+
+def _analyze_prey_vals(
         event_objects: list[EventElement],
         cumuli: float,
         base_message: str,
         end_message: str = ''
-) -> tuple[MatLike | None, str | None]:
+) -> tuple[Optional[MatLike], Optional[str]]:
     try:
-        prey_vals = [x.pc_prey_val for x in event_objects]
-        filtered_values = filter(lambda x: x is not None, prey_vals)
-        logger.debug(f"Prey vals: {prey_vals}, event_objects: {event_objects}")
-        if len(list(filtered_values)) <= 0:
+        min_prey_index, _ = _get_min_prey_tuple(event_objects)
+
+        if min_prey_index < 0:
+            logger.warning(f"No minimal index & value found in the set: {[x.pc_prey_val for x in event_objects]}")
             return None, None
-        min_prey_index = prey_vals.index(min(filtered_values))
 
         event_str = ''
         face_events = [x for x in event_objects if x.face_bool]
@@ -37,14 +49,14 @@ def __analyze_prey_vals(
 
 def send_prey_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float) -> None:
     logger.debug("Sending prey message")
-    sender_img, caption = __analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
+    sender_img, caption = _analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
     if sender_img is not None and caption is not None:
         bot.send_img(img=sender_img, caption=caption)
 
 
 def send_no_prey_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float) -> None:
     logger.debug("Sending no prey message")
-    sender_img, caption = __analyze_prey_vals(
+    sender_img, caption = _analyze_prey_vals(
         event_objects,
         cumuli,
         'Cat is clean...',
@@ -56,7 +68,7 @@ def send_no_prey_message(bot: ITelegramBot, event_objects: list[EventElement], c
 
 def send_dont_know_message(bot: ITelegramBot, event_objects: list[EventElement], cumuli: float) -> None:
     logger.debug("Sending don't know message")
-    sender_img, caption = __analyze_prey_vals(
+    sender_img, caption = _analyze_prey_vals(
         event_objects,
         cumuli,
         'Cant say for sure...',

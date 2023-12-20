@@ -13,34 +13,37 @@ from .model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStag
 
 @dataclass
 class EventElement:
-        img_name: str
-        cc_target_img: MatLike
-        cc_cat_bool: bool = None
-        cc_pred_bb = None
-        cc_inference_time: float = None
-        bbs_target_img: Any = None
-        bbs_pred_bb: Any = None
-        bbs_inference_time: float = None
-        haar_pred_bb: Any = None
-        haar_inference_time: float = None
-        ff_bbs_bool: bool = None
-        ff_bbs_val: Any = None
-        ff_bbs_inference_time: float = None
-        face_box: Any = None
-        face_bool: bool = None
-        pc_prey_class: bool = None
-        pc_prey_val: Any = None
-        pc_inference_time: float = None
-        total_inference_time = None
-        output_img: MatLike = None
-        # Fields never assigned?
-        cr_inference_time = None
-        ff_haar_inference_time = None
-        # Fields never used?
-        cr_class = None
-        cr_val = None
-        ff_haar_bool = None
-        ff_haar_val = None
+    img_name: str
+    cc_target_img: MatLike
+    cc_cat_bool: bool = None
+    cc_pred_bb = None
+    cc_inference_time: float = None
+    bbs_target_img: Any = None
+    bbs_pred_bb: Any = None
+    bbs_inference_time: float = None
+    haar_pred_bb: Any = None
+    haar_inference_time: float = None
+    ff_bbs_bool: bool = None
+    ff_bbs_val: Any = None
+    ff_bbs_inference_time: float = None
+    face_box: Any = None
+    face_bool: bool = None
+    pc_prey_class: bool = None
+    pc_prey_val: Any = None
+    pc_inference_time: float = None
+    total_inference_time = None
+    output_img: MatLike = None
+    # Fields never assigned?
+    cr_inference_time = None
+    ff_haar_inference_time = None
+    # Fields never used?
+    cr_class = None
+    cr_val = None
+    ff_haar_bool = None
+    ff_haar_val = None
+
+    def __repr__(self):
+        return f"[Evnt-elem: '{self.img_name}', data: '{'ABSENT' if self.cc_target_img is None else 'Present'}'"
 
 
 class Cascade:
