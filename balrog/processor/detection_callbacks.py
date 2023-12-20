@@ -14,8 +14,8 @@ def __analyze_prey_vals(
     try:
         prey_vals = [x.pc_prey_val for x in event_objects]
         filtered_values = filter(lambda x: x is not None, prey_vals)
+        logger.debug(f"Prey vals: {prey_vals}, event_objects: {event_objects}")
         if len(list(filtered_values)) <= 0:
-            logger.debug(f"Filtered all prey vals: {prey_vals}")
             return None, None
         min_prey_index = prey_vals.index(min(filtered_values))
 

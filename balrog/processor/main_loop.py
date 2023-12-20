@@ -194,7 +194,6 @@ class FrameResultAggregator:
             if self.event_reset_counter >= model_config.event_reset_threshold:
                 # If was True => event now over => clear queue
                 if self.EVENT_FLAG:
-                    logger.debug('---- CLEARED QUEUE BECAUSE EVENT OVER WITHOUT CONCLUSION... ----')
                     # TODO QUICK FIX
                     if self.face_counter == 0:
                         self.face_counter = 1
@@ -204,6 +203,7 @@ class FrameResultAggregator:
                         send_dont_know_message,
                         args=(self.bot, events_cpy, cumuli_cpy,)
                     )
+                logger.debug(f'---- CLEARED QUEUE BECAUSE EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ----')
                 self.reset_aggregation_fields()
 
         if self.EVENT_FLAG and self.FACE_FOUND_FLAG:

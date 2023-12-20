@@ -96,14 +96,13 @@ class Camera(ICamera):
 
     def fill_queue(self) -> None:
         while True:
-            gc.collect()
             camera = cv2.VideoCapture(self.stream_url)
 
             i = 0
             while camera.isOpened():
-                _, frame = camera.read()
-
-                if super()._write_frame_to_buffer(frame):
+                success, frame = camera.read()
+                if not success or not super()._write_frame_to_buffer(frame):
+                    # Frame capture was not successful or it could not be written to the buffer
                     continue
 
                 i += 1

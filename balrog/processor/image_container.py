@@ -52,7 +52,13 @@ class ImageContainer:
         self._casc_result_data: _CascadeResultData = _CascadeResultData() if casc_result_data is None else casc_result_data
         self._buffer_state = BufferState.WAITING_FRAME if buffer_state is None else buffer_state
 
+    def __repr__(self) -> str:
+        return (f"<Buff State: {self._buffer_state}>, "
+                f"Capture data: {repr(self.capture_data)},>")
+
     def clone(self) -> Self:
+        if self.capture_data.img_data is None:
+            logger.debug(f"IMG DATA IS NONE")
         return ImageContainer(
             self.enable_logging,
             _CaptureImageData(self.capture_data.img_data.copy(), self.capture_data.timestamp),
@@ -67,7 +73,6 @@ class ImageContainer:
         self._capture_data: _CaptureImageData = _CaptureImageData()
         self._casc_result_data: _CascadeResultData = _CascadeResultData()
         self._buffer_state = BufferState.WAITING_FRAME
-        gc.collect()
 
     def __repr__(self) -> str:
         return f"<capture_data = {repr(self.capture_data)}, result_data = {repr(self.casc_result_data)}, buffer_state = {self.buffer_state}>"
@@ -118,8 +123,8 @@ class ImageContainer:
         return self.buffer_state == BufferState.USED
 
     # Methods used to store the data in this buffer
-    def write_capture_data(self, img_data, timestamp: datetime) -> None:
-        self.capture_data = _CaptureImageData(img_data, timestamp)
+    def write_capture_data(self, img_data: MatLike, timestamp: datetime) -> None:
+        self.capture_data = _CaptureImageData(img_data.copy(), timestamp)
 
     # Accessors for the data stored in this buffer
 
@@ -211,8 +216,6 @@ class ImageBuffers:
             self.frames_available_for_frame = len(self.circular_buffer)
             self.frames_available_for_cascade = 0
             self.frames_available_for_aggregation = 0
-
-        gc.collect()
 
     def frames_ready_for_cascade(self) -> int:
         with self.indexes_lock:
