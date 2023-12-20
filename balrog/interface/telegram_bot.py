@@ -112,7 +112,7 @@ class BalrogTelegramBot(ITelegramBot):
         self.commands['lockin'] = self._lock_moria_in
         self.commands['lockout'] = self._lock_moria_out
         self.commands['unlock'] = self._unlock_moria
-        self.commands['petsstate'] = self._list_pets_state
+        self.commands['statusPets'] = self._list_pets_state
         # create callbacks for switching the state of pets
         for name, pet_id in pets_data.items():
             self.commands[f'switch{name}'] = self._create_pet_switch_function(pet_id)
