@@ -166,7 +166,9 @@ class BalrogTelegramBot(ITelegramBot):
 
     def _restart_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         self.send_text('Restarting script...')
-        Thread(target=self._stop_telegram).start()
+        stop_thread = Thread(target=self._stop_telegram)
+        stop_thread.start()
+        stop_thread.join()
         self.stop_event.set()
 
     def _clean_cmd_callback(self, update: Update, context: CallbackContext) -> None:
