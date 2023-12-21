@@ -55,7 +55,7 @@ class ICamera(abc.ABC):
 
         logger.debug(f"Writing frame to buffer # {index}")
         next_buffer = self.frame_buffers[index]
-        next_buffer.write_capture_data(frame_data, datetime.now(pytz.timezone('Europe/Zurich')))
+        next_buffer.write_capture_data(frame_data, datetime.now(pytz.timezone('Europe/Amsterdam')))
         self.frame_buffers.mark_position_ready_for_cascade(index)
         return True
 

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import pytz
 from datetime import datetime
 from typing import Any
 
@@ -41,8 +42,9 @@ class FlapLocker:
         for pet in pets:
             location: Location = Location(pet['status']['activity']['where'])
             location_since: datetime = datetime.fromisoformat(pet['status']['activity']['since'])
+            corrected_since: datetime = location_since.astimezone(pytz.timezone('Europe/Amsterdam'))
             message += (f"\nPet '{pet['name']}', location: {location}, "
-                        f"since: {location_since}")
+                        f"since: {corrected_since}")
         telegram_bot.send_text(message)
 
     async def send_device_data(self, telegram_bot, device_id: int) -> None:

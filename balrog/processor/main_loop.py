@@ -291,7 +291,7 @@ class FrameProcessor:
                     thread_id=thread_id,
                     frame_index=next_frame_index
                 )
-                overhead = datetime.now(pytz.timezone('Europe/Zurich')) - next_frame_copy.timestamp
+                overhead = datetime.now(pytz.timezone('Europe/Amsterdam')) - next_frame_copy.timestamp
                 logger.debug(f'Thread {thread_id} - Overhead: {overhead.total_seconds()}')
 
                 logger.debug(f"Thread {thread_id} - Writing cascade result of buffer # = {next_frame_index}")
