@@ -1,20 +1,20 @@
 from abc import ABC, abstractmethod
 from multiprocessing import Event
-from typing import Self
+from typing import Self, Optional
 
 from cv2.typing import MatLike
 
 
-class ITelegramBot(ABC):
+class MessageSender(ABC):
     def __init__(self):
         # Data coming and used form unexpected places (other files)
-        self._node_live_img: MatLike | None = None
-        self._node_last_casc_img: MatLike | None = None
-        self._node_queue_info: int | None = None
-        self._node_over_head_info: float | None = None
+        self._node_live_img: Optional[MatLike] = None
+        self._node_last_casc_img: Optional[MatLike] = None
+        self._node_queue_info: Optional[int] = None
+        self._node_over_head_info: Optional[float] = None
 
     @classmethod
-    def get_bot_instance(
+    def get_message_sender_instance(
             cls,
             is_debug: bool = False,
             clean_queue_event: Event = None,
@@ -32,7 +32,7 @@ class ITelegramBot(ABC):
         pass
 
     @abstractmethod
-    def send_img(self, img, caption) -> None:
+    def send_img(self, img: MatLike, caption: str) -> None:
         pass
 
     @property

@@ -1,5 +1,4 @@
 import abc
-import gc
 import os
 import time
 from datetime import datetime
@@ -102,7 +101,7 @@ class Camera(ICamera):
             while camera.isOpened():
                 success, frame = camera.read()
                 if not success or not super()._write_frame_to_buffer(frame):
-                    # Frame capture was not successful or it could not be written to the buffer
+                    # Frame capture was not successful, or it could not be written to the buffer
                     continue
 
                 i += 1

@@ -1,5 +1,6 @@
 import asyncio
 import os
+from tempfile import NamedTemporaryFile
 from threading import Event, Thread
 from typing import Callable
 
@@ -10,12 +11,12 @@ from telegram.ext import Updater, CommandHandler
 from telegram.ext.callbackcontext import CallbackContext
 
 from balrog.config import flap_config
+from balrog.interface import MessageSender
 from balrog.utils import Logging, logger
-from balrog.interface import ITelegramBot
 from .flap_locker import FlapLocker
 
 
-class BalrogTelegramBot(ITelegramBot):
+class BalrogTelegramBot(MessageSender):
     def __init__(self, clean_queue_event: Event, stop_event: Event):
         # Insert Chat ID and Bot Token according to Telegram API
         super().__init__()
@@ -238,7 +239,7 @@ class BalrogTelegramBot(ITelegramBot):
             return loop.run_until_complete(self.flap_handler.get_devices_data())
 
 
-class DebugBot(ITelegramBot):
+class DebugBot(MessageSender):
     def __init__(self):
         super().__init__()
 

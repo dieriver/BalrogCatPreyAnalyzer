@@ -4,18 +4,18 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from threading import RLock
-from typing import Self
+from typing import Self, Optional
 
 from cv2.typing import MatLike
 
-from balrog.utils import logger
 from balrog.processor import EventElement
+from balrog.utils import logger
 
 
 @dataclass
 class _CaptureImageData:
-    img_data: MatLike | None = None
-    timestamp: datetime | None = None
+    img_data: Optional[MatLike]= None
+    timestamp: Optional[datetime] = None
 
     def __repr__(self) -> str:
         return f"<img_data: {'present' if self.img_data is not None else 'empty'}, tstamp: {self.timestamp}>"
@@ -23,9 +23,9 @@ class _CaptureImageData:
 
 @dataclass
 class _CascadeResultData:
-    event_element: EventElement | None = None
-    total_runtime: float | None = None
-    overhead: float | None = None
+    event_element: Optional[EventElement] = None
+    total_runtime: Optional[float] = None
+    overhead: Optional[float] = None
 
 
 class _BufferState(Enum):

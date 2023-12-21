@@ -3,20 +3,25 @@ import os
 import sys
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from multiprocessing import Event
-from multiprocessing.pool import ThreadPool
 
 import cv2
 import pytz
 from cv2.typing import MatLike
 
 from balrog.config import general_config, model_config
-from balrog.interface import ITelegramBot
+from balrog.interface import MessageSender
 from balrog.processor import Cascade, EventElement
 from balrog.processor.image_container import ImageBuffers
 from balrog.utils import logger, get_resource_path
-from .detection_callbacks import send_cat_detected_message, send_dont_know_message, send_prey_message, send_no_prey_message
+from .detection_callbacks import (
+    send_cat_detected_message,
+    send_dont_know_message,
+    send_prey_message,
+    send_no_prey_message
+)
 
 
 class FrameResultAggregator:
@@ -32,12 +37,12 @@ class FrameResultAggregator:
     def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
         self.clean_queue_event: Event = Event()
         self.stop_event = stop_event
-        self.bot = ITelegramBot.get_bot_instance(
+        self.bot = MessageSender.get_message_sender_instance(
             is_debug=os.getenv("BALROG_USE_NULL_TELEGRAM") is not None,
             clean_queue_event=self.clean_queue_event,
             stop_event=stop_event
         )
-        self.verdict_sender_pool = ThreadPool(processes=general_config.max_message_sender_threads)
+        self.verdict_sender_pool = ThreadPoolExecutor(max_workers=general_config.max_message_sender_threads)
         # Aggregation fields
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
@@ -58,7 +63,7 @@ class FrameResultAggregator:
         pass
 
     def __exit__(self, exception_type, exception_value, tb):
-        self.verdict_sender_pool.terminate()
+        self.verdict_sender_pool.shutdown(wait=False, cancel_futures=True)
         if exception_type is not None:
             logger.error(f"Something wrong happened in the frame result aggregator thread")
             logger.error(f"Exception type: {repr(exception_type)}")
@@ -142,7 +147,7 @@ class FrameResultAggregator:
             if self.cat_counter >= model_config.cat_counter_threshold and not self.CAT_DETECTED_FLAG:
                 self.CAT_DETECTED_FLAG = True
                 node_live_img_cpy = self.bot.node_live_img
-                self.verdict_sender_pool.apply_async(send_cat_detected_message, args=(self.bot, node_live_img_cpy, 0,))
+                self.verdict_sender_pool.submit(send_cat_detected_message, self.bot, node_live_img_cpy, 0)
 
             # Last cat pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
@@ -164,9 +169,9 @@ class FrameResultAggregator:
                     logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
                     #events_cpy = copy.deepcopy(self.event_objects)
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.verdict_sender_pool.apply_async(
+                    self.verdict_sender_pool.submit(
                         send_no_prey_message,
-                        args=(self.bot, copy.deepcopy(self.event_objects), cumuli_cpy,)
+                        self.bot, copy.deepcopy(self.event_objects), cumuli_cpy
                     )
                     self.reset_aggregation_fields()
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
@@ -174,9 +179,9 @@ class FrameResultAggregator:
                     logger.info('**** IT IS A PREY!!!!! ****')
                     events_cpy = copy.deepcopy(self.event_objects)
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.verdict_sender_pool.apply_async(
+                    self.verdict_sender_pool.submit(
                         send_prey_message,
-                        args=(self.bot, events_cpy, cumuli_cpy,)
+                        self.bot, events_cpy, cumuli_cpy
                     )
                     self.reset_aggregation_fields()
                 else:
@@ -199,9 +204,9 @@ class FrameResultAggregator:
                         self.face_counter = 1
                     #events_cpy = copy.deepcopy(self.event_objects)
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.verdict_sender_pool.apply_async(
+                    self.verdict_sender_pool.submit(
                         send_dont_know_message,
-                        args=(self.bot, copy.deepcopy(self.event_objects), cumuli_cpy,)
+                        self.bot, copy.deepcopy(self.event_objects), cumuli_cpy
                     )
                 logger.debug(f'---- CLEARED QUEUE BECAUSE EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ----')
                 self.reset_aggregation_fields()
@@ -229,17 +234,17 @@ class FrameProcessor:
         self.stop_event = stop_event
         self.base_cascade = Cascade()
         self.frame_buffers = frame_buffers
-        self.frame_processor_pool = ThreadPool(processes=general_config.max_message_sender_threads)
+        self.frame_processor_pool = ThreadPoolExecutor(max_workers=general_config.max_message_sender_threads)
 
     def __enter__(self):
         # Do this to force run all networks s.t. the network inference time stabilizes
         self.single_debug()
         # We need to submit the process tasks here
         for i in range(0, general_config.max_frame_processor_threads):
-            self.frame_processor_pool.apply_async(func=self.process_frame, args=(i,))
+            self.frame_processor_pool.submit(self.process_frame, i)
 
     def __exit__(self, exception_type, exception_value, tb):
-        self.frame_processor_pool.terminate()
+        self.frame_processor_pool.shutdown(wait=False, cancel_futures=True)
         if exception_type is not None:
             logger.error(f"Something wrong happened in the frame processor thread")
             logger.error(f"Exception type: {exception_type}")

@@ -1,16 +1,16 @@
 import asyncio
 import os
-import pytz
 from datetime import datetime
 from typing import Any
 
+import pytz
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
 from surepy.entities.devices import Flap
 from surepy.entities.pet import Pet
 from surepy.enums import LockState, Location
 
+from balrog.interface import MessageSender
 from balrog.utils.utils import logger
-from balrog.interface import ITelegramBot
 
 
 class FlapLocker:
@@ -39,7 +39,7 @@ class FlapLocker:
         return devices_data
 
     # Functions used to send data from surepy to the telegram interface
-    async def send_pets_data(self, telegram_bot: ITelegramBot) -> None:
+    async def send_pets_data(self, msg_sender: MessageSender) -> None:
         # list with all pets
         pets: list[dict[str, Any]] = await self.surepy.sac.get_pets()
         message = f"I found this:"
@@ -49,9 +49,9 @@ class FlapLocker:
             corrected_since: datetime = location_since.astimezone(pytz.timezone('Europe/Amsterdam'))
             message += (f"\nPet '{pet['name']}', location: {location}, "
                         f"since: {corrected_since}")
-        telegram_bot.send_text(message)
+        msg_sender.send_text(message)
 
-    async def send_device_data(self, telegram_bot: ITelegramBot, device_id: int) -> None:
+    async def send_device_data(self, msg_sender: MessageSender, device_id: int) -> None:
         devices: list[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
             if device.id == device_id:
@@ -60,23 +60,23 @@ class FlapLocker:
                 else:
                     lock_status = LockState.UNLOCKED
                 lock_status_str = str(lock_status).replace('_', ' ')
-                telegram_bot.send_text(f"I found this:\n"
+                msg_sender.send_text(f"I found this:\n"
                                        f"Device: '{device.name}', "
                                        f"Lock State: '{lock_status_str}', "
                                        f"Battery Level: '{device.battery_level}'")
                 return
-        telegram_bot.send_text(f"I could not find the device")
+        msg_sender.send_text(f"I could not find the device")
 
-    async def list_devices(self, telegram_bot: ITelegramBot) -> None:
+    async def list_devices(self, msg_sender: MessageSender) -> None:
         # all entities as id-indexed dict
         entities: dict[int, SurepyEntity] = await self.surepy.get_entities()
 
         # list with all devices
         devices: list[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
-            telegram_bot.send_text(f"{device.name = } | {device.serial = } | {device.battery_level = }")
-            telegram_bot.send_text(f"{device.type = } | {device.unique_id = } | {device.id = }")
-            telegram_bot.send_text(f"{entities[device.parent_id].full_name = } | {entities[device.parent_id] = }\n")
+            msg_sender.send_text(f"{device.name = } | {device.serial = } | {device.battery_level = }")
+            msg_sender.send_text(f"{device.type = } | {device.unique_id = } | {device.id = }")
+            msg_sender.send_text(f"{entities[device.parent_id].full_name = } | {entities[device.parent_id] = }\n")
 
     async def get_lock_state(self) -> LockState:
         try:
@@ -102,28 +102,28 @@ class FlapLocker:
                 if result_lock and result_device:
                     telegram_bot.send_text('Done')
 
-    async def unlock_moria(self, telegram_bot: ITelegramBot) -> None:
-        await self.set_moria_lock_state(LockState.UNLOCKED, telegram_bot)
+    async def unlock_moria(self, msg_sender: MessageSender) -> None:
+        await self.set_moria_lock_state(LockState.UNLOCKED, msg_sender)
 
-    async def lock_moria_in(self, telegram_bot: ITelegramBot) -> None:
-        await self.set_moria_lock_state(LockState.LOCKED_IN, telegram_bot)
+    async def lock_moria_in(self, msg_sender: MessageSender) -> None:
+        await self.set_moria_lock_state(LockState.LOCKED_IN, msg_sender)
 
-    async def lock_moria_out(self, telegram_bot: ITelegramBot) -> None:
-        await self.set_moria_lock_state(LockState.LOCKED_OUT, telegram_bot)
+    async def lock_moria_out(self, msg_sender: MessageSender) -> None:
+        await self.set_moria_lock_state(LockState.LOCKED_OUT, msg_sender)
 
-    async def lock_moria(self, telegram_bot: ITelegramBot):
-        await self.set_moria_lock_state(LockState.LOCKED_ALL, telegram_bot)
+    async def lock_moria(self, msg_sender: MessageSender):
+        await self.set_moria_lock_state(LockState.LOCKED_ALL, msg_sender)
 
-    async def activate_curfew(self, telegram_bot: ITelegramBot) -> None:
-        await self.set_moria_lock_state(LockState.CURFEW, telegram_bot)
+    async def activate_curfew(self, msg_sender: MessageSender) -> None:
+        await self.set_moria_lock_state(LockState.CURFEW, msg_sender)
 
-    async def lock_moria_curfew(self, telegram_bot: ITelegramBot) -> None:
-        await self.set_moria_lock_state(LockState.CURFEW_LOCKED, telegram_bot)
+    async def lock_moria_curfew(self, msg_sender: MessageSender) -> None:
+        await self.set_moria_lock_state(LockState.CURFEW_LOCKED, msg_sender)
 
-    async def unlock_moria_curfew(self, telegram_bot: ITelegramBot) -> None:
-        await self.set_moria_lock_state(LockState.CURFEW_UNLOCKED, telegram_bot)
+    async def unlock_moria_curfew(self, msg_sender: MessageSender) -> None:
+        await self.set_moria_lock_state(LockState.CURFEW_UNLOCKED, msg_sender)
 
-    async def unlock_for_seconds(self, telegram_bot: ITelegramBot, seconds: int) -> None:
+    async def unlock_for_seconds(self, msg_sender: MessageSender, seconds: int) -> None:
         old_state = await self.get_lock_state()
         logger.debug(f"Old state = {old_state}")
         if old_state >= LockState.CURFEW:
@@ -131,10 +131,10 @@ class FlapLocker:
         else:
             new_state = LockState.UNLOCKED
         logger.debug(f"New state = {new_state}")
-        await self.set_moria_lock_state(new_state, telegram_bot)
+        await self.set_moria_lock_state(new_state, msg_sender)
         await asyncio.sleep(seconds)
         logger.debug(f"Setting back old state = {old_state}")
-        await self.set_moria_lock_state(old_state, telegram_bot)
+        await self.set_moria_lock_state(old_state, msg_sender)
 
     async def switch_pet_location(self, telegram_bot, pet_id: int) -> None:
         pets: list[dict[str, Any]] = await self.surepy.sac.get_pets()
