@@ -65,7 +65,7 @@ class FrameResultAggregator:
         if exception_value is not None:
             logger.error(f"Exception value: {exception_value}")
         if tb is not None:
-            logger.error(f"Traceback: {''.join(traceback.format_exception(tb))}")
+            logger.error(f"Traceback: {''.join(traceback.format_tb(tb))}")
             sys.exit(1)
         # We use a "successful" exit code to restart the script
         # This is interpreted as a call to restart the script
@@ -246,7 +246,7 @@ class FrameProcessor:
         if exception_value is not None:
             logger.error(f"Exception value: {exception_value}")
         if tb is not None:
-            logger.error(f"Traceback: {''.join(traceback.format_exception(tb))}")
+            logger.error(f"Traceback: {''.join(traceback.format_tb(tb))}")
         return True
 
     def feed_to_cascade(self, target_img: MatLike, img_name: str, thread_id: int = -1, frame_index: int = -1) -> tuple[float, EventElement]:

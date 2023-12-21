@@ -1,5 +1,4 @@
 import sys
-import traceback
 from typing import Optional
 
 from cv2.typing import MatLike
