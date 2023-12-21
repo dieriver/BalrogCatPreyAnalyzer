@@ -9,6 +9,7 @@ from surepy.entities.devices import Flap
 from surepy.entities.pet import Pet
 from surepy.enums import LockState, Location
 
+from balrog.config import general_config
 from balrog.interface import MessageSender
 from balrog.utils.utils import logger
 
@@ -46,9 +47,9 @@ class FlapLocker:
         for pet in pets:
             location: Location = Location(pet['status']['activity']['where'])
             location_since: datetime = datetime.fromisoformat(pet['status']['activity']['since'])
-            corrected_since: datetime = location_since.astimezone(pytz.timezone('Europe/Amsterdam'))
+            corrected_since: datetime = location_since.astimezone(pytz.timezone(general_config.local_timezone))
             message += (f"\nPet '{pet['name']}', location: {location}, "
-                        f"since: {corrected_since}")
+                        f"since: {corrected_since.strftime(general_config.timestamp_format)}")
         msg_sender.send_text(message)
 
     async def send_device_data(self, msg_sender: MessageSender, device_id: int) -> None:

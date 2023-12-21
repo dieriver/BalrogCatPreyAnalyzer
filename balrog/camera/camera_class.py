@@ -10,6 +10,7 @@ import cv2
 import pytz
 from cv2.typing import MatLike
 
+from balrog.config import general_config
 from balrog.processor import ImageBuffers
 from balrog.utils import logger, get_resource_path
 
@@ -54,7 +55,7 @@ class ICamera(abc.ABC):
 
         logger.debug(f"Writing frame to buffer # {index}")
         next_buffer = self.frame_buffers[index]
-        next_buffer.write_capture_data(frame_data, datetime.now(pytz.timezone('Europe/Amsterdam')))
+        next_buffer.write_capture_data(frame_data, datetime.now(pytz.timezone(general_config.local_timezone)))
         self.frame_buffers.mark_position_ready_for_cascade(index)
         return True
 

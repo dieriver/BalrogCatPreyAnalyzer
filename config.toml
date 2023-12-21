@@ -3,6 +3,8 @@ max_message_sender_threads = 2
 max_frame_processor_threads = 2
 min_aggregation_frames_threshold = 3
 max_frame_buffers = 10
+local_timezone = "Europe/Amsterdam"
+timestamp_format = "%Y-%m-%d, %H:%M:%S %Z"
 
 [logging]
 log_base_folder = "/var/log/balrog-logs"

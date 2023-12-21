@@ -11,6 +11,8 @@ class GeneralConfigs:
     max_frame_processor_threads: int
     min_aggregation_frames_threshold: int
     max_frame_buffers: int
+    local_timezone: str
+    timestamp_format: str
 
 
 @dataclass
@@ -62,7 +64,8 @@ def load_general_config() -> GeneralConfigs:
             loaded_bytes["general"]["max_message_sender_threads"],
             loaded_bytes["general"]["max_frame_processor_threads"],
             loaded_bytes["general"]["min_aggregation_frames_threshold"],
-            loaded_bytes["general"]["max_frame_buffers"],
+            loaded_bytes["general"]["local_timezone"],
+            loaded_bytes["general"]["timestamp_format"]
         )
 
 

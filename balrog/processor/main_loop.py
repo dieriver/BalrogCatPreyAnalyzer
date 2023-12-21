@@ -292,11 +292,11 @@ class FrameProcessor:
 
                 total_runtime, cascade_obj = self.feed_to_cascade(
                     target_img=next_frame_copy.img_data,
-                    img_name=str(next_frame_copy.timestamp),
+                    img_name=next_frame_copy.timestamp.strftime(general_config.timestamp_format),
                     thread_id=thread_id,
                     frame_index=next_frame_index
                 )
-                overhead = datetime.now(pytz.timezone('Europe/Amsterdam')) - next_frame_copy.timestamp
+                overhead = datetime.now(pytz.timezone(general_config.local_timezone)) - next_frame_copy.timestamp
                 logger.debug(f'Thread {thread_id} - Overhead: {overhead.total_seconds()}')
 
                 logger.debug(f"Thread {thread_id} - Writing cascade result of buffer # = {next_frame_index}")
