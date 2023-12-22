@@ -1,6 +1,6 @@
 [project]
-name = "Balrog"
-description = "A Cat Prey Analyzer software, based on tensorflow"
+name = "balrog-prey-analyzer"
+description = "A Cat Prey Analyzer software, based on tensorflow, and OpenCV."
 version = "0.1"
 requires-python = ">= 3.11"
 dependencies = [
@@ -9,7 +9,7 @@ dependencies = [
     "pillow==10.0.0",
     "lxml==4.9.3",
     "matplotlib==3.7.2",
-    "opencv-python==4.8.0.76",
+    "opencv-contrib-python-headless==4.8.1.78",
     "protobuf==4.24.2",
     "python-telegram-bot==13.3",
     "tensorflow==2.13.0",

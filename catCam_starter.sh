@@ -3,7 +3,7 @@
 echo "Executing CatPreyAnalyzer"
 # Tensorflow Stuff
 while : ; do
-  python3 -m balrog
+  python3 -m balrog-prey-analyzer
   case $? in
   255)
     echo "Exiting balrog script"
