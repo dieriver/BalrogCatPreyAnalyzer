@@ -1,6 +1,6 @@
 import asyncio
 import os
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from threading import Event, Thread
 from typing import Callable
 
@@ -84,8 +84,9 @@ class BalrogTelegramBot(MessageSender):
         self.telegram_bot.send_message(chat_id=self.CHAT_ID, text=message, parse_mode=ParseMode.MARKDOWN)
 
     def send_img(self, img: MatLike, caption: str) -> None:
-        cv2.imwrite('degubi.jpg', img)
-        self.telegram_bot.send_photo(chat_id=self.CHAT_ID, photo=open('degubi.jpg', 'rb'), caption=caption)
+        with TemporaryDirectory() as tmp_dir:
+            cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
+            self.telegram_bot.send_photo(chat_id=self.CHAT_ID, photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'), caption=caption)
 
     # Telegram Bot message handler callbacks
 
@@ -241,7 +242,7 @@ class DebugBot(MessageSender):
     def __init__(self):
         super().__init__()
 
-    def send_img(self, img, caption) -> None:
+    def send_img(self, img: MatLike, caption: str) -> None:
         # Nothing to do here; we simply ignore the invocation
         logger.warning(f"DebugTelegramBot - Ignoring sending image!")
 
