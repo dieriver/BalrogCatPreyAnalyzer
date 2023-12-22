@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 class Logging:
     @staticmethod
     def init_logger(stdout_logging_level: int, max_log_size: int, max_log_files: int) -> None:
+        logger_surepy = logging.getLogger("surepy")
         logger.setLevel(logging.DEBUG)
+        logger_surepy.setLevel(logging.DEBUG)
 
         stdout_handler = logging.StreamHandler(stream=sys.stdout)
         file_handler = logging.handlers.RotatingFileHandler(
@@ -42,6 +44,7 @@ class Logging:
         logger.addHandler(stdout_handler)
         logger.addHandler(file_handler)
         logger.addHandler(dbg_file_handler)
+        logger_surepy.addHandler(dbg_file_handler)
 
     @staticmethod
     def clean_logs() -> list[str]:
