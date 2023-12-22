@@ -92,7 +92,7 @@ class FlapLocker:
             logger.debug('WARNING: We assume that the old state was "LOCKED_OUT"')
             return LockState.LOCKED_OUT
 
-    async def set_moria_lock_state(self, state: LockState, telegram_bot) -> None:
+    async def _set_moria_lock_state(self, state: LockState, telegram_bot) -> None:
         # list with all devices
         devices: list[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
@@ -104,25 +104,25 @@ class FlapLocker:
                     telegram_bot.send_text('Done')
 
     async def unlock_moria(self, msg_sender: MessageSender) -> None:
-        await self.set_moria_lock_state(LockState.UNLOCKED, msg_sender)
+        await self._set_moria_lock_state(LockState.UNLOCKED, msg_sender)
 
     async def lock_moria_in(self, msg_sender: MessageSender) -> None:
-        await self.set_moria_lock_state(LockState.LOCKED_IN, msg_sender)
+        await self._set_moria_lock_state(LockState.LOCKED_IN, msg_sender)
 
     async def lock_moria_out(self, msg_sender: MessageSender) -> None:
-        await self.set_moria_lock_state(LockState.LOCKED_OUT, msg_sender)
+        await self._set_moria_lock_state(LockState.LOCKED_OUT, msg_sender)
 
     async def lock_moria(self, msg_sender: MessageSender):
-        await self.set_moria_lock_state(LockState.LOCKED_ALL, msg_sender)
+        await self._set_moria_lock_state(LockState.LOCKED_ALL, msg_sender)
 
     async def activate_curfew(self, msg_sender: MessageSender) -> None:
-        await self.set_moria_lock_state(LockState.CURFEW, msg_sender)
+        await self._set_moria_lock_state(LockState.CURFEW, msg_sender)
 
     async def lock_moria_curfew(self, msg_sender: MessageSender) -> None:
-        await self.set_moria_lock_state(LockState.CURFEW_LOCKED, msg_sender)
+        await self._set_moria_lock_state(LockState.CURFEW_LOCKED, msg_sender)
 
     async def unlock_moria_curfew(self, msg_sender: MessageSender) -> None:
-        await self.set_moria_lock_state(LockState.CURFEW_UNLOCKED, msg_sender)
+        await self._set_moria_lock_state(LockState.CURFEW_UNLOCKED, msg_sender)
 
     async def unlock_for_seconds(self, msg_sender: MessageSender, seconds: int) -> None:
         old_state = await self.get_lock_state()
@@ -132,10 +132,10 @@ class FlapLocker:
         else:
             new_state = LockState.UNLOCKED
         logger.debug(f"New state = {new_state}")
-        await self.set_moria_lock_state(new_state, msg_sender)
+        await self._set_moria_lock_state(new_state, msg_sender)
         await asyncio.sleep(seconds)
         logger.debug(f"Setting back old state = {old_state}")
-        await self.set_moria_lock_state(old_state, msg_sender)
+        await self._set_moria_lock_state(old_state, msg_sender)
 
     async def switch_pet_location(self, telegram_bot, pet_id: int) -> None:
         pets: list[dict[str, Any]] = await self.surepy.sac.get_pets()

@@ -81,7 +81,6 @@ def send_cat_detected_message(msg_sender: MessageSender, live_img: MatLike, cumu
     logger.debug("Sending cat detected message")
     try:
         caption = f'Cumuli: {cumuli} => Gato incoming! \nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
-        # sender_img = event_objects[-1].output_img
         msg_sender.send_img(img=live_img, caption=caption)
     except Exception:
         logger.exception('+++ Exception while sending img: ')

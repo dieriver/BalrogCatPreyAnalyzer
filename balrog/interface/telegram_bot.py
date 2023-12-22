@@ -118,7 +118,6 @@ class BalrogTelegramBot(MessageSender):
 
     def _send_last_casc_pic_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         if self.node_last_casc_img is not None:
-            cv2.imwrite('last_casc.jpg', self.node_last_casc_img)
             caption = 'Last Cascade:'
             self.send_img(self.node_last_casc_img, caption)
         else:
@@ -126,7 +125,6 @@ class BalrogTelegramBot(MessageSender):
 
     def _send_live_pic_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         if self.node_live_img is not None:
-            cv2.imwrite('live_img.jpg', self.node_live_img)
             caption = 'Here ya go...'
             self.send_img(self.node_live_img, caption)
         else:
