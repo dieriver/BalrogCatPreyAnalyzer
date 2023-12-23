@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from tomllib import load
 
 config_file_path = 'config.toml'
@@ -25,6 +26,7 @@ class LoggingConfigs:
     enable_circular_buffer_logging: bool
     max_log_file_size_mb: int
     max_log_files_kept: int
+    log_dbg_img_folder: str
 
 
 @dataclass
@@ -73,6 +75,8 @@ def load_general_config() -> GeneralConfigs:
 def load_logging_config() -> LoggingConfigs:
     with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
+        dbg_images_path = Path(f'{loaded_bytes["logging"]["log_base_folder"]}/dbg-images')
+        dbg_images_path.mkdir(parents=True, exist_ok=True)
         return LoggingConfigs(
             loaded_bytes["logging"]["log_base_folder"],
             loaded_bytes["logging"]["log_file_name"],
@@ -81,7 +85,8 @@ def load_logging_config() -> LoggingConfigs:
             loaded_bytes["logging"]["enable_cascade_logging"],
             loaded_bytes["logging"]["enable_circular_buffer_logging"],
             loaded_bytes["logging"]["max_log_file_size_mb"],
-            loaded_bytes["logging"]["max_log_files_kept"]
+            loaded_bytes["logging"]["max_log_files_kept"],
+            f'{loaded_bytes["logging"]["log_base_folder"]}/dbg-images',
         )
 
 

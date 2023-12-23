@@ -6,15 +6,16 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from multiprocessing import Event
+from typing import Optional
 
 import cv2
 import pytz
 from cv2.typing import MatLike
 
-from balrog.config import general_config, model_config
+from balrog.config import general_config, model_config, logging_config
 from balrog.interface import MessageSender
 from balrog.processor import Cascade, EventElement
-from balrog.processor.image_container import ImageBuffers
+from balrog.processor.image_container import ImageBuffers, ImageContainer
 from balrog.utils import logger, get_resource_path
 from .detection_callbacks import (
     send_cat_detected_message,
@@ -277,6 +278,7 @@ class FrameProcessor:
         return total_runtime, target_event_obj
 
     def process_frame(self, thread_id: int) -> None:
+        next_frame_copy: Optional[ImageContainer] = None
         while not self.stop_event.is_set():
             try:
                 # Feed the latest image in the Queue through the cascade
@@ -302,6 +304,13 @@ class FrameProcessor:
                 logger.debug(f"Thread {thread_id} - Writing cascade result of buffer # = {next_frame_index}")
                 self.frame_buffers.write_cascade_data(next_frame_index, cascade_obj, total_runtime, overhead.total_seconds())
             except Exception:
+                if next_frame_copy is not None:
+                    img_name = next_frame_copy.timestamp.strftime(general_config.timestamp_format)
+                    filename = f'{logging_config.log_dbg_img_folder}/{img_name.replace(" ", "_")}.jpg'
+                    cv2.imwrite(
+                        filename,
+                        next_frame_copy.img_data
+                    )
                 logger.exception(f"Thread {thread_id} - Exception in processing thread:")
                 logger.info(f"Thread {thread_id} - Cleaning queue since exception")
                 self.frame_buffers.clear()
