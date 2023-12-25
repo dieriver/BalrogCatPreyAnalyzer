@@ -99,6 +99,7 @@ Balrog uses a few environment variables tyo configure the interfaces: Camera inp
 details. To configure this, you need to execute the following lines in your shell:
 
 ```shell
+export BALROG_TENSOFLOW_PATH=/path/to/tensorflow1/models/research
 export CAMERA_STREAM_URI=<camera_rstp_url>
 export SUREPET_USER=<surepet_user>
 export SUREPET_PASSWORD=<surepet-password>
@@ -106,6 +107,7 @@ export TELEGRAM_BOT_TOKEN=<telegram_bot_token>
 export TELEGRAM_CHAT_ID=<telegram_chat_id>
 ```
 
+Please note that the `BALROG_TENSORFLOW_PATH` needs to contain an absolute path to the 
 You can add these lines at the end of the `virt-env/bin/activate` file, so these variables are available each time
 that you activate the python virtual environment.
 

@@ -1,3 +1,5 @@
+import os
+import pathlib
 import sys
 import time
 from pathlib import Path
@@ -6,10 +8,15 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
-from balrog.config import model_config
 from balrog.utils import logger, get_resource_path
 
-sys.path.append(model_config.tensorflow_models_path)
+_tensorflow_models_path = os.getenv('BALROG_TENSOFLOW_PATH')
+if (_tensorflow_models_path is None or
+        len(_tensorflow_models_path) <= 0 or
+        not pathlib.Path(_tensorflow_models_path).is_dir()):
+    raise Exception("The BALROG_TENSOFLOW_PATH was not set, or points to an invalid location. Please check the asigned value")
+
+sys.path.append(_tensorflow_models_path)
 
 from object_detection.utils import label_map_util
 
@@ -35,10 +42,10 @@ class CCMobileNetStage:
 
         # Path to frozen detection graph .pb file, which contains the model that is used
         # for object detection.
-        self.frozen_model_file = Path(f'{model_config.object_detection_models_path}/{_TF_OD_model_name}/{_TF_OD_frozen_model_filename}')
+        self.frozen_model_file = Path(f'{_tensorflow_models_path}/object_detection/{_TF_OD_model_name}/{_TF_OD_frozen_model_filename}')
 
         # Path to label map file
-        self.labels_file = Path(f'{model_config.object_detection_models_path}/{_TF_OD_labels_filename}')
+        self.labels_file = Path(f'{_tensorflow_models_path}/object_detection/{_TF_OD_labels_filename}')
 
         # Start the CNN
         self.sess, self.detection_boxes, self.detection_scores, self.detection_classes, self.num_detections, self.image_tensor, self.category_index = self.init_cnn_model()
