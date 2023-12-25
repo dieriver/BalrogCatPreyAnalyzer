@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-echo "Executing CatPreyAnalyzer"
-# Tensorflow Stuff
+echo "Executing Balrog"
 while : ; do
   python3 -m balrog
   case $? in

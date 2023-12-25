@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-echo "Executing CatPreyAnalyzer"
-# Tensorflow Stuff
+echo "Executing Balrog with extra dbg info"
 SNAP_ID=1
 while : ; do
   python3 -v -m balrog 2>&1 | tee /data/balrog-logs/stdout.log
