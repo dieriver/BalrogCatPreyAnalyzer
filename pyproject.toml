@@ -1,8 +1,11 @@
 [project]
 name = "balrog-prey-analyzer"
 description = "A Cat Prey Analyzer software, based on tensorflow, and OpenCV."
+keywords = ["cat", "prey", "opencv", "tensorflow", "telegram", "surepet"]
 version = "0.1"
-requires-python = ">= 3.11"
+readme = "README.md"
+license = { file= "LICENSE" }
+requires-python = ">= 3.11, <3.12"
 dependencies = [
     "cython==3.0.6",
     "jupyter==1.0.0",
@@ -16,7 +19,11 @@ dependencies = [
     "surepy>=0.9.0",
     "pytype>=2023.12.18 "
 ]
-authors =[
+authors = [
+    { name = "niciBume", email = "unknown@example.com" },
+    { name = "Diego Rivera", email = "dieriverav@gmail.com" }
+]
+maintainers = [
     { name = "Diego Rivera", email = "dieriverav@gmail.com" }
 ]
 
