@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 
+echo "***********************"
+echo "IMPORTANT: Invoke this script as ./balrog.sh 2>&1 | tee stdout.log"
+echo "***********************"
+
 echo "Executing Balrog with extra dbg info"
+# Add OpenCV debug variables
+export OPENCV_PYTHON_DEBUG=true
+export OPENCV_LOG_LEVEL=DEBUG
+
 SNAP_ID=1
 while : ; do
-  python3 -v -m balrog 2>&1 | tee /data/balrog-logs/stdout.log
+  python3 -v -m balrog
   case $? in
   255)
     echo "Exiting balrog script"
