@@ -109,6 +109,9 @@ def load_model_config() -> ModelConfigs:
         )
 
 
+if not Path(config_file_path).is_file():
+    raise Exception(f"Config file '{config_file_path}' was not found. Please make sure you created the config file.")
+
 general_config = load_general_config()
 logging_config = load_logging_config()
 model_config = load_model_config()
