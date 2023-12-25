@@ -10,7 +10,7 @@ import tensorflow as tf
 
 from balrog.utils import logger, get_resource_path
 
-_tensorflow_models_path = os.getenv('BALROG_TENSOFLOW_PATH')
+_tensorflow_models_path = os.getenv('BALROG_TENSORFLOW_PATH')
 if (_tensorflow_models_path is None or
         len(_tensorflow_models_path) <= 0 or
         not pathlib.Path(_tensorflow_models_path).is_dir()):
