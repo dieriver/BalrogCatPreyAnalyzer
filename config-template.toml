@@ -21,7 +21,7 @@ camera_fps = 10
 camera_cleanup_frames_threshold = 60
 
 [model]
-tensorflow_models_path = '/home/diego/tensorflow1/models/research'
+tensorflow_models_path = '/path/to/tensorflow1/models/research'
 event_reset_threshold = 6
 cat_counter_threshold = 6
 cumulus_prey_threshold = -10
