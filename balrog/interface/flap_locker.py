@@ -130,7 +130,7 @@ class FlapLocker:
         if old_state >= LockState.CURFEW:
             new_state = LockState.CURFEW_UNLOCKED
         else:
-            new_state = LockState.UNLOCKED
+            new_state = LockState.LOCKED_IN
         logger.debug(f"New state = {new_state}")
         await self._set_moria_lock_state(new_state, msg_sender)
         await asyncio.sleep(seconds)
