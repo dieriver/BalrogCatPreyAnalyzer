@@ -128,3 +128,4 @@ config.toml
 *.zip
 log/
 .idea/
+.DS_Store

@@ -1,5 +1,5 @@
 import sys
-from typing import Optional
+from typing import Optional, List, Tuple
 
 from cv2.typing import MatLike
 
@@ -8,7 +8,7 @@ from balrog.processor import EventElement
 from balrog.utils import logger
 
 
-def _get_min_prey_tuple(events: list[EventElement]) -> tuple[int, float]:
+def _get_min_prey_tuple(events: List[EventElement]) -> Tuple[int, float]:
     minimum: float = sys.float_info.max
     min_index: int = -1
     for index, event in enumerate(events):
@@ -17,12 +17,13 @@ def _get_min_prey_tuple(events: list[EventElement]) -> tuple[int, float]:
             min_index = index
     return min_index, minimum
 
+
 def _analyze_prey_vals(
-        event_objects: list[EventElement],
+        event_objects: List[EventElement],
         cumuli: float,
         base_message: str,
         end_message: str = ''
-) -> tuple[Optional[MatLike], Optional[str]]:
+) -> Tuple[Optional[MatLike], Optional[str]]:
     try:
         min_prey_index, _ = _get_min_prey_tuple(event_objects)
 
@@ -46,14 +47,14 @@ def _analyze_prey_vals(
         logger.exception('+++ Exception while sending img: ')
 
 
-def send_prey_message(msg_sender: MessageSender, event_objects: list[EventElement], cumuli: float) -> None:
+def send_prey_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
     logger.debug("Sending prey message")
     sender_img, caption = _analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
-def send_no_prey_message(msg_sender: MessageSender, event_objects: list[EventElement], cumuli: float) -> None:
+def send_no_prey_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
     logger.debug("Sending no prey message")
     sender_img, caption = _analyze_prey_vals(
         event_objects,
@@ -65,7 +66,7 @@ def send_no_prey_message(msg_sender: MessageSender, event_objects: list[EventEle
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
-def send_dont_know_message(msg_sender: MessageSender, event_objects: list[EventElement], cumuli: float) -> None:
+def send_dont_know_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
     logger.debug("Sending don't know message")
     sender_img, caption = _analyze_prey_vals(
         event_objects,

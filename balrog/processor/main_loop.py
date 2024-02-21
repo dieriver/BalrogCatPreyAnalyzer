@@ -132,7 +132,6 @@ class FrameResultAggregator:
         overhead: float = next_frame.overhead
         image_data: MatLike = next_frame.img_data
 
-
         # Add this such that the bot has some info
         self.bot.node_queue_info = frames_rdy_for_aggregation
         self.bot.node_live_img = image_data

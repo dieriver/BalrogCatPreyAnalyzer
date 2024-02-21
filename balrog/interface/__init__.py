@@ -12,6 +12,7 @@ class MessageSender(ABC):
         self._node_last_casc_img: Optional[MatLike] = None
         self._node_queue_info: Optional[int] = None
         self._node_over_head_info: Optional[float] = None
+        self._mute_images: bool = False
 
     @classmethod
     def get_message_sender_instance(
@@ -66,3 +67,11 @@ class MessageSender(ABC):
     @node_over_head_info.setter
     def node_over_head_info(self, node_over_head_info: float) -> None:
         self._node_over_head_info = node_over_head_info
+
+    @property
+    def muted_images(self) -> bool:
+        return self._mute_images
+
+    @muted_images.setter
+    def muted_images(self, value: bool) -> None:
+        self._mute_images = value

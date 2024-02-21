@@ -1,7 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List
 
 import pytz
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
@@ -25,16 +25,16 @@ class FlapLocker:
 
     # Functions used to "introspect" the information about pets and devices
     # to register commands
-    async def get_pets_data(self) -> dict[str, int]:
-        registered_pets: list[Pet] = await self.surepy.get_pets()
-        pets_data: dict[str, int] = dict()
+    async def get_pets_data(self) -> Dict[str, int]:
+        registered_pets: List[Pet] = await self.surepy.get_pets()
+        pets_data: Dict[str, int] = dict()
         for registered_pet in registered_pets:
             pets_data[registered_pet.name] = registered_pet.pet_id
         return pets_data
 
-    async def get_devices_data(self) -> dict[str, int]:
-        registered_devices: list[SurepyDevice] = await self._get_fresh_devices()
-        devices_data: dict[str, int] = dict()
+    async def get_devices_data(self) -> Dict[str, int]:
+        registered_devices: List[SurepyDevice] = await self._get_fresh_devices()
+        devices_data: Dict[str, int] = dict()
         for registered_device in registered_devices:
             devices_data[registered_device.name] = registered_device.id
         return devices_data
@@ -42,7 +42,7 @@ class FlapLocker:
     # Functions used to send data from surepy to the telegram interface
     async def send_pets_data(self, msg_sender: MessageSender) -> None:
         # list with all pets
-        pets: list[dict[str, Any]] = await self.surepy.sac.get_pets()
+        pets: List[Dict[str, Any]] = await self.surepy.sac.get_pets()
         message = f"I found this:"
         for pet in pets:
             location: Location = Location(pet['status']['activity']['where'])
@@ -53,7 +53,7 @@ class FlapLocker:
         msg_sender.send_text(message)
 
     async def send_device_data(self, msg_sender: MessageSender, device_id: int) -> None:
-        devices: list[SurepyDevice] = await self._get_fresh_devices()
+        devices: List[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
             if device.id == device_id:
                 if isinstance(device, Flap):
@@ -70,10 +70,10 @@ class FlapLocker:
 
     async def list_devices(self, msg_sender: MessageSender) -> None:
         # all entities as id-indexed dict
-        entities: dict[int, SurepyEntity] = await self.surepy.get_entities()
+        entities: Dict[int, SurepyEntity] = await self.surepy.get_entities()
 
         # list with all devices
-        devices: list[SurepyDevice] = await self._get_fresh_devices()
+        devices: List[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
             msg_sender.send_text(f"{device.name = } | {device.serial = } | {device.battery_level = }")
             msg_sender.send_text(f"{device.type = } | {device.unique_id = } | {device.id = }")
@@ -81,7 +81,7 @@ class FlapLocker:
 
     async def get_lock_state(self) -> LockState:
         try:
-            devices: list[SurepyDevice] = await self._get_fresh_devices()
+            devices: List[SurepyDevice] = await self._get_fresh_devices()
             for device in devices:
                 if device.type == EntityType.CAT_FLAP:
                     cat_flap: Flap = device
@@ -94,7 +94,7 @@ class FlapLocker:
 
     async def _set_moria_lock_state(self, state: LockState, telegram_bot) -> None:
         # list with all devices
-        devices: list[SurepyDevice] = await self._get_fresh_devices()
+        devices: List[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
             # Search for the cat flap
             if device.type == EntityType.CAT_FLAP:
@@ -138,12 +138,12 @@ class FlapLocker:
         await self._set_moria_lock_state(old_state, msg_sender)
 
     async def switch_pet_location(self, telegram_bot, pet_id: int) -> None:
-        pets: list[dict[str, Any]] = await self.surepy.sac.get_pets()
+        pets: List[Dict[str, Any]] = await self.surepy.sac.get_pets()
         if pets is None:
             telegram_bot.send_text(f"No pet was found int he server")
             return
 
-        chosen_pet: dict[str, Any] | None = None
+        chosen_pet: Dict[str, Any] | None = None
         for pet in pets:
             if pet["id"] == pet_id:
                 chosen_pet = pet
@@ -163,7 +163,7 @@ class FlapLocker:
         telegram_bot.send_text(f"Pet with name = '{chosen_pet['name']}' was marked as '{new_location}'")
 
     # Helper function used to get fresh data from the devices, so the states are NOT cached by surepy library
-    async def _get_fresh_devices(self) -> list[SurepyDevice]:
+    async def _get_fresh_devices(self) -> List[SurepyDevice]:
         return [
             device
             for device in (await self.surepy.get_entities(refresh=True)).values()

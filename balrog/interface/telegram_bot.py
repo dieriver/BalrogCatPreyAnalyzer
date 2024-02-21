@@ -1,8 +1,8 @@
 import asyncio
 import os
 from tempfile import TemporaryDirectory
-from threading import Event, Thread
-from typing import Callable
+from threading import Event, Thread, Timer
+from typing import Callable, Dict
 
 import cv2
 from cv2.typing import MatLike
@@ -13,7 +13,7 @@ from telegram.ext.callbackcontext import CallbackContext
 from balrog.config import flap_config
 from balrog.interface import MessageSender
 from balrog.utils import Logging, logger
-from .flap_locker import FlapLocker
+from balrog.interface.flap_locker import FlapLocker
 
 
 class BalrogTelegramBot(MessageSender):
@@ -29,7 +29,7 @@ class BalrogTelegramBot(MessageSender):
         self.telegram_bot = Bot(token=self.BOT_TOKEN)
         self.bot_updater = Updater(token=self.BOT_TOKEN, use_context=True)
         self.flap_handler = FlapLocker()
-        self.commands: dict[str,  Callable[[Update, CallbackContext], None]] = dict()
+        self.commands: Dict[str,  Callable[[Update, CallbackContext], None]] = dict()
         pets_data = self._list_pets()
         devices_data = self._list_devices()
         self._populate_supported_commands(pets_data, devices_data)
@@ -40,7 +40,7 @@ class BalrogTelegramBot(MessageSender):
         # Init the listener
         self._init_bot_listener()
 
-    def _populate_supported_commands(self, pets_data: dict[str, int], devices_data: dict[str, int]) -> None:
+    def _populate_supported_commands(self, pets_data: Dict[str, int], devices_data: Dict[str, int]) -> None:
         self.commands['help'] = self._help_cmd_callback
         self.commands['clean'] = self._clean_cmd_callback
         self.commands['restart'] = self._restart_cmd_callback
@@ -53,6 +53,7 @@ class BalrogTelegramBot(MessageSender):
         self.commands['lockout'] = self._lock_moria_out
         self.commands['unlock'] = self._unlock_moria
         self.commands['statusPets'] = self._list_pets_state
+        self.commands['mute'] = self._mute_notifications
         # create callbacks for switching the state of pets
         for name, pet_id in pets_data.items():
             self.commands[f'switch{name}'] = self._create_pet_switch_function(pet_id)
@@ -84,6 +85,8 @@ class BalrogTelegramBot(MessageSender):
         self.telegram_bot.send_message(chat_id=self.CHAT_ID, text=message, parse_mode=ParseMode.MARKDOWN)
 
     def send_img(self, img: MatLike, caption: str) -> None:
+        if self.muted_images:
+            return
         with TemporaryDirectory() as tmp_dir:
             cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
             self.telegram_bot.send_photo(chat_id=self.CHAT_ID, photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'), caption=caption)
@@ -221,7 +224,7 @@ class BalrogTelegramBot(MessageSender):
         else:
             return loop.run_until_complete(self.flap_handler.send_pets_data(self))
 
-    def _list_pets(self) -> dict[str, int]:
+    def _list_pets(self) -> Dict[str, int]:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -229,13 +232,29 @@ class BalrogTelegramBot(MessageSender):
         else:
             return loop.run_until_complete(self.flap_handler.get_pets_data())
 
-    def _list_devices(self) -> dict[str, int]:
+    def _list_devices(self) -> Dict[str, int]:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return asyncio.run(self.flap_handler.get_devices_data())
         else:
             return loop.run_until_complete(self.flap_handler.get_devices_data())
+
+    def _mute_notifications(self, update: Update, context: CallbackContext) -> None:
+        # Util function used to mute the sending of verdicts
+        # TODO - Put this config in the config file
+        timeout = 10
+        self.send_text(f"Muting Balrog image notifications for the next {timeout} minutes")
+        self.muted = True
+        telegram_bot = self
+
+        def unmute() -> None:
+            nonlocal telegram_bot
+            telegram_bot.muted_images = False
+            telegram_bot.send_text("Restarting Balrog image notifications")
+
+        unlock_task = Timer(60 * timeout, unmute)
+        unlock_task.start()
 
 
 class DebugBot(MessageSender):

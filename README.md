@@ -95,7 +95,7 @@ $ source virt-env/bin/activate
 
 # Configuration
 ## Environment variables
-Balrog uses a few environment variables tyo configure the interfaces: Camera input, Telegram Bot and Surepet login
+Balrog uses a few environment variables to configure the interfaces: Camera input, Telegram Bot and Surepet login
 details. To configure this, you need to execute the following lines in your shell:
 
 ```shell
@@ -107,7 +107,8 @@ export TELEGRAM_BOT_TOKEN=<telegram_bot_token>
 export TELEGRAM_CHAT_ID=<telegram_chat_id>
 ```
 
-Please note that the `BALROG_TENSORFLOW_PATH` needs to contain an absolute path to the 
+Please note that the `BALROG_TENSORFLOW_PATH` needs to contain an absolute path to the `models/research` folder of
+the `tensorflow` package you unzipped before.
 You can add these lines at the end of the `virt-env/bin/activate` file, so these variables are available each time
 that you activate the python virtual environment.
 
