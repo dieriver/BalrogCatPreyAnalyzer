@@ -10,7 +10,7 @@ from telegram import Bot, Update, ParseMode
 from telegram.ext import Updater, CommandHandler
 from telegram.ext.callbackcontext import CallbackContext
 
-from balrog.config import flap_config
+from balrog.config import flap_config, general_config
 from balrog.interface import MessageSender
 from balrog.utils import Logging, logger
 from balrog.interface.flap_locker import FlapLocker
@@ -242,8 +242,7 @@ class BalrogTelegramBot(MessageSender):
 
     def _mute_notifications(self, update: Update, context: CallbackContext) -> None:
         # Util function used to mute the sending of verdicts
-        # TODO - Put this config in the config file
-        timeout = 10
+        timeout = general_config.mute_img_send_minutes
         self.send_text(f"Muting Balrog image notifications for the next {timeout} minutes")
         self.muted = True
         telegram_bot = self

@@ -5,6 +5,7 @@ min_aggregation_frames_threshold = 3
 max_frame_buffers = 10
 local_timezone = "Europe/Amsterdam"
 timestamp_format = "%Y-%m-%d, %H:%M:%S %Z"
+mute_img_send_minutes = 10
 
 [logging]
 log_base_folder = "/var/log/balrog-logs"
