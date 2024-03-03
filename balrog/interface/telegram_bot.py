@@ -244,7 +244,7 @@ class BalrogTelegramBot(MessageSender):
         # Util function used to mute the sending of verdicts
         timeout = general_config.mute_img_send_minutes
         self.send_text(f"Muting Balrog image notifications for the next {timeout} minutes")
-        self.muted = True
+        self.muted_images = True
         telegram_bot = self
 
         def unmute() -> None:
