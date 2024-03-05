@@ -84,8 +84,8 @@ class BalrogTelegramBot(MessageSender):
     def send_text(self, message: str) -> None:
         self.telegram_bot.send_message(chat_id=self.CHAT_ID, text=message, parse_mode=ParseMode.MARKDOWN)
 
-    def send_img(self, img: MatLike, caption: str) -> None:
-        if self.muted_images:
+    def send_img(self, img: MatLike, caption: str, force_send: bool = False) -> None:
+        if not force_send and self.muted_images:
             return
         with TemporaryDirectory() as tmp_dir:
             cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
@@ -130,7 +130,7 @@ class BalrogTelegramBot(MessageSender):
     def _send_live_pic_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         if self.node_live_img is not None:
             caption = 'Here ya go...'
-            self.send_img(self.node_live_img, caption)
+            self.send_img(self.node_live_img, caption, force_send=True)
         else:
             self.send_text('No img available yet...')
 
