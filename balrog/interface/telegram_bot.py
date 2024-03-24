@@ -33,12 +33,10 @@ class BalrogTelegramBot(MessageSender):
         self.flap_handler = FlapLocker()
         self.commands: Dict[str,  Callable[[Update, CallbackContext], None]] = dict()
         pets_data = self._run_on_async_loop(
-            self.flap_handler.get_pets_data,
-            self
+            self.flap_handler.get_pets_data
         )(None, None)
         devices_data = self._run_on_async_loop(
-            self.flap_handler.get_devices_data,
-            self
+            self.flap_handler.get_devices_data
         )(None, None)
         self._populate_supported_commands(pets_data, devices_data)
         # Event to signal the main loop that the queue needs to be cleaned

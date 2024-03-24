@@ -25,14 +25,14 @@ class FlapLocker:
 
     # Functions used to "introspect" the information about pets and devices
     # to register commands
-    async def get_pets_data(self, _: Any, __: Any) -> Dict[str, int]:
+    async def get_pets_data(self, *args) -> Dict[str, int]:
         registered_pets: List[Pet] = await self.surepy.get_pets()
         pets_data: Dict[str, int] = dict()
         for registered_pet in registered_pets:
             pets_data[registered_pet.name] = registered_pet.pet_id
         return pets_data
 
-    async def get_devices_data(self, _: Any, __: Any) -> Dict[str, int]:
+    async def get_devices_data(self, *args) -> Dict[str, int]:
         registered_devices: List[SurepyDevice] = await self._get_fresh_devices()
         devices_data: Dict[str, int] = dict()
         for registered_device in registered_devices:
