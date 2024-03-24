@@ -2,7 +2,7 @@ import asyncio
 import os
 from tempfile import TemporaryDirectory
 from threading import Event, Thread, Timer
-from typing import Callable, Dict
+from typing import Any, Callable, Dict, Optional, TypeVar, Coroutine
 
 import cv2
 from cv2.typing import MatLike
@@ -14,6 +14,8 @@ from balrog.config import flap_config, general_config
 from balrog.interface import MessageSender
 from balrog.utils import Logging, logger
 from balrog.interface.flap_locker import FlapLocker
+
+_T = TypeVar("_T")
 
 
 class BalrogTelegramBot(MessageSender):
@@ -30,8 +32,14 @@ class BalrogTelegramBot(MessageSender):
         self.bot_updater = Updater(token=self.BOT_TOKEN, use_context=True)
         self.flap_handler = FlapLocker()
         self.commands: Dict[str,  Callable[[Update, CallbackContext], None]] = dict()
-        pets_data = self._list_pets()
-        devices_data = self._list_devices()
+        pets_data = self._run_on_async_loop(
+            self.flap_handler.get_pets_data,
+            self
+        )(None, None)
+        devices_data = self._run_on_async_loop(
+            self.flap_handler.get_devices_data,
+            self
+        )(None, None)
         self._populate_supported_commands(pets_data, devices_data)
         # Event to signal the main loop that the queue needs to be cleaned
         self.clean_queue_event = clean_queue_event
@@ -44,24 +52,39 @@ class BalrogTelegramBot(MessageSender):
         self.commands['help'] = self._help_cmd_callback
         self.commands['clean'] = self._clean_cmd_callback
         self.commands['restart'] = self._restart_cmd_callback
-        self.commands['nodestatus'] = self._send_status_cmd_callback
+        self.commands['nodestatus'] = self._node_status_cmd_callback
         self.commands['sendlivepic'] = self._send_live_pic_cmd_callback
         self.commands['sendlastcascpic'] = self._send_last_casc_pic_cmd_callback
-        self.commands['letin'] = self._let_in_cmd_callback
-        self.commands['lock'] = self._lock_moria
-        self.commands['lockin'] = self._lock_moria_in
-        self.commands['lockout'] = self._lock_moria_out
-        self.commands['unlock'] = self._unlock_moria
-        self.commands['statusPets'] = self._list_pets_state
+        self.commands['letin'] = self._run_on_async_loop(
+            self.flap_handler.unlock_for_seconds,
+            self, flap_config.let_in_open_seconds,
+            start_message=f"Ok door is open for {flap_config.let_in_open_seconds}s...",
+            after_exec=self.clean_queue_event.set
+        )
+        self.commands['lock'] = self._run_on_async_loop(
+            self.flap_handler.lock_moria,
+            self,
+            start_message="Locking Moria!"
+        )
+        self.commands['lockin'] = self._run_on_async_loop(self.flap_handler.lock_moria_in, self)
+        self.commands['lockout'] = self._run_on_async_loop(self.flap_handler.lock_moria_out, self)
+        self.commands['unlock'] = self._run_on_async_loop(self.flap_handler.unlock_moria, self)
+        self.commands['statusPets'] = self._run_on_async_loop(self.flap_handler.send_pets_data, self)
         self.commands['mute'] = self._mute_notifications
         # create callbacks for switching the state of pets
         for name, pet_id in pets_data.items():
-            self.commands[f'switch{name}'] = self._create_pet_switch_function(pet_id)
+            self.commands[f'switch{name}'] = self._run_on_async_loop(
+                self.flap_handler.switch_pet_location,
+                self, pet_id
+            )
         # create callbacks for status of the devices
         for name, device_id in devices_data.items():
-            self.commands[f'status{name}'] = self._create_device_status_function(device_id)
+            self.commands[f'status{name}'] = self._run_on_async_loop(
+                self.flap_handler.send_device_data,
+                self, device_id
+            )
         # Not very used commands
-        self.commands['curfew'] = self._set_curfew
+        self.commands['curfew'] = self._run_on_async_loop(self.flap_handler.activate_curfew, self)
 
     # Constructor supporter functions
 
@@ -82,16 +105,44 @@ class BalrogTelegramBot(MessageSender):
     # Raw send text and img functions
 
     def send_text(self, message: str) -> None:
-        self.telegram_bot.send_message(chat_id=self.CHAT_ID, text=message, parse_mode=ParseMode.MARKDOWN)
+        self.telegram_bot.send_message(
+            chat_id=self.CHAT_ID,
+            text=message,
+            parse_mode=ParseMode.MARKDOWN
+        )
 
     def send_img(self, img: MatLike, caption: str, force_send: bool = False) -> None:
         if not force_send and self.muted_images:
             return
         with TemporaryDirectory() as tmp_dir:
             cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
-            self.telegram_bot.send_photo(chat_id=self.CHAT_ID, photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'), caption=caption)
+            self.telegram_bot.send_photo(
+                chat_id=self.CHAT_ID,
+                photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'),
+                caption=caption
+            )
 
     # Telegram Bot message handler callbacks
+    def _run_on_async_loop(
+            self,
+            function: Callable[[Any, ...], Coroutine[Any, Any, _T]],
+            *args,
+            start_message: Optional[str] = None,
+            after_exec: Optional[Callable] = None
+    ) -> Callable[[Optional[Update], Optional[CallbackContext]], _T]:
+        def __callback(update: Update, context: CallbackContext) -> None:
+            if start_message is not None:
+                self.send_text(start_message)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                ret_val = asyncio.run(function(*args))
+            else:
+                ret_val = loop.run_until_complete(function(*args))
+            if after_exec is not None:
+                after_exec()
+            return ret_val
+        return __callback
 
     def _help_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         bot_message = 'Following commands supported:'
@@ -99,14 +150,10 @@ class BalrogTelegramBot(MessageSender):
             bot_message += '\n /' + command
         self.send_text(bot_message)
 
-    def _let_in_cmd_callback(self, update: Update, context: CallbackContext) -> None:
-        self.send_text(f'Ok door is open for {flap_config.let_in_open_seconds}s...')
-        self._unlock_moria_for_seconds(flap_config.let_in_open_seconds)
-        self.clean_queue_event.set()
-
-    def _stop_telegram(self):
-        self.bot_updater.stop()
-        self.bot_updater.is_idle = False
+    def _clean_cmd_callback(self, update: Update, context: CallbackContext) -> None:
+        self.send_text('Cleaning old logs...')
+        removed_paths = Logging.clean_logs()
+        self.send_text(f'Removed: [{*removed_paths,}]')
 
     def _restart_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         self.send_text('Restarting script...')
@@ -115,17 +162,12 @@ class BalrogTelegramBot(MessageSender):
         stop_thread.join()
         self.stop_event.set()
 
-    def _clean_cmd_callback(self, update: Update, context: CallbackContext) -> None:
-        self.send_text('Cleaning old logs...')
-        removed_paths = Logging.clean_logs()
-        self.send_text(f'Removed: [{*removed_paths,}]')
-
-    def _send_last_casc_pic_cmd_callback(self, update: Update, context: CallbackContext) -> None:
-        if self.node_last_casc_img is not None:
-            caption = 'Last Cascade:'
-            self.send_img(self.node_last_casc_img, caption)
+    def _node_status_cmd_callback(self, update: Update, context: CallbackContext) -> None:
+        if self.node_queue_info is not None and self.node_over_head_info is not None:
+            bot_message = f'Queue length: {self.node_queue_info}\nOverhead: {self.node_over_head_info}s'
         else:
-            self.send_text('No casc img available yet...')
+            bot_message = 'No info yet...'
+        self.send_text(bot_message)
 
     def _send_live_pic_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         if self.node_live_img is not None:
@@ -134,111 +176,16 @@ class BalrogTelegramBot(MessageSender):
         else:
             self.send_text('No img available yet...')
 
-    def _send_status_cmd_callback(self, update: Update, context: CallbackContext) -> None:
-        if self.node_queue_info is not None and self.node_over_head_info is not None:
-            bot_message = f'Queue length: {self.node_queue_info}\nOverhead: {self.node_over_head_info}s'
+    def _send_last_casc_pic_cmd_callback(self, update: Update, context: CallbackContext) -> None:
+        if self.node_last_casc_img is not None:
+            caption = 'Last Cascade:'
+            self.send_img(self.node_last_casc_img, caption)
         else:
-            bot_message = 'No info yet...'
-        self.send_text(bot_message)
+            self.send_text('No casc img available yet...')
 
-    # Internals to support the callbacks
-
-    def _unlock_moria_for_seconds(self, seconds) -> None:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.unlock_for_seconds(self, seconds))
-        else:
-            return loop.run_until_complete(self.flap_handler.unlock_for_seconds(self, seconds))
-
-    def _lock_moria(self, update: Update, context: CallbackContext) -> None:
-        self.send_text("Locking Moria!")
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.lock_moria(self))
-        else:
-            return loop.run_until_complete(self.flap_handler.lock_moria(self))
-
-    def _unlock_moria(self, update: Update, context: CallbackContext) -> None:
-        self.send_text("Unlocking Moria!")
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.unlock_moria(self))
-        else:
-            return loop.run_until_complete(self.flap_handler.unlock_moria(self))
-
-    def _lock_moria_in(self, update: Update, context: CallbackContext) -> None:
-        self.send_text("Locking Moria for outgoing gatos!")
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.lock_moria_in(self))
-        else:
-            return loop.run_until_complete(self.flap_handler.lock_moria_in(self))
-
-    def _lock_moria_out(self, update: Update, context: CallbackContext) -> None:
-        self.send_text("Locking Moria for incoming gatos!")
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.lock_moria_out(self))
-        else:
-            return loop.run_until_complete(self.flap_handler.lock_moria_out(self))
-
-    def _set_curfew(self, update: Update, context: CallbackContext) -> None:
-        self.send_text("Activating curfew!")
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.activate_curfew(self))
-        else:
-            return loop.run_until_complete(self.flap_handler.activate_curfew(self))
-
-    def _create_pet_switch_function(self, pet_id: int) -> Callable[[Update, CallbackContext], None]:
-        def _switch_pet_state(update: Update, context: CallbackContext) -> None:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                return asyncio.run(self.flap_handler.switch_pet_location(self, pet_id))
-            else:
-                return loop.run_until_complete(self.flap_handler.switch_pet_location(self, pet_id))
-        return _switch_pet_state
-
-    def _create_device_status_function(self, device_id: int) -> Callable[[Update, CallbackContext], None]:
-        def _get_device_status(update: Update, context: CallbackContext) -> None:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                return asyncio.run(self.flap_handler.send_device_data(self, device_id))
-            else:
-                return loop.run_until_complete(self.flap_handler.send_device_data(self, device_id))
-        return _get_device_status
-
-    def _list_pets_state(self, update: Update, context: CallbackContext) -> None:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.send_pets_data(self))
-        else:
-            return loop.run_until_complete(self.flap_handler.send_pets_data(self))
-
-    def _list_pets(self) -> Dict[str, int]:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.get_pets_data())
-        else:
-            return loop.run_until_complete(self.flap_handler.get_pets_data())
-
-    def _list_devices(self) -> Dict[str, int]:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.flap_handler.get_devices_data())
-        else:
-            return loop.run_until_complete(self.flap_handler.get_devices_data())
+    def _stop_telegram(self):
+        self.bot_updater.stop()
+        self.bot_updater.is_idle = False
 
     def _mute_notifications(self, update: Update, context: CallbackContext) -> None:
         # Util function used to mute the sending of verdicts

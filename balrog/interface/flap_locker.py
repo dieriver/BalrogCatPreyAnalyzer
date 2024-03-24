@@ -25,14 +25,14 @@ class FlapLocker:
 
     # Functions used to "introspect" the information about pets and devices
     # to register commands
-    async def get_pets_data(self) -> Dict[str, int]:
+    async def get_pets_data(self, _: Any, __: Any) -> Dict[str, int]:
         registered_pets: List[Pet] = await self.surepy.get_pets()
         pets_data: Dict[str, int] = dict()
         for registered_pet in registered_pets:
             pets_data[registered_pet.name] = registered_pet.pet_id
         return pets_data
 
-    async def get_devices_data(self) -> Dict[str, int]:
+    async def get_devices_data(self, _: Any, __: Any) -> Dict[str, int]:
         registered_devices: List[SurepyDevice] = await self._get_fresh_devices()
         devices_data: Dict[str, int] = dict()
         for registered_device in registered_devices:
@@ -40,7 +40,7 @@ class FlapLocker:
         return devices_data
 
     # Functions used to send data from surepy to the telegram interface
-    async def send_pets_data(self, msg_sender: MessageSender) -> None:
+    async def send_pets_data(self, msg_sender: MessageSender, _: Any) -> None:
         # list with all pets
         pets: List[Dict[str, Any]] = await self.surepy.sac.get_pets()
         message = f"I found this:"
@@ -103,25 +103,25 @@ class FlapLocker:
                 if result_lock and result_device:
                     telegram_bot.send_text('Done')
 
-    async def unlock_moria(self, msg_sender: MessageSender) -> None:
+    async def unlock_moria(self, msg_sender: MessageSender, _: Any) -> None:
         await self._set_moria_lock_state(LockState.UNLOCKED, msg_sender)
 
-    async def lock_moria_in(self, msg_sender: MessageSender) -> None:
+    async def lock_moria_in(self, msg_sender: MessageSender, _: Any) -> None:
         await self._set_moria_lock_state(LockState.LOCKED_IN, msg_sender)
 
-    async def lock_moria_out(self, msg_sender: MessageSender) -> None:
+    async def lock_moria_out(self, msg_sender: MessageSender, _: Any) -> None:
         await self._set_moria_lock_state(LockState.LOCKED_OUT, msg_sender)
 
-    async def lock_moria(self, msg_sender: MessageSender):
+    async def lock_moria(self, msg_sender: MessageSender, _: Any) -> None:
         await self._set_moria_lock_state(LockState.LOCKED_ALL, msg_sender)
 
-    async def activate_curfew(self, msg_sender: MessageSender) -> None:
+    async def activate_curfew(self, msg_sender: MessageSender, _: Any) -> None:
         await self._set_moria_lock_state(LockState.CURFEW, msg_sender)
 
-    async def lock_moria_curfew(self, msg_sender: MessageSender) -> None:
+    async def lock_moria_curfew(self, msg_sender: MessageSender, _: Any) -> None:
         await self._set_moria_lock_state(LockState.CURFEW_LOCKED, msg_sender)
 
-    async def unlock_moria_curfew(self, msg_sender: MessageSender) -> None:
+    async def unlock_moria_curfew(self, msg_sender: MessageSender, _: Any) -> None:
         await self._set_moria_lock_state(LockState.CURFEW_UNLOCKED, msg_sender)
 
     async def unlock_for_seconds(self, msg_sender: MessageSender, seconds: int) -> None:
