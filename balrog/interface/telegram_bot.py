@@ -26,6 +26,9 @@ class BalrogTelegramBot(MessageSender):
             raise Exception("Telegram CHAT ID not set!. Please set the 'TELEGRAM_CHAT_ID' environment variable")
         if os.getenv('TELEGRAM_BOT_TOKEN') == "":
             raise Exception("Telegram Bot token not set!. Please set the 'TELEGRAM_BOT_TOKEN' environment variable")
+        # Event to signal the main loop that the queue needs to be cleaned
+        self.clean_queue_event = clean_queue_event
+        self.stop_event = stop_event
         self.CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
         self.BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
         self.telegram_bot = Bot(token=self.BOT_TOKEN)
@@ -39,9 +42,6 @@ class BalrogTelegramBot(MessageSender):
             self.flap_handler.get_devices_data
         )(None, None)
         self._populate_supported_commands(pets_data, devices_data)
-        # Event to signal the main loop that the queue needs to be cleaned
-        self.clean_queue_event = clean_queue_event
-        self.stop_event = stop_event
 
         # Init the listener
         self._init_bot_listener()
