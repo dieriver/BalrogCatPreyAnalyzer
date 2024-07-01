@@ -1,8 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
-from threading import Timer
-from typing import Any, Dict, List, Optional, Self
+from typing import Any, Dict, List, Optional
 
 import pytz
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
@@ -23,7 +22,6 @@ class FlapLocker:
         if os.getenv('SUREPET_PASSWORD') == "":
             raise Exception("Surepet password not set!. Please set the 'SUREPET_PASSWORD' environment variable")
         self.surepy = Surepy(email=os.getenv('SUREPET_USER'), password=os.getenv('SUREPET_PASSWORD'))
-        self.unlock_task: Optional[Timer] = None
         self.old_state: Optional[LockState] = None
 
     # Functions used to "introspect" the information about pets and devices
@@ -140,16 +138,7 @@ class FlapLocker:
         logger.debug(f"Setting back old state = {old_state}")
         await self._set_moria_lock_state(old_state, msg_sender)
 
-    def _revert_flap_state(self, old_stat: LockState, message_sender: MessageSender) -> None:
-        logger.debug(f"Setting back old state = {old_stat}")
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            asyncio.run(self._set_moria_lock_state(old_stat, message_sender))
-        else:
-            loop.run_until_complete(self._set_moria_lock_state(old_stat, message_sender))
-
-    async def unlock_for_seconds_B(self, msg_sender: MessageSender, seconds: int) -> None:
+    async def unlock_flap_for_let_in(self, msg_sender: MessageSender, *args: Any) -> None:
         self.old_state = await self.get_lock_state()
         logger.debug(f"Old state = {self.old_state}")
         if self.old_state >= LockState.CURFEW:
@@ -159,14 +148,10 @@ class FlapLocker:
         logger.debug(f"New state = {new_state}")
         await self._set_moria_lock_state(new_state, msg_sender)
 
-        self.unlock_task = Timer(60 * seconds, self._revert_flap_state, [self.old_state, msg_sender])
-        self.unlock_task.start()
-
-    async def cancel_letin(self, msg_sender: MessageSender, *args: Any) -> None:
-        if self.unlock_task is not None:
-            self.unlock_task.cancel()
-            self._revert_flap_state(self.old_state, msg_sender)
-        self.unlock_task = None
+    async def finish_letin(self, msg_sender: MessageSender, *args: Any) -> None:
+        if self.old_state is not None:
+            logger.debug(f"Setting back old state = {self.old_state}")
+            await self._set_moria_lock_state(self.old_state, msg_sender)
         self.old_state = None
 
     async def switch_pet_location(self, telegram_bot, pet_id: int) -> None:

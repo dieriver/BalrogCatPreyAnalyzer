@@ -59,17 +59,8 @@ class BalrogTelegramBot(MessageSender):
         self.commands['nodestatus'] = self._node_status_cmd_callback
         self.commands['sendlivepic'] = self._send_live_pic_cmd_callback
         self.commands['sendlastcascpic'] = self._send_last_casc_pic_cmd_callback
-        self.commands['letin'] = self._run_on_async_loop(
-            self.flap_handler.unlock_for_seconds_B,
-            self, flap_config.let_in_open_seconds,
-            start_message=f"Ok door is open for {flap_config.let_in_open_seconds}s...",
-            after_exec=self.clean_queue_event.set
-        )
-        self.commands['cancelLetin'] = self._run_on_async_loop(
-            self.flap_handler.cancel_letin,
-            self,
-            start_message=f"Cancelling last 'letin' command"
-        )
+        self.commands['letin'] = self._let_in
+        self.commands['cancelLetin'] = self._cancel_let_in
         self.commands['lock'] = self._run_on_async_loop(
             self.flap_handler.lock_moria,
             self,
@@ -184,6 +175,29 @@ class BalrogTelegramBot(MessageSender):
             self.send_img(self.node_live_img, caption, force_send=True)
         else:
             self.send_text('No img available yet...')
+
+    def _let_in(self, update: Update, context: CallbackContext) -> None:
+        seconds = flap_config.let_in_open_seconds
+        self.send_text(f"Ok door is open for {seconds}s...")
+        self._run_on_async_loop(self.flap_handler.unlock_flap_for_let_in, self)
+
+        clean_queue_evnt = self.clean_queue_event
+        msg_sender = self
+        flap_handler = self.flap_handler
+
+        def _finalize_let_in():
+            nonlocal clean_queue_evnt, msg_sender, flap_handler, seconds
+            msg_sender.send_text(f"Locking flap after {seconds}s...")
+            msg_sender._run_on_async_loop(flap_handler.finish_letin, msg_sender)
+            clean_queue_evnt.set()
+
+        timer = Timer(60 * seconds, _finalize_let_in, [])
+        timer.start()
+
+    def _cancel_let_in(self, update: Update, context: CallbackContext) -> None:
+        self.send_text(f"Cancelling last 'letin' command")
+        self._run_on_async_loop(self.flap_handler.finish_letin, self)
+
 
     def _send_last_casc_pic_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         if self.node_last_casc_img is not None:
