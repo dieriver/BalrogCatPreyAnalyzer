@@ -140,9 +140,14 @@ class FlapLocker:
         logger.debug(f"Setting back old state = {old_state}")
         await self._set_moria_lock_state(old_state, msg_sender)
 
-    def _unlock(self, old_stat: LockState, message_sender: MessageSender) -> None:
+    def _revert_flap_state(self, old_stat: LockState, message_sender: MessageSender) -> None:
         logger.debug(f"Setting back old state = {old_stat}")
-        asyncio.run(self._set_moria_lock_state(old_stat, message_sender))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(self._set_moria_lock_state(old_stat, message_sender))
+        else:
+            loop.run_until_complete(self._set_moria_lock_state(old_stat, message_sender))
 
     async def unlock_for_seconds_B(self, msg_sender: MessageSender, seconds: int) -> None:
         self.old_state = await self.get_lock_state()
@@ -154,13 +159,13 @@ class FlapLocker:
         logger.debug(f"New state = {new_state}")
         await self._set_moria_lock_state(new_state, msg_sender)
 
-        self.unlock_task = Timer(60 * seconds, self._unlock, [self.old_state, msg_sender])
+        self.unlock_task = Timer(60 * seconds, self._revert_flap_state, [self.old_state, msg_sender])
         self.unlock_task.start()
 
     async def cancel_letin(self, msg_sender: MessageSender, *args: Any) -> None:
         if self.unlock_task is not None:
             self.unlock_task.cancel()
-            self._unlock(self.old_state, msg_sender)
+            self._revert_flap_state(self.old_state, msg_sender)
         self.unlock_task = None
         self.old_state = None
 
