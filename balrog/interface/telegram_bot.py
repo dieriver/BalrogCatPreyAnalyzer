@@ -54,8 +54,14 @@ class BalrogTelegramBot(MessageSender):
         self.commands['sendlivepic'] = self._send_live_pic_cmd_callback
         self.commands['sendlastcascpic'] = self._send_last_casc_pic_cmd_callback
         self.commands['letin'] = self._run_on_async_loop(
-            self.flap_handler.unlock_for_seconds,
+            self.flap_handler.unlock_for_seconds_B,
             self, flap_config.let_in_open_seconds,
+            start_message=f"Ok door is open for {flap_config.let_in_open_seconds}s...",
+            after_exec=self.clean_queue_event.set
+        )
+        self.commands['cancelLetin'] = self._run_on_async_loop(
+            self.flap_handler.cancel_letin,
+            self,
             start_message=f"Ok door is open for {flap_config.let_in_open_seconds}s...",
             after_exec=self.clean_queue_event.set
         )

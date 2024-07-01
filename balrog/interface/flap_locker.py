@@ -1,7 +1,8 @@
 import asyncio
 import os
 from datetime import datetime
-from typing import Any, Dict, List
+from threading import Timer
+from typing import Any, Dict, List, Optional, Self
 
 import pytz
 from surepy import Surepy, SurepyEntity, SurepyDevice, EntityType
@@ -22,6 +23,8 @@ class FlapLocker:
         if os.getenv('SUREPET_PASSWORD') == "":
             raise Exception("Surepet password not set!. Please set the 'SUREPET_PASSWORD' environment variable")
         self.surepy = Surepy(email=os.getenv('SUREPET_USER'), password=os.getenv('SUREPET_PASSWORD'))
+        self.unlock_task: Optional[Timer] = None
+        self.old_state: Optional[LockState] = None
 
     # Functions used to "introspect" the information about pets and devices
     # to register commands
@@ -92,7 +95,7 @@ class FlapLocker:
             logger.debug('WARNING: We assume that the old state was "LOCKED_OUT"')
             return LockState.LOCKED_OUT
 
-    async def _set_moria_lock_state(self, state: LockState, telegram_bot) -> None:
+    async def _set_moria_lock_state(self, state: LockState, message_sender: MessageSender) -> None:
         # list with all devices
         devices: List[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
@@ -101,7 +104,7 @@ class FlapLocker:
                 result_lock = await self.surepy.sac._set_lock_state(device.id, state)
                 result_device = await self.surepy.get_device(device.id)
                 if result_lock and result_device:
-                    telegram_bot.send_text('Done')
+                    message_sender.send_text('Done')
 
     async def unlock_moria(self, msg_sender: MessageSender, *args: Any) -> None:
         await self._set_moria_lock_state(LockState.UNLOCKED, msg_sender)
@@ -137,6 +140,32 @@ class FlapLocker:
         logger.debug(f"Setting back old state = {old_state}")
         await self._set_moria_lock_state(old_state, msg_sender)
 
+    def _unlock(self, old_stat: LockState, message_sender: MessageSender) -> None:
+        logger.debug(f"Setting back old state = {old_stat}")
+        asyncio.run(self._set_moria_lock_state(old_stat, message_sender))
+
+    async def unlock_for_seconds_B(self, msg_sender: MessageSender, seconds: int) -> None:
+        self.old_state = await self.get_lock_state()
+        logger.debug(f"Old state = {self.old_state}")
+        if self.old_state >= LockState.CURFEW:
+            new_state = LockState.CURFEW_UNLOCKED
+        else:
+            new_state = LockState.LOCKED_IN
+        logger.debug(f"New state = {new_state}")
+        await self._set_moria_lock_state(new_state, msg_sender)
+
+        self.unlock_task = Timer(60 * seconds, self._unlock, [self.old_state, msg_sender])
+        self.unlock_task.start()
+
+    async def cancel_letin(self, msg_sender: MessageSender, *args: Any) -> None:
+        if self.unlock_task is not None:
+            msg_sender.send_text("Cancelling last letin command...")
+            self.unlock_task.cancel()
+            self._unlock(self.old_state, msg_sender)
+        self.unlock_task = None
+        self.old_state = None
+
+
     async def switch_pet_location(self, telegram_bot, pet_id: int) -> None:
         pets: List[Dict[str, Any]] = await self.surepy.sac.get_pets()
         if pets is None:
@@ -160,7 +189,7 @@ class FlapLocker:
         else:
             new_location = Location.INSIDE
         await self.surepy.sac.set_pet_location(pet_id, new_location)
-        telegram_bot.send_text(f"'{chosen_pet['name']}' was marked as '{new_location}'")
+        telegram_bot.send_text(f"Pet '{chosen_pet['name']}' was marked as '{new_location}'")
 
     # Helper function used to get fresh data from the devices, so the states are NOT cached by surepy library
     async def _get_fresh_devices(self) -> List[SurepyDevice]:
