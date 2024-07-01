@@ -179,20 +179,18 @@ class BalrogTelegramBot(MessageSender):
 
     def _let_in_callback(self, update: Update, context: CallbackContext) -> None:
         seconds = flap_config.let_in_open_seconds
+        msg_sender = self
+
         self.send_text(f"Ok door is open for {seconds}s...")
         self._run_on_async_loop(self.flap_handler.unlock_flap_for_let_in, self, seconds)(None, None)
 
-        msg_sender = self
-        clean_queue_evnt = self.clean_queue_event
-        flap_handler = self.flap_handler
-        ongoing_let_in = self.is_ongoing_let_in
-
         def _finalize_let_in() -> None:
-            nonlocal clean_queue_evnt, msg_sender, flap_handler, seconds, ongoing_let_in
-            msg_sender.send_text(f"Locking flap after {seconds}s...")
-            msg_sender._run_on_async_loop(flap_handler.finish_letin, msg_sender)(None, None)
-            clean_queue_evnt.set()
-            ongoing_let_in = False
+            nonlocal msg_sender, seconds
+            if msg_sender.is_ongoing_let_in:
+                msg_sender.send_text(f"Locking flap after {seconds}s...")
+                msg_sender._run_on_async_loop(msg_sender.flap_handler.finish_letin, msg_sender)(None, None)
+                msg_sender.clean_queue_event.set()
+            msg_sender.is_ongoing_let_in = False
 
         timer = Timer(seconds, _finalize_let_in)
         timer.start()
