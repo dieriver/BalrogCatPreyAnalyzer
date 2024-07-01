@@ -48,8 +48,8 @@ class FlapLocker:
             location: Location = Location(pet['status']['activity']['where'])
             location_since: datetime = datetime.fromisoformat(pet['status']['activity']['since'])
             corrected_since: datetime = location_since.astimezone(pytz.timezone(general_config.local_timezone))
-            message += (f"\nPet '{pet['name']}', location: {location}, "
-                        f"since: {corrected_since.strftime(general_config.timestamp_format)}")
+            message += (f"\n* Pet '{pet['name']}'\n  Location: {location}\n  "
+                        f"Since: {corrected_since.strftime(general_config.timestamp_format)}")
         msg_sender.send_text(message)
 
     async def send_device_data(self, msg_sender: MessageSender, device_id: int) -> None:
@@ -62,9 +62,9 @@ class FlapLocker:
                     lock_status = LockState.UNLOCKED
                 lock_status_str = str(lock_status).replace('_', ' ')
                 msg_sender.send_text(f"I found this:\n"
-                                       f"Device: '{device.name}', "
-                                       f"Lock State: '{lock_status_str}', "
-                                       f"Battery Level: '{device.battery_level}'")
+                                     f"Device: '{device.name}'\n"
+                                     f"Lock State: '{lock_status_str}'\n"
+                                     f"Battery Level: '{device.battery_level}'")
                 return
         msg_sender.send_text(f"I could not find the device")
 
@@ -160,7 +160,7 @@ class FlapLocker:
         else:
             new_location = Location.INSIDE
         await self.surepy.sac.set_pet_location(pet_id, new_location)
-        telegram_bot.send_text(f"Pet with name = '{chosen_pet['name']}' was marked as '{new_location}'")
+        telegram_bot.send_text(f"'{chosen_pet['name']}' was marked as '{new_location}'")
 
     # Helper function used to get fresh data from the devices, so the states are NOT cached by surepy library
     async def _get_fresh_devices(self) -> List[SurepyDevice]:
