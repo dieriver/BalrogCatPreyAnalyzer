@@ -49,7 +49,7 @@ class FlapLocker:
             location: Location = Location(pet['status']['activity']['where'])
             location_since: datetime = datetime.fromisoformat(pet['status']['activity']['since'])
             corrected_since: datetime = location_since.astimezone(pytz.timezone(general_config.local_timezone))
-            message += (f"\n* Pet '{pet['name']}'\n  Location: {location}\n  "
+            message += (f"\nPet '{pet['name']}', Location: {location}, "
                         f"Since: {corrected_since.strftime(general_config.timestamp_format)}")
         msg_sender.send_text(message)
 
@@ -167,7 +167,7 @@ class FlapLocker:
                 break
 
         if chosen_pet is None:
-            telegram_bot.send_text(f"Pet with id = '{pet_id}' could not be found")
+            telegram_bot.send_text(f"Pet with id '{pet_id}' could not be found")
             return
 
         old_location: Location = Location(chosen_pet['status']['activity']['where'])

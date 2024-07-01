@@ -172,7 +172,7 @@ class BalrogTelegramBot(MessageSender):
 
     def _send_live_pic_cmd_callback(self, update: Update, context: CallbackContext) -> None:
         if self.node_live_img is not None:
-            caption = 'Here ya go...'
+            caption = 'Here it is...'
             self.send_img(self.node_live_img, caption, force_send=True)
         else:
             self.send_text('No img available yet...')
@@ -181,13 +181,13 @@ class BalrogTelegramBot(MessageSender):
         seconds = flap_config.let_in_open_seconds
         msg_sender = self
 
-        self.send_text(f"Ok door is open for {seconds}s...")
+        self.send_text(f"Ok, door is open for {seconds}s...")
         self._run_on_async_loop(self.flap_handler.unlock_flap_for_let_in, self, seconds)(None, None)
 
         def _finalize_let_in() -> None:
             nonlocal msg_sender, seconds
             if msg_sender.is_ongoing_let_in:
-                msg_sender.send_text(f"Locking flap after {seconds}s...")
+                msg_sender.send_text(f"Locking door after {seconds}s...")
                 msg_sender._run_on_async_loop(msg_sender.flap_handler.finish_letin, msg_sender)(None, None)
                 msg_sender.clean_queue_event.set()
             msg_sender.is_ongoing_let_in = False
