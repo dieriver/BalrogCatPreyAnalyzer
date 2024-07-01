@@ -121,13 +121,14 @@ def load_aliases_map() -> CommandAliasesMap:
     with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
         commands_map = {}
-        for entry in loaded_bytes["commands_map"]:
-            for original_command in loaded_bytes["commands_map"][entry]:
-                if isinstance(loaded_bytes["commands_map"][entry], str):
-                    aliases = [loaded_bytes["commands_map"][entry]]
-                else:
-                    aliases = loaded_bytes["commands_map"][entry]
-                commands_map[original_command] = aliases
+        for original_command in loaded_bytes["commands_map"]:
+            if isinstance(loaded_bytes["commands_map"][original_command], str):
+                # Single alias for a command
+                aliases = [loaded_bytes["commands_map"][original_command]]
+            else:
+                # A list of aliases for the same command
+                aliases = loaded_bytes["commands_map"][original_command]
+            commands_map[original_command] = aliases
         return CommandAliasesMap(commands_map)
 
 
