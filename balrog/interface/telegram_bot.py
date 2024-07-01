@@ -180,7 +180,7 @@ class BalrogTelegramBot(MessageSender):
     def _let_in_callback(self, update: Update, context: CallbackContext) -> None:
         seconds = flap_config.let_in_open_seconds
         self.send_text(f"Ok door is open for {seconds}s...")
-        self._run_on_async_loop(self.flap_handler.unlock_flap_for_let_in, self, seconds)
+        self._run_on_async_loop(self.flap_handler.unlock_flap_for_let_in, self, seconds)(None, None)
 
         msg_sender = self
         clean_queue_evnt = self.clean_queue_event
@@ -190,7 +190,7 @@ class BalrogTelegramBot(MessageSender):
         def _finalize_let_in() -> None:
             nonlocal clean_queue_evnt, msg_sender, flap_handler, seconds, ongoing_let_in
             msg_sender.send_text(f"Locking flap after {seconds}s...")
-            msg_sender._run_on_async_loop(flap_handler.finish_letin, msg_sender)
+            msg_sender._run_on_async_loop(flap_handler.finish_letin, msg_sender)(None, None)
             clean_queue_evnt.set()
             ongoing_let_in = False
 
@@ -202,7 +202,7 @@ class BalrogTelegramBot(MessageSender):
         if self.is_ongoing_let_in:
             self.send_text(f"Cancelling last 'letin' command")
             self.is_ongoing_let_in = False
-            self._run_on_async_loop(self.flap_handler.finish_letin, self)
+            self._run_on_async_loop(self.flap_handler.finish_letin, self)(None, None)
         else:
             self.send_text(f"No 'letin' command to cancel")
 
