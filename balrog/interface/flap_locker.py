@@ -138,7 +138,7 @@ class FlapLocker:
         logger.debug(f"Setting back old state = {old_state}")
         await self._set_moria_lock_state(old_state, msg_sender)
 
-    async def unlock_flap_for_let_in(self, msg_sender: MessageSender, *args: Any) -> None:
+    async def unlock_flap_for_let_in(self, msg_sender: MessageSender, unused: int) -> None:
         self.old_state = await self.get_lock_state()
         logger.debug(f"Old state = {self.old_state}")
         if self.old_state >= LockState.CURFEW:
