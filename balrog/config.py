@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from tomllib import load
+from typing import Dict, List
 
 config_file_path = 'config.toml'
 
@@ -48,6 +49,11 @@ class ModelConfigs:
 @dataclass
 class FlapConfigs:
     let_in_open_seconds: int
+
+
+@dataclass
+class CommandAliasesMap:
+    aliases_map: Dict[str, List[str]]
 
 
 def load_flap_config() -> FlapConfigs:
@@ -111,6 +117,20 @@ def load_model_config() -> ModelConfigs:
         )
 
 
+def load_aliases_map() -> CommandAliasesMap:
+    with open(config_file_path, "rb") as config_file:
+        loaded_bytes = load(config_file)
+        commands_map = {}
+        for entry in loaded_bytes["commands_map"]:
+            for original_command in loaded_bytes["commands_map"][entry]:
+                if isinstance(loaded_bytes["commands_map"][entry], str):
+                    aliases = [loaded_bytes["commands_map"][entry]]
+                else:
+                    aliases = loaded_bytes["commands_map"][entry]
+                commands_map[original_command] = aliases
+        return CommandAliasesMap(commands_map)
+
+
 if not Path(config_file_path).is_file():
     raise Exception(f"Config file '{config_file_path}' was not found. Please make sure you created the config file.")
 
@@ -119,3 +139,4 @@ logging_config = load_logging_config()
 model_config = load_model_config()
 camera_config = load_camera_config()
 flap_config = load_flap_config()
+command_aliases_config = load_aliases_map()

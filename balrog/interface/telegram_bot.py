@@ -10,7 +10,7 @@ from telegram import Bot, Update, ParseMode
 from telegram.ext import Updater, CommandHandler
 from telegram.ext.callbackcontext import CallbackContext
 
-from balrog.config import flap_config, general_config
+from balrog.config import flap_config, general_config, command_aliases_config
 from balrog.interface import MessageSender
 from balrog.utils import Logging, logger
 from balrog.interface.flap_locker import FlapLocker
@@ -42,9 +42,15 @@ class BalrogTelegramBot(MessageSender):
             self.flap_handler.get_devices_data
         )(None, None)
         self._populate_supported_commands(pets_data, devices_data)
+        self._populate_command_aliases()
 
         # Init the listener
         self._init_bot_listener()
+
+    def _populate_command_aliases(self):
+        for command in command_aliases_config:
+            for alias in command_aliases_config[command]:
+                self.commands[alias] = self.commands[command]
 
     def _populate_supported_commands(self, pets_data: Dict[str, int], devices_data: Dict[str, int]) -> None:
         self.commands['help'] = self._help_cmd_callback
@@ -62,8 +68,7 @@ class BalrogTelegramBot(MessageSender):
         self.commands['cancelLetin'] = self._run_on_async_loop(
             self.flap_handler.cancel_letin,
             self,
-            start_message=f"Ok door is open for {flap_config.let_in_open_seconds}s...",
-            after_exec=self.clean_queue_event.set
+            start_message=f"Cancelling last 'letin' command"
         )
         self.commands['lock'] = self._run_on_async_loop(
             self.flap_handler.lock_moria,
