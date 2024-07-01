@@ -48,8 +48,8 @@ class BalrogTelegramBot(MessageSender):
         self._init_bot_listener()
 
     def _populate_command_aliases(self):
-        for command in command_aliases_config:
-            for alias in command_aliases_config[command]:
+        for command in command_aliases_config.aliases_map:
+            for alias in command_aliases_config.aliases_map[command]:
                 self.commands[alias] = self.commands[command]
 
     def _populate_supported_commands(self, pets_data: Dict[str, int], devices_data: Dict[str, int]) -> None:
