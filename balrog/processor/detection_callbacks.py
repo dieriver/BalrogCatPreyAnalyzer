@@ -1,4 +1,5 @@
 import sys
+from multiprocessing import Event
 from typing import Optional, List, Tuple
 
 from cv2.typing import MatLike
@@ -47,14 +48,17 @@ def _analyze_prey_vals(
         logger.exception('+++ Exception while sending img: ')
 
 
-def send_prey_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
+def send_prey_message(msg_sender: MessageSender, event_objects: List[EventElement],
+                      event_objects_used: Event, cumuli: float) -> None:
     logger.debug("Sending prey message")
     sender_img, caption = _analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
+    event_objects_used.set()
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
-def send_no_prey_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
+def send_no_prey_message(msg_sender: MessageSender, event_objects: List[EventElement],
+                         event_objects_used: Event, cumuli: float) -> None:
     logger.debug("Sending no prey message")
     sender_img, caption = _analyze_prey_vals(
         event_objects,
@@ -62,11 +66,13 @@ def send_no_prey_message(msg_sender: MessageSender, event_objects: List[EventEle
         'Cat is clean...',
         'Maybe use /letin?'
     )
+    event_objects_used.set()
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
-def send_dont_know_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
+def send_dont_know_message(msg_sender: MessageSender, event_objects: List[EventElement],
+                           event_objects_used: Event, cumuli: float) -> None:
     logger.debug("Sending don't know message")
     sender_img, caption = _analyze_prey_vals(
         event_objects,
@@ -74,6 +80,7 @@ def send_dont_know_message(msg_sender: MessageSender, event_objects: List[EventE
         'Cant say for sure...',
         'Maybe use /letin?'
     )
+    event_objects_used.set()
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
