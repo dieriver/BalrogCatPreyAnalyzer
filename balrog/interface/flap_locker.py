@@ -159,12 +159,10 @@ class FlapLocker:
 
     async def cancel_letin(self, msg_sender: MessageSender, *args: Any) -> None:
         if self.unlock_task is not None:
-            msg_sender.send_text("Cancelling last letin command...")
             self.unlock_task.cancel()
             self._unlock(self.old_state, msg_sender)
         self.unlock_task = None
         self.old_state = None
-
 
     async def switch_pet_location(self, telegram_bot, pet_id: int) -> None:
         pets: List[Dict[str, Any]] = await self.surepy.sac.get_pets()
