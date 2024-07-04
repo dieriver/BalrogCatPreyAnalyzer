@@ -12,8 +12,8 @@ from telegram.ext.callbackcontext import CallbackContext
 
 from balrog.config import flap_config, general_config, command_aliases_config
 from balrog.interface import MessageSender
-from balrog.utils import Logging, logger
 from balrog.interface.flap_locker import FlapLocker
+from balrog.utils import Logging, logger
 
 _T = TypeVar("_T")
 
@@ -178,6 +178,10 @@ class BalrogTelegramBot(MessageSender):
             self.send_text('No img available yet...')
 
     def _let_in_callback(self, update: Update, context: CallbackContext) -> None:
+        if self.is_ongoing_let_in:
+            self.send_text(f"Oops... There is already a 'letin' command in execution. Ignoring...")
+            return
+
         seconds = flap_config.let_in_open_seconds
         msg_sender = self
 
