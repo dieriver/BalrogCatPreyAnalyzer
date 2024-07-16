@@ -77,15 +77,14 @@ class FrameProcessor:
         while not self.stop_event.is_set():
             try:
                 # Feed the latest image in the Queue through the cascade
-                next_frame_index = self.frame_buffers.get_next_index_for_cascade()
+                next_frame_index, next_frame_copy = self.frame_buffers.get_next_index_for_cascade()
 
-                if next_frame_index < 0:
+                if next_frame_index < 0 or next_frame_copy is None:
                     # We couldn't acquire the lock of a frame to compute the cascade; pass
                     time.sleep(0.25)
                     continue
 
                 logger.debug(f'Thread {thread_id} - Index for cascade: {next_frame_index}')
-                next_frame_copy = self.frame_buffers[next_frame_index].clone()
 
                 total_runtime, cascade_obj = self.feed_to_cascade(
                     target_img=next_frame_copy.img_data,
@@ -97,7 +96,12 @@ class FrameProcessor:
                 logger.debug(f'Thread {thread_id} - Overhead: {overhead.total_seconds()}')
 
                 logger.debug(f"Thread {thread_id} - Writing cascade result of buffer # = {next_frame_index}")
-                self.frame_buffers.write_cascade_data(next_frame_index, cascade_obj, total_runtime, overhead.total_seconds())
+                self.frame_buffers.write_cascade_data(
+                    next_frame_index,
+                    cascade_obj,
+                    total_runtime,
+                    overhead.total_seconds()
+                )
             except Exception:
                 if next_frame_copy is not None:
                     img_name = next_frame_copy.timestamp.strftime(general_config.timestamp_format)
@@ -109,7 +113,6 @@ class FrameProcessor:
                 logger.exception(f"Thread {thread_id} - Exception in processing thread:")
                 logger.info(f"Thread {thread_id} - Cleaning queue since exception")
                 self.frame_buffers.clear()
-
 
     def single_debug(self):
         start_time = time.time()

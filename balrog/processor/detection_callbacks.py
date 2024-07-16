@@ -1,5 +1,6 @@
 import sys
 from multiprocessing import Event
+from threading import Lock
 from typing import Optional, List, Tuple
 
 from cv2.typing import MatLike
@@ -49,38 +50,38 @@ def _analyze_prey_vals(
 
 
 def send_prey_message(msg_sender: MessageSender, event_objects: List[EventElement],
-                      event_objects_used: Event, cumuli: float) -> None:
-    logger.debug("Sending prey message")
+                      events_lock: Lock, cumuli: float) -> None:
     sender_img, caption = _analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
-    event_objects_used.set()
+    events_lock.release()
+    logger.debug("Sending prey message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
 def send_no_prey_message(msg_sender: MessageSender, event_objects: List[EventElement],
-                         event_objects_used: Event, cumuli: float) -> None:
-    logger.debug("Sending no prey message")
+                         events_lock: Lock, cumuli: float) -> None:
     sender_img, caption = _analyze_prey_vals(
         event_objects,
         cumuli,
         'Cat is clean...',
         'Maybe use /letin?'
     )
-    event_objects_used.set()
+    events_lock.release()
+    logger.debug("Sending no prey message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
 def send_dont_know_message(msg_sender: MessageSender, event_objects: List[EventElement],
-                           event_objects_used: Event, cumuli: float) -> None:
-    logger.debug("Sending don't know message")
+                           events_lock: Lock, cumuli: float) -> None:
     sender_img, caption = _analyze_prey_vals(
         event_objects,
         cumuli,
         'Cant say for sure...',
         'Maybe use /letin?'
     )
-    event_objects_used.set()
+    events_lock.release()
+    logger.debug("Sending don't know message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 

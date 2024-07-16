@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from threading import RLock
-from typing import Self, Optional
+from typing import Self, Optional, Tuple
 
 from cv2.typing import MatLike
 
@@ -247,25 +247,25 @@ class ImageBuffers:
             self._circular_buffer[index].buffer_state = _BufferState.WAITING_CASCADE
             self._frames_available_for_cascade += 1
 
-    def get_next_index_for_cascade(self) -> int:
+    def get_next_index_for_cascade(self) -> Tuple[int, Optional[ImageContainer]]:
         with self._indexes_lock:
             # Border case: at the start, all indexes are -1
             if self._first_unprocessed_cascade < 0:
                 if not self._circular_buffer[0].is_ready_for_cascade:
-                    return -1
+                    return -1, None
                 else:
                     self._first_unprocessed_cascade += 1
 
             buffer_state = self._circular_buffer[self._first_unprocessed_cascade].buffer_state
             if self._frames_available_for_cascade <= 0 or buffer_state != _BufferState.WAITING_CASCADE:
                 # There are no available frames for cascade; first unprocessed cascade does not have frame
-                return -1
+                return -1, None
             else:
                 cascade_index = self._first_unprocessed_cascade
                 self._circular_buffer[cascade_index].buffer_state = _BufferState.IN_CASCADE
                 self._first_unprocessed_cascade = ((self._first_unprocessed_cascade + 1) % len(self._circular_buffer))
                 self._frames_available_for_cascade -= 1
-                return cascade_index
+                return cascade_index, self._circular_buffer[cascade_index].clone()
 
     def write_cascade_data(self, index: int, event_elem: EventElement, total_time: float, overhead: float) -> None:
         with self._indexes_lock:
@@ -274,27 +274,25 @@ class ImageBuffers:
                 self._circular_buffer[index].buffer_state = _BufferState.WAITING_AGGREGATION
                 self._frames_available_for_aggregation += 1
 
-    def get_next_index_for_aggregation(self) -> int:
+    def get_next_index_for_aggregation(self) -> Tuple[int, Optional[ImageContainer]]:
         with self._indexes_lock:
             # Border case: at the start, all indexes are -1
             if self._last_non_aggregated_frame < 0:
                 if not self._circular_buffer[0].is_ready_for_aggregation:
-                    return -1
+                    return -1, None
                 else:
                     self._last_non_aggregated_frame += 1
 
             buffer_state = self._circular_buffer[self._last_non_aggregated_frame].buffer_state
             if self._frames_available_for_aggregation <= 0 or buffer_state != _BufferState.WAITING_AGGREGATION:
                 # No frames are available for aggregation; the last non aggregated frame has not gone through cascade
-                return -1
+                return -1, None
             else:
                 aggregate_index = self._last_non_aggregated_frame
+                frame_to_aggregate = self._circular_buffer[aggregate_index].clone()
                 self._last_non_aggregated_frame = ((self._last_non_aggregated_frame + 1) % len(self._circular_buffer))
                 self._frames_available_for_aggregation -= 1
-                return aggregate_index
-
-    def reset_buffer(self, index: int) -> None:
-        with self._indexes_lock:
-            self._log(f"Releasing buffer # {index}")
-            self._circular_buffer[index].clean()
-            self._frames_available_for_frame += 1
+                self._log(f"Releasing buffer # {aggregate_index}")
+                self._circular_buffer[aggregate_index].clean()
+                self._frames_available_for_frame += 1
+                return aggregate_index, frame_to_aggregate

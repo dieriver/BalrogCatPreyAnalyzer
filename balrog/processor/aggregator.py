@@ -4,6 +4,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Event
+from threading import Lock
 
 from cv2.typing import MatLike
 
@@ -47,6 +48,7 @@ class FrameResultAggregator:
         self.cat_counter = 0
         self.face_counter = 0
         self.event_objects: list[EventElement] = []
+        self.event_objects_lock: Lock = Lock()
         self.frame_buffers = frame_buffers
 
     def __enter__(self):
@@ -81,6 +83,7 @@ class FrameResultAggregator:
         self.cat_counter = 0
         self.face_counter = 0
         self.event_objects.clear()
+        self.event_objects_lock = Lock()
         self.clean_queue_event.clear()
         # The next operation is expensive, maybe we don't need to perform it every single time
         #self.frame_buffers.clear()
@@ -110,13 +113,9 @@ class FrameResultAggregator:
 
     def aggregate_available_frames(self, frames_rdy_for_aggregation: int):
         # We get the last buffer, and extract its data
-        next_frame_index = self.frame_buffers.get_next_index_for_aggregation()
-        if next_frame_index < 0:
+        next_frame_index, next_frame = self.frame_buffers.get_next_index_for_aggregation()
+        if next_frame_index < 0 or next_frame is None:
             return
-
-        next_frame = self.frame_buffers[next_frame_index].clone()
-        # We release the lock asap
-        self.frame_buffers.reset_buffer(next_frame_index)
 
         cascade_obj: EventElement = next_frame.event_element
         overhead: float = next_frame.overhead
@@ -161,23 +160,21 @@ class FrameResultAggregator:
                     self.NO_PREY_FLAG = True
                     logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    event_objects_used = Event()
+                    self.event_objects_lock.acquire()
                     self.verdict_sender_pool.submit(
                         send_no_prey_message,
-                        self.bot, self.event_objects, event_objects_used, cumuli_cpy
+                        self.bot, self.event_objects, self.event_objects_lock, cumuli_cpy
                     )
-                    event_objects_used.wait()
                     self.reset_aggregation_fields()
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('**** IT IS A PREY!!!!! ****')
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    event_objects_used = Event()
+                    self.event_objects_lock.acquire()
                     self.verdict_sender_pool.submit(
                         send_prey_message,
-                        self.bot, self.event_objects, event_objects_used, cumuli_cpy
+                        self.bot, self.event_objects, self.event_objects_lock, cumuli_cpy
                     )
-                    event_objects_used.wait()
                     self.reset_aggregation_fields()
                 else:
                     self.NO_PREY_FLAG = False
@@ -193,20 +190,16 @@ class FrameResultAggregator:
             self.event_reset_counter += 1
             if self.event_reset_counter >= model_config.event_reset_threshold:
                 # If was True => event now over => clear queue
-                event_objects_used = None
                 if self.EVENT_FLAG:
                     # TODO QUICK FIX
                     if self.face_counter == 0:
                         self.face_counter = 1
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    event_objects_used = Event()
+                    self.event_objects_lock.acquire()
                     self.verdict_sender_pool.submit(
                         send_dont_know_message,
-                        self.bot, self.event_objects, event_objects_used, cumuli_cpy
+                        self.bot, self.event_objects, self.event_objects_lock, cumuli_cpy
                     )
-                if event_objects_used is not None:
-                    # We wait BEFORE clearing self.event_objects, avoiding a potential data race
-                    event_objects_used.wait()
                 logger.debug(f'---- CLEARED QUEUE BECAUSE EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ----')
                 self.reset_aggregation_fields()
 
