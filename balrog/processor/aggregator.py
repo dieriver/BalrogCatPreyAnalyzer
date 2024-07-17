@@ -71,6 +71,7 @@ class FrameResultAggregator:
 
     def reset_aggregation_fields(self):
         # TODO - Do not rely on this "static" state that needs to be reset every time we reach a verdict
+        self.event_objects_lock.acquire()
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False

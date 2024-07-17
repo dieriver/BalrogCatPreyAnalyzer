@@ -46,6 +46,7 @@ def _analyze_prey_vals(
         caption = f'Cumuli: {cumuli} => {base_message}{event_str}\n{end_message}'
         return sender_img, caption
     except Exception:
+        logger.info(f"min_prey_index = {min_prey_index}, event_size = {len(event_objects)}")
         logger.exception('+++ Exception while sending img: ')
 
 
