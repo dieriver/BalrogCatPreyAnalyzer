@@ -48,13 +48,14 @@ def _analyze_prey_vals(
     except Exception:
         logger.info(f"min_prey_index = {min_prey_index}, event_size = {len(event_objects)}")
         logger.exception('+++ Exception while sending img: ')
+        return None, None
 
 
 def send_prey_message(msg_sender: MessageSender, event_objects: List[EventElement],
                       events_lock: Lock, cumuli: float) -> None:
     sender_img, caption = _analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
     events_lock.release()
-    logger.debug("Sending prey message")
+    logger.info("Sending prey message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
@@ -68,7 +69,7 @@ def send_no_prey_message(msg_sender: MessageSender, event_objects: List[EventEle
         'Maybe use /letin?'
     )
     events_lock.release()
-    logger.debug("Sending no prey message")
+    logger.info("Sending no prey message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
@@ -82,7 +83,7 @@ def send_dont_know_message(msg_sender: MessageSender, event_objects: List[EventE
         'Maybe use /letin?'
     )
     events_lock.release()
-    logger.debug("Sending don't know message")
+    logger.info("Sending don't know message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 

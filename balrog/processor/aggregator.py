@@ -145,7 +145,6 @@ class FrameResultAggregator:
             # Last cat pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
 
-            # self.fps_offset = 0
             # If face found add the cumulus points
             if cascade_obj.face_bool:
                 logger.info('**** FACE FOUND! ****')
