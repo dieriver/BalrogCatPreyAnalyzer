@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
+from balrog.config import general_config
 from balrog.utils import logger, get_resource_path
 
 _tensorflow_models_path = os.getenv('BALROG_TENSORFLOW_PATH')
@@ -66,6 +67,12 @@ class CCMobileNetStage:
         category_index = label_map_util.create_category_index(categories)
 
         # Load the Tensorflow model into memory.
+        logger.info(f"inter_threads = {tf.config.threading.get_inter_op_parallelism_threads()}")
+        logger.info(f"intra_threads = {tf.config.threading.get_intra_op_parallelism_threads()}")
+        config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=2,
+                                          inter_op_parallelism_threads=general_config.max_frame_processor_threads * 2,
+                                          allow_soft_placement=True,
+                                          device_count={'CPU': 2})
         detection_graph = tf.Graph()
         with detection_graph.as_default():
             od_graph_def = tf.compat.v1.GraphDef()
@@ -74,7 +81,7 @@ class CCMobileNetStage:
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
 
-            sess = tf.compat.v1.Session(graph=detection_graph)
+            sess = tf.compat.v1.Session(graph=detection_graph, config=config)
 
         # Define input and output tensors (i.e. data) for the object detection classifier
 
@@ -283,6 +290,7 @@ class PCStage:
             self.pc_model = tf.keras.models.load_model(str(self.model_file).strip(),
                                                        custom_objects=dependencies)
         else:
+            print(self.model_file)
             self.pc_model = tf.keras.models.load_model(str(self.model_file).strip())
 
     def __exit__(self, exc_type, exc_val, exc_tb):

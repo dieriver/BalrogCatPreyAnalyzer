@@ -27,7 +27,7 @@ sudo apt install libglu1-mesa-dev libglx-mesa0
 The code also requires a rather old version of the protobuf compiler to work (v3.19.0). To install this version, please
 go to the [asset page](https://github.com/protocolbuffers/protobuf/releases/tag/v3.19.0) of that release, and download
 the build for your architecture.
-For x86_65, you can simply run:
+For x86_64, you can simply run:
 
 ```shell
 wget https://github.com/protocolbuffers/protobuf/releases/download/v3.19.0/protoc-3.19.0-linux-x86_64.zip
