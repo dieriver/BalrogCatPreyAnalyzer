@@ -1,6 +1,4 @@
 import sys
-from multiprocessing import Event
-from threading import Lock
 from typing import Optional, List, Tuple
 
 from cv2.typing import MatLike
@@ -51,47 +49,41 @@ def _analyze_prey_vals(
         return None, None
 
 
-def send_prey_message(msg_sender: MessageSender, event_objects: List[EventElement],
-                      events_lock: Lock, cumuli: float) -> None:
+def send_prey_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
     sender_img, caption = _analyze_prey_vals(event_objects, cumuli, 'PREY IN DA HOUSE!')
-    events_lock.release()
     logger.info("Sending prey message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
-def send_no_prey_message(msg_sender: MessageSender, event_objects: List[EventElement],
-                         events_lock: Lock, cumuli: float) -> None:
+def send_no_prey_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
     sender_img, caption = _analyze_prey_vals(
         event_objects,
         cumuli,
         'Cat is clean...',
         'Maybe use /letin?'
     )
-    events_lock.release()
     logger.info("Sending no prey message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
-def send_dont_know_message(msg_sender: MessageSender, event_objects: List[EventElement],
-                           events_lock: Lock, cumuli: float) -> None:
+def send_dont_know_message(msg_sender: MessageSender, event_objects: List[EventElement], cumuli: float) -> None:
     sender_img, caption = _analyze_prey_vals(
         event_objects,
         cumuli,
         'Cant say for sure...',
         'Maybe use /letin?'
     )
-    events_lock.release()
     logger.info("Sending don't know message")
     if sender_img is not None and caption is not None:
         msg_sender.send_img(img=sender_img, caption=caption)
 
 
-def send_cat_detected_message(msg_sender: MessageSender, live_img: MatLike, cumuli: float) -> None:
+def send_cat_detected_message(msg_sender: MessageSender, live_img: MatLike) -> None:
     logger.debug("Sending cat detected message")
     try:
-        caption = f'Cumuli: {cumuli} => Gato incoming! \nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
+        caption = f'Gato incoming! \nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'
         msg_sender.send_img(img=live_img, caption=caption)
     except Exception:
         logger.exception('+++ Exception while sending img: ')

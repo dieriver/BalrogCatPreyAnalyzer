@@ -2,13 +2,12 @@ import os
 import sys
 import time
 import traceback
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, Future, CancelledError
 from multiprocessing import Event
-from threading import Lock
 
 from cv2.typing import MatLike
 
-from balrog.config import general_config, model_config
+from balrog.config import general_config, model_config, camera_config
 from balrog.interface import MessageSender
 from balrog.processor import ImageBuffers, EventElement
 from balrog.processor.detection_callbacks import send_cat_detected_message, send_no_prey_message, send_prey_message, \
@@ -46,7 +45,6 @@ class FrameResultAggregator:
         self.cat_counter = 0
         self.face_counter = 0
         self.event_objects: list[EventElement] = []
-        self.event_objects_lock: Lock = Lock()
         self.frame_buffers = frame_buffers
 
     def __enter__(self):
@@ -61,7 +59,7 @@ class FrameResultAggregator:
         if exception_value is not None:
             logger.error(f"Exception value: {exception_value}")
         if tb is not None:
-            logger.error(f"Traceback: {''.join(traceback.format_tb(tb))}")
+            logger.error(f"Traceback: {traceback.format_tb(tb)}")
             sys.exit(1)
         # We use a "successful" exit code to restart the script
         # This is interpreted as a call to restart the script
@@ -69,7 +67,6 @@ class FrameResultAggregator:
 
     def reset_aggregation_fields(self):
         # TODO - Do not rely on this "static" state that needs to be reset every time we reach a verdict
-        self.event_objects_lock.acquire()
         self.EVENT_FLAG = False
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
@@ -82,7 +79,6 @@ class FrameResultAggregator:
         self.cat_counter = 0
         self.face_counter = 0
         self.event_objects.clear()
-        self.event_objects_lock = Lock()
         # The next operation is expensive, maybe we don't need to perform it every single time
         #self.frame_buffers.clear()
 
@@ -98,7 +94,8 @@ class FrameResultAggregator:
                     self.aggregate_available_frames(frames_rdy_for_aggregation)
                 else:
                     # We simply wait for new frames to be ready (The camera thread should propulate the deque)
-                    time.sleep(0.25)
+                    logger.debug(f"Not enough frames ready for aggregation: {frames_rdy_for_aggregation}")
+                    time.sleep(3 * 1 / camera_config.camera_fps)
 
             except Exception as e:
                 logger.exception("Exception in aggregation thread: ", e)
@@ -127,12 +124,12 @@ class FrameResultAggregator:
             self.event_objects.append(cascade_obj)
             # Send a message on Telegram to ask what to do
             self.cat_counter += 1
-            if self.cat_counter >= model_config.cat_counter_threshold and not self.CAT_DETECTED_FLAG:
+            if 0 < model_config.cat_counter_threshold <= self.cat_counter and not self.CAT_DETECTED_FLAG:
                 self.CAT_DETECTED_FLAG = True
                 node_live_img_cpy = self.bot.node_live_img
                 self.verdict_sender_pool.submit(
                     send_cat_detected_message,
-                    self.bot, node_live_img_cpy, 0
+                    self.bot, node_live_img_cpy
                 )
 
             # Last cat pic for bot
@@ -153,52 +150,57 @@ class FrameResultAggregator:
                     self.NO_PREY_FLAG = True
                     logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.event_objects_lock.acquire()
-                    self.verdict_sender_pool.submit(
+                    verdict_sender: Future[None] = self.verdict_sender_pool.submit(
                         send_no_prey_message,
-                        self.bot, self.event_objects, self.event_objects_lock, cumuli_cpy
+                        self.bot, self.event_objects, cumuli_cpy
                     )
-                    self.reset_aggregation_fields()
+                    try:
+                        verdict_sender.result()
+                    except CancelledError:
+                        pass
+                    finally:
+                        self.reset_aggregation_fields()
+
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('**** IT IS A PREY!!!!! ****')
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.event_objects_lock.acquire()
-                    self.verdict_sender_pool.submit(
+                    verdict_sender: Future[None] = self.verdict_sender_pool.submit(
                         send_prey_message,
-                        self.bot, self.event_objects, self.event_objects_lock, cumuli_cpy
+                        self.bot, self.event_objects, cumuli_cpy
                     )
-                    self.reset_aggregation_fields()
+                    try:
+                        verdict_sender.result()
+                    except CancelledError:
+                        pass
+                    finally:
+                        self.reset_aggregation_fields()
                 else:
                     self.NO_PREY_FLAG = False
                     self.PREY_FLAG = False
 
             # Cat was found => still belongs to event => acts as dk state
             self.event_reset_counter = 0
-            self.cat_counter = 0
-
-        # No cat detected => reset event_counters if necessary
         else:
+            # No cat detected => reset event_counters if necessary
             logger.info('**** NO CAT FOUND! ****')
             self.event_reset_counter += 1
             if self.event_reset_counter >= model_config.event_reset_threshold:
                 # If was True => event now over => clear queue
                 if self.EVENT_FLAG:
-                    # TODO QUICK FIX
-                    if self.face_counter == 0:
-                        self.face_counter = 1
-                    cumuli_cpy = self.cumulus_points / self.face_counter
-                    self.event_objects_lock.acquire()
-                    self.verdict_sender_pool.submit(
+                    cumuli_cpy = self.cumulus_points / (1 if self.face_counter == 0 else self.face_counter)
+                    verdict_sender: Future[None] = self.verdict_sender_pool.submit(
                         send_dont_know_message,
-                        self.bot, self.event_objects, self.event_objects_lock, cumuli_cpy
+                        self.bot, self.event_objects, cumuli_cpy
                     )
-                logger.debug(f'---- CLEARED QUEUE BECAUSE EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ----')
+                    try:
+                        verdict_sender.result()
+                    except CancelledError:
+                        pass
                 self.reset_aggregation_fields()
+                logger.debug(f'--- EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ---')
 
         if self.EVENT_FLAG and self.FACE_FOUND_FLAG:
             self.patience_counter += 1
-        if self.patience_counter > 2:
-            self.PATIENCE_FLAG = True
-        if self.face_counter > 1:
+        if self.patience_counter > 2 or self.face_counter > 1:
             self.PATIENCE_FLAG = True

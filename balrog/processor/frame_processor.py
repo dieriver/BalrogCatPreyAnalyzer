@@ -9,7 +9,7 @@ import cv2
 import pytz
 from cv2.typing import MatLike
 
-from balrog.config import general_config, logging_config
+from balrog.config import general_config, logging_config, camera_config
 from balrog.processor import Cascade, EventElement
 from balrog.processor.image_container import ImageBuffers, ImageContainer
 from balrog.utils import logger, get_resource_path
@@ -81,7 +81,8 @@ class FrameProcessor:
 
                 if next_frame_index < 0 or next_frame_copy is None:
                     # We couldn't acquire the lock of a frame to compute the cascade; pass
-                    time.sleep(0.25)
+                    logger.debug(f"Could not get nex_frame_index: {next_frame_index}")
+                    time.sleep(3 * 1 / camera_config.camera_fps)
                     continue
 
                 logger.debug(f'Thread {thread_id} - Index for cascade: {next_frame_index}')
@@ -118,9 +119,7 @@ class FrameProcessor:
         start_time = time.time()
         target_img_name = 'dummy_img.jpg'
         with get_resource_path("dbg_casc.jpg") as resource:
-            target_img = cv2.imread(
-                str(resource.resolve())
-            )
+            target_img = cv2.imread(str(resource.resolve()))
         cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name)[1]
         current_time = time.time()
         logger.debug(f'Debug cascade runtime: {current_time - start_time}')
