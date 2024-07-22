@@ -2,8 +2,9 @@ import os
 import sys
 import time
 import traceback
-from concurrent.futures import ThreadPoolExecutor, Future, CancelledError
+from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Event
+from typing import Tuple, Optional, List
 
 from cv2.typing import MatLike
 
@@ -13,6 +14,16 @@ from balrog.processor import ImageBuffers, EventElement
 from balrog.processor.detection_callbacks import send_cat_detected_message, send_no_prey_message, send_prey_message, \
     send_dont_know_message
 from balrog.utils import logger
+
+
+def _get_min_prey_tuple(events: List[EventElement]) -> Tuple[int, float]:
+    minimum: float = sys.float_info.max
+    min_index: int = -1
+    for index, event in enumerate(events):
+        if event.pc_prey_val is not None and event.pc_prey_val < minimum:
+            minimum = event.pc_prey_val
+            min_index = index
+    return min_index, minimum
 
 
 class FrameResultAggregator:
@@ -96,7 +107,6 @@ class FrameResultAggregator:
                     # We simply wait for new frames to be ready (The camera thread should propulate the deque)
                     logger.debug(f"Not enough frames ready for aggregation: {frames_rdy_for_aggregation}")
                     time.sleep(3 * 1 / camera_config.camera_fps)
-
             except Exception as e:
                 logger.exception("Exception in aggregation thread: ", e)
                 logger.info("Cleaning queue since exception")
@@ -126,11 +136,7 @@ class FrameResultAggregator:
             self.cat_counter += 1
             if 0 < model_config.cat_counter_threshold <= self.cat_counter and not self.CAT_DETECTED_FLAG:
                 self.CAT_DETECTED_FLAG = True
-                node_live_img_cpy = self.bot.node_live_img
-                self.verdict_sender_pool.submit(
-                    send_cat_detected_message,
-                    self.bot, node_live_img_cpy
-                )
+                send_cat_detected_message(self.bot, image_data)
 
             # Last cat pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
@@ -150,31 +156,23 @@ class FrameResultAggregator:
                     self.NO_PREY_FLAG = True
                     logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    verdict_sender: Future[None] = self.verdict_sender_pool.submit(
+                    image, event_str = self._analyze_prey_vals()
+                    self.verdict_sender_pool.submit(
                         send_no_prey_message,
-                        self.bot, self.event_objects, cumuli_cpy
+                        self.bot, cumuli_cpy, event_str, image
                     )
-                    try:
-                        verdict_sender.result()
-                    except CancelledError:
-                        pass
-                    finally:
-                        self.reset_aggregation_fields()
+                    self.reset_aggregation_fields()
 
                 elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
                     self.PREY_FLAG = True
                     logger.info('**** IT IS A PREY!!!!! ****')
                     cumuli_cpy = self.cumulus_points / self.face_counter
-                    verdict_sender: Future[None] = self.verdict_sender_pool.submit(
+                    image, event_str = self._analyze_prey_vals()
+                    self.verdict_sender_pool.submit(
                         send_prey_message,
-                        self.bot, self.event_objects, cumuli_cpy
+                        self.bot, cumuli_cpy, event_str, image
                     )
-                    try:
-                        verdict_sender.result()
-                    except CancelledError:
-                        pass
-                    finally:
-                        self.reset_aggregation_fields()
+                    self.reset_aggregation_fields()
                 else:
                     self.NO_PREY_FLAG = False
                     self.PREY_FLAG = False
@@ -189,14 +187,11 @@ class FrameResultAggregator:
                 # If was True => event now over => clear queue
                 if self.EVENT_FLAG:
                     cumuli_cpy = self.cumulus_points / (1 if self.face_counter == 0 else self.face_counter)
-                    verdict_sender: Future[None] = self.verdict_sender_pool.submit(
+                    image, event_str = self._analyze_prey_vals()
+                    self.verdict_sender_pool.submit(
                         send_dont_know_message,
-                        self.bot, self.event_objects, cumuli_cpy
+                        self.bot, cumuli_cpy, event_str, image
                     )
-                    try:
-                        verdict_sender.result()
-                    except CancelledError:
-                        pass
                 self.reset_aggregation_fields()
                 logger.debug(f'--- EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ---')
 
@@ -204,3 +199,30 @@ class FrameResultAggregator:
             self.patience_counter += 1
         if self.patience_counter > 2 or self.face_counter > 1:
             self.PATIENCE_FLAG = True
+
+    def _analyze_prey_vals(
+            self
+    ) -> Tuple[Optional[MatLike], Optional[str]]:
+        min_prey_index = None
+        try:
+            min_prey_index, _ = _get_min_prey_tuple(self.event_objects)
+
+            if min_prey_index < 0:
+                logger.warning(f"No minimal index & value found in: {[x.pc_prey_val for x in self.event_objects]}")
+                return None, None
+
+            event_str = ''
+            face_events = [x for x in self.event_objects if x.face_bool]
+            for f_event in face_events:
+                logger.debug('****************')
+                logger.debug(f'Img_Name: {f_event.img_name}')
+                logger.debug(f'PC_Val: {f_event.pc_prey_val:.2f}')
+                logger.debug('****************')
+                event_str += f'\n{f_event.img_name} => PC_Val: {f_event.pc_prey_val:.2f}'
+
+            sender_img = self.event_objects[min_prey_index].output_img
+            return sender_img, event_str
+        except Exception:
+            logger.info(f"min_prey_index = {min_prey_index}, event_size = {len(self.event_objects)}")
+            logger.exception('+++ Exception while sending img: ')
+            return None, None

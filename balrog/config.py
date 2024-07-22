@@ -9,7 +9,6 @@ config_file_path = 'config.toml'
 
 @dataclass
 class GeneralConfigs:
-    max_message_sender_threads: int
     max_frame_processor_threads: int
     min_aggregation_frames_threshold: int
     max_frame_buffers: int
@@ -68,7 +67,6 @@ def load_general_config() -> GeneralConfigs:
     with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
         return GeneralConfigs(
-            loaded_bytes["general"]["max_message_sender_threads"],
             loaded_bytes["general"]["max_frame_processor_threads"],
             loaded_bytes["general"]["min_aggregation_frames_threshold"],
             loaded_bytes["general"]["max_frame_buffers"],
