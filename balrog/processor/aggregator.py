@@ -37,26 +37,24 @@ class FrameResultAggregator:
       * Invokes the telegram callbacks with the verdicts.
     """
     def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
-        self.stop_event = stop_event
-        self.bot = MessageSender.get_message_sender_instance(
+        self.stop_event: Event = stop_event
+        self.bot: MessageSender = MessageSender.get_message_sender_instance(
             is_debug=os.getenv("BALROG_USE_NULL_TELEGRAM") is not None,
             stop_event=stop_event
         )
         self.verdict_sender_pool = ThreadPoolExecutor(max_workers=general_config.max_message_sender_threads)
         # Aggregation fields
-        self.EVENT_FLAG = False
-        self.PATIENCE_FLAG = False
-        self.CAT_DETECTED_FLAG = False
-        self.FACE_FOUND_FLAG = False
-        self.PREY_FLAG = None
-        self.NO_PREY_FLAG = None
-        self.patience_counter = 0
-        self.event_reset_counter = 0
-        self.cumulus_points = 0
-        self.cat_counter = 0
-        self.face_counter = 0
+        self.EVENT_FLAG: bool = False
+        self.PATIENCE_FLAG: bool = False
+        self.CAT_DETECTED_FLAG: bool = False
+        self.FACE_FOUND_FLAG: bool = False
+        self.patience_counter: int = 0
+        self.event_reset_counter: int = 0
+        self.cumulus_points: int = 0
+        self.cat_counter: int = 0
+        self.face_counter: int = 0
         self.event_objects: list[EventElement] = []
-        self.frame_buffers = frame_buffers
+        self.frame_buffers: ImageBuffers = frame_buffers
 
     def __enter__(self):
         # We don't do anything here
@@ -82,8 +80,6 @@ class FrameResultAggregator:
         self.PATIENCE_FLAG = False
         self.CAT_DETECTED_FLAG = False
         self.FACE_FOUND_FLAG = False
-        self.PREY_FLAG = None
-        self.NO_PREY_FLAG = None
         self.patience_counter = 0
         self.event_reset_counter = 0
         self.cumulus_points = 0
@@ -154,9 +150,6 @@ class FrameResultAggregator:
                     self._process_no_prey_event(verdict_value)
                 elif verdict_value < model_config.cumulus_prey_threshold:
                     self._process_prey_event(verdict_value)
-                else:
-                    self.NO_PREY_FLAG = False
-                    self.PREY_FLAG = False
 
             # Cat was found => still belongs to event => acts as dk state
             self.event_reset_counter = 0
@@ -184,7 +177,6 @@ class FrameResultAggregator:
             send_cat_detected_message(self.bot, image_data)
 
     def _process_no_prey_event(self, verdict_value):
-        self.NO_PREY_FLAG = True
         logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
         image, event_str = self._analyze_prey_vals()
         self.verdict_sender_pool.submit(
@@ -194,7 +186,6 @@ class FrameResultAggregator:
         self.reset_aggregation_fields()
 
     def _process_prey_event(self, verdict_value):
-        self.PREY_FLAG = True
         logger.info('**** IT IS A PREY!!!!! ****')
         image, event_str = self._analyze_prey_vals()
         self.verdict_sender_pool.submit(
