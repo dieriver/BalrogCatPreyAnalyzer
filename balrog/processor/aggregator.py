@@ -27,11 +27,9 @@ class FrameResultAggregator:
       * Invokes the telegram callbacks with the verdicts.
     """
     def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
-        self.clean_queue_event: Event = Event()
         self.stop_event = stop_event
         self.bot = MessageSender.get_message_sender_instance(
             is_debug=os.getenv("BALROG_USE_NULL_TELEGRAM") is not None,
-            clean_queue_event=self.clean_queue_event,
             stop_event=stop_event
         )
         self.verdict_sender_pool = ThreadPoolExecutor(max_workers=general_config.max_message_sender_threads)
@@ -85,7 +83,6 @@ class FrameResultAggregator:
         self.face_counter = 0
         self.event_objects.clear()
         self.event_objects_lock = Lock()
-        self.clean_queue_event.clear()
         # The next operation is expensive, maybe we don't need to perform it every single time
         #self.frame_buffers.clear()
 
@@ -103,10 +100,6 @@ class FrameResultAggregator:
                     # We simply wait for new frames to be ready (The camera thread should propulate the deque)
                     time.sleep(0.25)
 
-                # Check if user force opens the door
-                if self.clean_queue_event.is_set():
-                    # We do super simple stuff here. The actual unlock of the door is handled in NodeBot class
-                    self.reset_aggregation_fields()
             except Exception as e:
                 logger.exception("Exception in aggregation thread: ", e)
                 logger.info("Cleaning queue since exception")

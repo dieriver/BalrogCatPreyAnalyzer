@@ -19,15 +19,13 @@ _T = TypeVar("_T")
 
 
 class BalrogTelegramBot(MessageSender):
-    def __init__(self, clean_queue_event: Event, stop_event: Event):
+    def __init__(self, stop_event: Event):
         # Insert Chat ID and Bot Token according to Telegram API
         super().__init__()
         if os.getenv('TELEGRAM_CHAT_ID') == "":
             raise Exception("Telegram CHAT ID not set!. Please set the 'TELEGRAM_CHAT_ID' environment variable")
         if os.getenv('TELEGRAM_BOT_TOKEN') == "":
             raise Exception("Telegram Bot token not set!. Please set the 'TELEGRAM_BOT_TOKEN' environment variable")
-        # Event to signal the main loop that the queue needs to be cleaned
-        self.clean_queue_event = clean_queue_event
         self.stop_event = stop_event
         self.CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
         self.BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')

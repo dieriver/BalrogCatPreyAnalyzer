@@ -18,7 +18,6 @@ class MessageSender(ABC):
     def get_message_sender_instance(
             cls,
             is_debug: bool = False,
-            clean_queue_event: Event = None,
             stop_event: Event = None
     ) -> Self:
         if is_debug:
@@ -26,7 +25,7 @@ class MessageSender(ABC):
             return DebugBot()
         else:
             from balrog.interface.telegram_bot import BalrogTelegramBot
-            return BalrogTelegramBot(clean_queue_event, stop_event)
+            return BalrogTelegramBot(stop_event)
 
     @abstractmethod
     def send_text(self, message: str) -> None:
