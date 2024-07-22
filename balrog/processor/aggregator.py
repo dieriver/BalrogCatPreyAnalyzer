@@ -129,20 +129,16 @@ class FrameResultAggregator:
 
         if cascade_obj.cc_cat_bool:
             # We are inside an event => add event_obj to list
-            logger.info('**** CAT FOUND! ****')
-            self.EVENT_FLAG = True
             self.event_objects.append(cascade_obj)
-            # Send a message on Telegram to ask what to do
-            self.cat_counter += 1
-            if 0 < model_config.cat_counter_threshold <= self.cat_counter and not self.CAT_DETECTED_FLAG:
-                self.CAT_DETECTED_FLAG = True
-                send_cat_detected_message(self.bot, image_data)
 
-            # Last cat pic for bot
+            # Process the "cat found" event
+            self._process_cat_event(image_data)
+
+            # Last cascade pic for bot
             self.bot.node_last_casc_img = cascade_obj.output_img
 
-            # If face found add the cumulus points
             if cascade_obj.face_bool:
+                # If face found add the cumulus points
                 logger.info('**** FACE FOUND! ****')
                 self.face_counter += 1
                 self.cumulus_points += (50 - int(round(100 * cascade_obj.pc_prey_val)))
@@ -152,27 +148,12 @@ class FrameResultAggregator:
 
             # Check the cumuli points and set flags if necessary
             if self.face_counter > 0 and self.PATIENCE_FLAG:
-                if self.cumulus_points / self.face_counter > model_config.cumulus_no_prey_threshold:
-                    self.NO_PREY_FLAG = True
-                    logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
-                    cumuli_cpy = self.cumulus_points / self.face_counter
-                    image, event_str = self._analyze_prey_vals()
-                    self.verdict_sender_pool.submit(
-                        send_no_prey_message,
-                        self.bot, cumuli_cpy, event_str, image
-                    )
-                    self.reset_aggregation_fields()
+                verdict_value = self.cumulus_points / self.face_counter
 
-                elif self.cumulus_points / self.face_counter < model_config.cumulus_prey_threshold:
-                    self.PREY_FLAG = True
-                    logger.info('**** IT IS A PREY!!!!! ****')
-                    cumuli_cpy = self.cumulus_points / self.face_counter
-                    image, event_str = self._analyze_prey_vals()
-                    self.verdict_sender_pool.submit(
-                        send_prey_message,
-                        self.bot, cumuli_cpy, event_str, image
-                    )
-                    self.reset_aggregation_fields()
+                if verdict_value > model_config.cumulus_no_prey_threshold:
+                    self._process_no_prey_event(verdict_value)
+                elif verdict_value < model_config.cumulus_prey_threshold:
+                    self._process_prey_event(verdict_value)
                 else:
                     self.NO_PREY_FLAG = False
                     self.PREY_FLAG = False
@@ -185,20 +166,52 @@ class FrameResultAggregator:
             self.event_reset_counter += 1
             if self.event_reset_counter >= model_config.event_reset_threshold:
                 # If was True => event now over => clear queue
-                if self.EVENT_FLAG:
-                    cumuli_cpy = self.cumulus_points / (1 if self.face_counter == 0 else self.face_counter)
-                    image, event_str = self._analyze_prey_vals()
-                    self.verdict_sender_pool.submit(
-                        send_dont_know_message,
-                        self.bot, cumuli_cpy, event_str, image
-                    )
-                self.reset_aggregation_fields()
+                self._process_dont_know_event()
                 logger.debug(f'--- EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ---')
 
         if self.EVENT_FLAG and self.FACE_FOUND_FLAG:
             self.patience_counter += 1
         if self.patience_counter > 2 or self.face_counter > 1:
             self.PATIENCE_FLAG = True
+
+    def _process_cat_event(self, image_data: MatLike):
+        logger.info('**** CAT FOUND! ****')
+        self.EVENT_FLAG = True
+        # Send a message on Telegram to ask what to do
+        self.cat_counter += 1
+        if 0 < model_config.cat_counter_threshold <= self.cat_counter and not self.CAT_DETECTED_FLAG:
+            self.CAT_DETECTED_FLAG = True
+            send_cat_detected_message(self.bot, image_data)
+
+    def _process_no_prey_event(self, verdict_value):
+        self.NO_PREY_FLAG = True
+        logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
+        image, event_str = self._analyze_prey_vals()
+        self.verdict_sender_pool.submit(
+            send_no_prey_message,
+            self.bot, verdict_value, event_str, image
+        )
+        self.reset_aggregation_fields()
+
+    def _process_prey_event(self, verdict_value):
+        self.PREY_FLAG = True
+        logger.info('**** IT IS A PREY!!!!! ****')
+        image, event_str = self._analyze_prey_vals()
+        self.verdict_sender_pool.submit(
+            send_prey_message,
+            self.bot, verdict_value, event_str, image
+        )
+        self.reset_aggregation_fields()
+
+    def _process_dont_know_event(self):
+        if self.EVENT_FLAG:
+            cumuli_cpy = self.cumulus_points / (1 if self.face_counter == 0 else self.face_counter)
+            image, event_str = self._analyze_prey_vals()
+            self.verdict_sender_pool.submit(
+                send_dont_know_message,
+                self.bot, cumuli_cpy, event_str, image
+            )
+        self.reset_aggregation_fields()
 
     def _analyze_prey_vals(
             self
