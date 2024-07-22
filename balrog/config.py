@@ -9,6 +9,7 @@ config_file_path = 'config.toml'
 
 @dataclass
 class GeneralConfigs:
+    max_message_sender_threads: int
     max_frame_processor_threads: int
     min_aggregation_frames_threshold: int
     max_frame_buffers: int
