@@ -15,6 +15,10 @@ from balrog.processor.image_container import ImageBuffers, ImageContainer
 from balrog.utils import logger, get_resource_path
 
 
+class _BreakException(Exception):
+    pass
+
+
 class FrameProcessor:
     """
     Implementation of the main loop of the software. This class:
@@ -66,6 +70,7 @@ class FrameProcessor:
 
     def process_frame(self, thread_id: int) -> None:
         next_frame_copy: Optional[ImageContainer] = None
+        next_frame_index = -1
         while not self.stop_event.is_set():
             try:
                 # Feed the latest image in the Queue through the cascade
@@ -75,7 +80,7 @@ class FrameProcessor:
                     # We couldn't acquire the lock of a frame to compute the cascade; pass
                     logger.debug(f"Could not get nex_frame_index: {next_frame_index}")
                     time.sleep(3 * 1 / camera_config.camera_fps)
-                    continue
+                    raise _BreakException()
 
                 logger.debug(f'Thread {thread_id} - Index for cascade: {next_frame_index}')
 
@@ -95,6 +100,8 @@ class FrameProcessor:
                     total_runtime,
                     overhead.total_seconds()
                 )
+            except _BreakException:
+                pass
             except Exception:
                 if next_frame_copy is not None:
                     img_name = next_frame_copy.timestamp.strftime(general_config.timestamp_format)
@@ -106,6 +113,9 @@ class FrameProcessor:
                 logger.exception(f"Thread {thread_id} - Exception in processing thread:")
                 logger.info(f"Thread {thread_id} - Cleaning queue since exception")
                 self.frame_buffers.clear()
+            finally:
+                next_frame_index = -1
+                next_frame_copy = None
 
     def single_debug(self):
         start_time = time.time()
