@@ -20,8 +20,8 @@ def _get_min_prey_tuple(events: List[EventElement]) -> Tuple[int, float]:
     minimum: float = sys.float_info.max
     min_index: int = -1
     for index, event in enumerate(events):
-        if event.pc_prey_val is not None and event.pc_prey_val < minimum:
-            minimum = event.pc_prey_val
+        if event.prey_confidence is not None and event.prey_confidence < minimum:
+            minimum = event.prey_confidence
             min_index = index
     return min_index, minimum
 
@@ -123,7 +123,7 @@ class FrameResultAggregator:
         self.bot.node_live_img = image_data
         self.bot.node_over_head_info = overhead
 
-        if cascade_obj.cc_cat_bool:
+        if cascade_obj.pet_present:
             # We are inside an event => add event_obj to list
             self.event_objects.append(cascade_obj)
 
@@ -137,7 +137,7 @@ class FrameResultAggregator:
                 # If face found add the cumulus points
                 logger.info('**** FACE FOUND! ****')
                 self.face_counter += 1
-                self.cumulus_points += (50 - int(round(100 * cascade_obj.pc_prey_val)))
+                self.cumulus_points += (50 - int(round(100 * cascade_obj.prey_confidence)))
                 self.FACE_FOUND_FLAG = True
 
             logger.debug(f'CUMULUS: {self.cumulus_points}')
@@ -212,7 +212,7 @@ class FrameResultAggregator:
             min_prey_index, _ = _get_min_prey_tuple(self.event_objects)
 
             if min_prey_index < 0:
-                logger.warning(f"No minimal index & value found in: {[x.pc_prey_val for x in self.event_objects]}")
+                logger.warning(f"No minimal index & value found in: {[x.prey_confidence for x in self.event_objects]}")
                 return None, None
 
             event_str = ''
@@ -220,9 +220,9 @@ class FrameResultAggregator:
             for f_event in face_events:
                 logger.debug('****************')
                 logger.debug(f'Img_Name: {f_event.img_name}')
-                logger.debug(f'PC_Val: {f_event.pc_prey_val:.2f}')
+                logger.debug(f'PC_Val: {f_event.prey_confidence:.2f}')
                 logger.debug('****************')
-                event_str += f'\n{f_event.img_name} => PC_Val: {f_event.pc_prey_val:.2f}'
+                event_str += f'\n{f_event.img_name} => PC_Val: {f_event.prey_confidence:.2f}'
 
             sender_img = self.event_objects[min_prey_index].output_img
             return sender_img, event_str

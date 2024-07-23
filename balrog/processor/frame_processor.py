@@ -51,7 +51,7 @@ class FrameProcessor:
         return True
 
     def feed_to_cascade(self, target_img: MatLike, img_name: str, thread_id: int = -1, frame_index: int = -1) -> tuple[float, EventElement]:
-        target_event_obj = EventElement(img_name=img_name, cc_target_img=target_img)
+        target_event_obj = EventElement(raw_image=target_img, img_name=img_name)
 
         start_time = time.time()
         self.base_cascade.do_single_cascade(
@@ -59,14 +59,6 @@ class FrameProcessor:
             thread_id=thread_id,
             frame_index=frame_index
         )
-        target_event_obj.total_inference_time = sum(filter(None, [
-            target_event_obj.cc_inference_time,
-            target_event_obj.cr_inference_time,
-            target_event_obj.bbs_inference_time,
-            target_event_obj.haar_inference_time,
-            target_event_obj.ff_bbs_inference_time,
-            target_event_obj.ff_haar_inference_time,
-            target_event_obj.pc_inference_time]))
         total_runtime = time.time() - start_time
         logger.debug(f'Thread {thread_id} - Total Runtime: {total_runtime}')
 
