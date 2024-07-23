@@ -191,7 +191,6 @@ class BalrogTelegramBot(MessageSender):
             if msg_sender.is_ongoing_let_in:
                 msg_sender.send_text(f"Locking door after {seconds}s...")
                 msg_sender._run_on_async_loop(msg_sender.flap_handler.finish_letin, msg_sender)(None, None)
-                msg_sender.clean_queue_event.set()
             msg_sender.is_ongoing_let_in = False
 
         timer = Timer(seconds, _finalize_let_in)
