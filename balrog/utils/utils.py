@@ -8,7 +8,7 @@ from pathlib import Path
 from balrog.config import logging_config
 
 # We declare the logger that we use in this package
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("balrog")
 
 
 class Logging:

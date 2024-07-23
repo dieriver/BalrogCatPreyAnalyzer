@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from tomllib import load
-from types import Dict, List
+from typing import Dict, List
 
 config_file_path = 'config.toml'
 

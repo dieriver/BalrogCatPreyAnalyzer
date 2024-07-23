@@ -19,7 +19,8 @@ _tensorflow_models_path = os.getenv('BALROG_TENSORFLOW_PATH')
 if (_tensorflow_models_path is None or
         len(_tensorflow_models_path) <= 0 or
         not pathlib.Path(_tensorflow_models_path).is_dir()):
-    raise Exception("The BALROG_TENSOFLOW_PATH was not set, or points to an invalid location. Please check the asigned value")
+    raise Exception("The BALROG_TENSOFLOW_PATH was not set, or points to an "
+                    "invalid location. Please check the assigned value")
 
 sys.path.append(_tensorflow_models_path)
 
