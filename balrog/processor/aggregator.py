@@ -7,6 +7,7 @@ from logging import DEBUG, INFO, WARN, ERROR
 from multiprocessing import Event
 from typing import Tuple, Optional, List
 
+import pytz
 from cv2.typing import MatLike
 
 from balrog.config import general_config, model_config, camera_config
@@ -127,7 +128,8 @@ class FrameResultAggregator:
         image_data: MatLike = next_frame.img_data
 
         # Add this such that the bot has some info
-        frame_roundtrip_delay = (datetime.now(general_config.local_timezone) - next_frame.timestamp).total_seconds()
+        current_time = datetime.now(pytz.timezone(general_config.local_timezone))
+        frame_roundtrip_delay = (current_time - next_frame.timestamp).total_seconds()
         self.bot.node_queue_info = frames_rdy_for_aggregation
         self.bot.node_live_img = image_data
         self.bot.node_over_head_info = overhead
