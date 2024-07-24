@@ -197,7 +197,9 @@ class BalrogTelegramBot(MessageSender):
         async def _node_status_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
             if bot.node_queue_info is not None and bot.node_over_head_info is not None:
-                bot_message = f'Queue length: {bot.node_queue_info}\nOverhead: {bot.node_over_head_info}s'
+                bot_message = (f'Queue length: {bot.node_queue_info}\n'
+                               f'Overhead: {bot.node_over_head_info}s\n'
+                               f'Queue delay: {bot.queue_avg_delay}s')
             else:
                 bot_message = 'No info yet...'
             await update.message.reply_text(bot_message)

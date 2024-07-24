@@ -2,6 +2,7 @@ import sys
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from logging import DEBUG, INFO, WARN, ERROR
 from multiprocessing import Event
 from typing import Tuple, Optional, List
@@ -126,9 +127,11 @@ class FrameResultAggregator:
         image_data: MatLike = next_frame.img_data
 
         # Add this such that the bot has some info
+        frame_roundtrip_delay = (datetime.now(general_config.local_timezone) - next_frame.timestamp).total_seconds()
         self.bot.node_queue_info = frames_rdy_for_aggregation
         self.bot.node_live_img = image_data
         self.bot.node_over_head_info = overhead
+        self.bot.add_delay(frame_roundtrip_delay)
 
         if cascade_obj.pet_present:
             # We are inside an event => add event_obj to list

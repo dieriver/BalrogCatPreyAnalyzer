@@ -1,7 +1,8 @@
+import collections
 from abc import ABC, abstractmethod
 from multiprocessing import Event
 from threading import Thread
-from typing import Self, Optional
+from typing import Self, Optional, Deque
 
 from cv2.typing import MatLike
 
@@ -13,6 +14,7 @@ class MessageSender(ABC):
         self._node_last_casc_img: Optional[MatLike] = None
         self._node_queue_info: Optional[int] = None
         self._node_over_head_info: Optional[float] = None
+        self._last_delays: Deque[float] = collections.deque(maxlen=20)
         self._mute_images: bool = False
         self.sender_thread: Optional[Thread] = None
 
@@ -76,6 +78,13 @@ class MessageSender(ABC):
     @node_over_head_info.setter
     def node_over_head_info(self, node_over_head_info: float) -> None:
         self._node_over_head_info = node_over_head_info
+
+    @property
+    def queue_avg_delay(self):
+        return float(sum(self._last_delays)) / float(len(self._last_delays))
+
+    def add_delay(self, val: float) -> None:
+        self._last_delays.append(val)
 
     @property
     def muted_images(self) -> bool:
