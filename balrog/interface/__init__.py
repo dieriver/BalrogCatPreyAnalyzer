@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from multiprocessing import Event
+from threading import Thread
 from typing import Self, Optional
 
 from cv2.typing import MatLike
@@ -13,6 +14,15 @@ class MessageSender(ABC):
         self._node_queue_info: Optional[int] = None
         self._node_over_head_info: Optional[float] = None
         self._mute_images: bool = False
+        self.sender_thread: Optional[Thread] = None
+
+    def __enter__(self):
+        # Default implementation does nothing
+        self.start()
+
+    def __exit__(self, exception_type, exception_value, tb):
+        # Default implementation does nothing
+        self.stop()
 
     @classmethod
     def get_message_sender_instance(
@@ -26,6 +36,14 @@ class MessageSender(ABC):
         else:
             from balrog.interface.telegram_bot import BalrogTelegramBot
             return BalrogTelegramBot(stop_event)
+
+    @abstractmethod
+    def start(self) -> None:
+        pass
+
+    @abstractmethod
+    def stop(self) -> None:
+        pass
 
     @abstractmethod
     def send_text(self, message: str) -> None:

@@ -1,8 +1,10 @@
+import os
 from os import getenv
 from threading import Event
 
 from balrog.camera import ICamera
 from balrog.config import general_config, camera_config, logging_config
+from balrog.interface import MessageSender
 from balrog.processor.aggregator import FrameResultAggregator
 from balrog.processor.frame_processor import FrameProcessor
 from balrog.processor.image_container import ImageBuffers
@@ -23,8 +25,12 @@ camera = ICamera.get_instance(
     cleanup_threshold=camera_config.camera_cleanup_frames_threshold,
     is_debug=getenv("BALROG_USE_NULL_CAMERA") is not None
 )
+message_sender = MessageSender.get_message_sender_instance(
+    is_debug=os.getenv("BALROG_USE_NULL_TELEGRAM") is not None,
+    stop_event=stop_event
+)
 frame_processor = FrameProcessor(frame_buffers, stop_event)
-frame_aggregator = FrameResultAggregator(frame_buffers, stop_event)
+frame_aggregator = FrameResultAggregator(frame_buffers, stop_event, message_sender)
 
-with frame_aggregator, frame_processor, camera:
+with frame_aggregator, message_sender, frame_processor, camera:
     frame_aggregator.aggregator_thread()

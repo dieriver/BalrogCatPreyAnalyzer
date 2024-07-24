@@ -1,7 +1,7 @@
 import asyncio
 import os
 from tempfile import TemporaryDirectory
-from threading import Event
+from threading import Event, Thread
 from typing import Any, Callable, Dict, TypeVar, Coroutine
 
 import cv2
@@ -30,6 +30,7 @@ class BalrogTelegramBot(MessageSender):
         self.stop_event = stop_event
         self.CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
         self.BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+        self.sender_thread = Thread(target=self._launch_polling)
         self.telegram_endpoint = Application.builder().token(self.BOT_TOKEN).build()
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, TelegramCallbackType] = dict()
@@ -87,8 +88,16 @@ class BalrogTelegramBot(MessageSender):
             handlers.append(CommandHandler(command, self.commands[command]))
         self.telegram_endpoint.add_handlers(handlers)
 
-        # Start the polling stuff
+    def start(self) -> None:
+        # Start the polling stuff. this locks the current thread
+        self.sender_thread.start()
+
+    def _launch_polling(self):
         self.telegram_endpoint.run_polling(allowed_updates=[Update.MESSAGE])
+
+    def stop(self) -> None:
+        self.telegram_endpoint.stop()
+        self.sender_thread.join()
 
     # Raw send text and img functions
 
@@ -134,8 +143,7 @@ class BalrogTelegramBot(MessageSender):
         async def _restart_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
             await update.message.reply_text('Restarting script...')
-            bot.telegram_endpoint.stop()
-            bot.telegram_endpoint.is_idle = False
+            bot.stop()
             bot.stop_event.set()
         return _restart_cmd_callback
 
@@ -297,6 +305,12 @@ class BalrogTelegramBot(MessageSender):
 class DebugBot(MessageSender):
     def __init__(self):
         super().__init__()
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
 
     def send_img(self, img: MatLike, caption: str) -> None:
         # Nothing to do here; we simply ignore the invocation

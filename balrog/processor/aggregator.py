@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 import traceback
@@ -37,12 +36,9 @@ class FrameResultAggregator:
       * Aggregates the results, computing cumulative with previous frames' results
       * Invokes the telegram callbacks with the verdicts.
     """
-    def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
+    def __init__(self, frame_buffers: ImageBuffers, stop_event: Event, message_sender: MessageSender):
         self.stop_event: Event = stop_event
-        self.bot: MessageSender = MessageSender.get_message_sender_instance(
-            is_debug=os.getenv("BALROG_USE_NULL_TELEGRAM") is not None,
-            stop_event=stop_event
-        )
+        self.bot: MessageSender = message_sender
         self.verdict_sender_pool = ThreadPoolExecutor(max_workers=general_config.max_message_sender_threads)
         # Aggregation fields
         self.EVENT_FLAG: bool = False
