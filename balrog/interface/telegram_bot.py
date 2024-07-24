@@ -195,7 +195,9 @@ class BalrogTelegramBot(MessageSender):
             nonlocal bot
             if bot.node_live_img is not None:
                 caption = 'Here it is...'
-                await update.message.reply_photo(bot.node_live_img, caption)
+                with TemporaryDirectory() as tmp_dir:
+                    cv2.imwrite(f'{tmp_dir}/balrog_send_live_img.jpg', bot.node_live_img)
+                    await update.message.reply_photo(f'{tmp_dir}/balrog_send_live_img.jpg', caption)
             else:
                 await update.message.reply_text('No img available yet...')
         return _send_live_pic_cmd_callback
@@ -207,7 +209,9 @@ class BalrogTelegramBot(MessageSender):
             nonlocal bot
             if bot.node_last_casc_img is not None:
                 caption = 'Last Cascade:'
-                await update.message.reply_photo(bot.node_last_casc_img, caption)
+                with TemporaryDirectory() as tmp_dir:
+                    cv2.imwrite(f'{tmp_dir}/balrog_send_casc_img.jpg', bot.node_last_casc_img)
+                    await update.message.reply_photo(f'{tmp_dir}/balrog_send_casc_img.jpg', caption)
             else:
                 await update.message.reply_text('No casc img available yet...')
         return _send_last_casc_pic_cmd_callback
