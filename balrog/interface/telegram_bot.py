@@ -45,14 +45,19 @@ class BalrogTelegramBot(MessageSender):
         self._populate_command_aliases()
         self.is_ongoing_let_in: bool = False
 
-        # Init the listener
-        self._init_bot_listener()
+        # Add all commands to handler
+        handlers = []
+        for command in self.commands:
+            logger.info(f"Registering command '{command}'")
+            handlers.append(CommandHandler(command, self.commands[command]))
+        self.telegram_endpoint.add_handlers(handlers)
 
     def _populate_command_aliases(self):
         for command in command_aliases_config.aliases_map:
             for alias in command_aliases_config.aliases_map[command]:
                 self.commands[alias] = self.commands[command]
 
+    # Constructor supporter functions
     def _populate_supported_commands(self, pets_data: Dict[str, int], devices_data: Dict[str, int]) -> None:
         self.commands['help'] = self._get_help_cmd_callback()
         self.commands['clean'] = self._get_clean_cmd_callback()
@@ -77,22 +82,15 @@ class BalrogTelegramBot(MessageSender):
         # Not very used commands
         self.commands['curfew'] = self._get_activate_curfew_callback()
 
-    # Constructor supporter functions
-
-    def _init_bot_listener(self) -> None:
-        self.send_text('Balrog is online!')
-        # Add all commands to handler
-        handlers = []
-        for command in self.commands:
-            logger.info(f"Registering command '{command}'")
-            handlers.append(CommandHandler(command, self.commands[command]))
-        self.telegram_endpoint.add_handlers(handlers)
-
+    # Telegram thread supporter functions
     def start(self) -> None:
         # Start the polling stuff. this locks the current thread
         self.sender_thread.start()
 
     def _launch_polling(self):
+        # Since asyncio closes the event loop, we need to re-open it for the polling
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
         self.telegram_endpoint.run_polling(allowed_updates=[Update.MESSAGE])
 
     def stop(self) -> None:

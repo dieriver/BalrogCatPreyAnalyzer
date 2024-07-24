@@ -33,4 +33,5 @@ frame_processor = FrameProcessor(frame_buffers, stop_event)
 frame_aggregator = FrameResultAggregator(frame_buffers, stop_event, message_sender)
 
 with frame_aggregator, message_sender, frame_processor, camera:
+    message_sender.send_text("Balrog raises from the abyss...")
     frame_aggregator.aggregator_thread()
