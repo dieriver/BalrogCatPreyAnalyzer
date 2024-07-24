@@ -35,8 +35,8 @@ class BalrogTelegramBot(MessageSender):
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, TelegramCallbackType] = dict()
         coro_loop = asyncio.get_event_loop()
-        pets_data = coro_loop.run_until_complete(self.flap_handler.get_pets_data)
-        devices_data = coro_loop.run_until_complete(self.flap_handler.get_devices_data)
+        pets_data = coro_loop.run_until_complete(self.flap_handler.get_pets_data())
+        devices_data = coro_loop.run_until_complete(self.flap_handler.get_devices_data())
         # Since asyncio closes the event loop, we need to re-open it for the polling
 
         self.event_loop = asyncio.new_event_loop()
