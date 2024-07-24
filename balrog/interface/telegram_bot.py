@@ -36,9 +36,9 @@ class BalrogTelegramBot(MessageSender):
                                              .build())
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, TelegramCallbackType] = dict()
-        coro_loop = asyncio.get_event_loop()
-        pets_data = coro_loop.run_until_complete(self.flap_handler.get_pets_data())
-        devices_data = coro_loop.run_until_complete(self.flap_handler.get_devices_data())
+        self.message_loop = asyncio.get_event_loop()
+        pets_data = self.message_loop.run_until_complete(self.flap_handler.get_pets_data())
+        devices_data = self.message_loop.run_until_complete(self.flap_handler.get_devices_data())
 
         self._populate_supported_commands(pets_data, devices_data)
         self._populate_command_aliases()
@@ -97,7 +97,7 @@ class BalrogTelegramBot(MessageSender):
 
             async def send_hello_message(context: ContextTypes.DEFAULT_TYPE) -> None:
                 await context.bot.send_message(chat_id=chat_id,
-                                               text="The Balrog raises from the abyss...",
+                                               text="Balrog raises from the abyss...",
                                                )
 
             app.job_queue.run_once(send_hello_message, 5)
@@ -106,21 +106,46 @@ class BalrogTelegramBot(MessageSender):
     # Raw send text and img functions
 
     def send_text(self, message: str) -> None:
-        self.telegram_endpoint.bot.send_message(
-            chat_id=self.CHAT_ID,
-            text=message
-        )
+        bot = self
+
+        async def _send_text() -> None:
+            nonlocal bot
+            bot.telegram_endpoint.bot.send_message(
+                chat_id=bot.CHAT_ID,
+                text=message
+            ),
+        asyncio.run_coroutine_threadsafe(_send_text(), self.message_loop)
+
+        # self.telegram_endpoint.bot.send_message(
+        #     chat_id=self.CHAT_ID,
+        #     text=message
+        # )
 
     def send_img(self, img: MatLike, caption: str, force_send: bool = False) -> None:
-        if not force_send and self.muted_images:
-            return
-        with TemporaryDirectory() as tmp_dir:
-            cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
-            self.telegram_endpoint.bot.send_photo(
-                chat_id=self.CHAT_ID,
-                photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'),
-                caption=caption
-            )
+        bot = self
+
+        async def _send_img() -> None:
+            nonlocal img, caption, force_send
+            if not force_send and bot.muted_images:
+                return
+            with TemporaryDirectory() as tmp_dir:
+                cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
+                bot.telegram_endpoint.bot.send_photo(
+                    chat_id=bot.CHAT_ID,
+                    photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'),
+                    caption=caption
+                )
+        asyncio.run_coroutine_threadsafe(_send_img(), self.message_loop)
+
+        # if not force_send and self.muted_images:
+        #     return
+        # with TemporaryDirectory() as tmp_dir:
+        #     cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
+        #     self.telegram_endpoint.bot.send_photo(
+        #         chat_id=self.CHAT_ID,
+        #         photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'),
+        #         caption=caption
+        #     )
 
     def _get_help_cmd_callback(self) -> TelegramCallbackType:
         bot = self
