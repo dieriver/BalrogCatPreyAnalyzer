@@ -50,7 +50,7 @@ class BalrogTelegramBot(MessageSender):
 
         self._populate_supported_commands(pets_data, devices_data)
         self._populate_command_aliases()
-        self.is_ongoing_let_in: bool = False
+        self._is_ongoing_let_in: bool = False
 
         # Add all commands to handler
         handlers = []
@@ -58,6 +58,14 @@ class BalrogTelegramBot(MessageSender):
             logger.info(f"Registering command '{command}'")
             handlers.append(CommandHandler(command, self.commands[command]))
         self.telegram_endpoint.add_handlers(handlers)
+
+    @property
+    def is_ongoing_let_in(self) -> bool:
+        return self._is_ongoing_let_in
+
+    @is_ongoing_let_in.setter
+    def is_ongoing_let_in(self, new_val: bool) -> None:
+        self._is_ongoing_let_in = new_val
 
     def _populate_command_aliases(self):
         for command in command_aliases_config.aliases_map:
@@ -228,6 +236,7 @@ class BalrogTelegramBot(MessageSender):
         seconds = flap_config.let_in_open_seconds
 
         async def _let_in_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+            nonlocal bot
             if bot.is_ongoing_let_in:
                 await update.message.reply_text(f"Oops... There is already a 'letin' command in execution. Ignoring...")
                 return
@@ -237,8 +246,8 @@ class BalrogTelegramBot(MessageSender):
             result = await bot.flap_handler.unlock_flap_for_let_in()
             await open_msg.reply_text(result)
 
-            async def _finish_let_in():
-                nonlocal bot, update, context
+            async def _finish_let_in(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+                nonlocal bot, update
                 lock_msg = await update.message.reply_text(f"Locking door after {seconds}s...")
                 result_lock = await bot.flap_handler.finish_letin()
                 await lock_msg.reply_text(result_lock)
@@ -307,7 +316,7 @@ class BalrogTelegramBot(MessageSender):
                                                       f"for the next {timeout} minutes")
             bot.muted_images = True
 
-            async def _finish_mute() -> None:
+            async def _finish_mute(ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 nonlocal bot, new_msg
                 bot.muted_images = False
                 await new_msg.reply_text("Restarting Balrog image notifications")
