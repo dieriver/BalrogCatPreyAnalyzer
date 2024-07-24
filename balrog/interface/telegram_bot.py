@@ -1,7 +1,7 @@
 import asyncio
 import os
 from tempfile import TemporaryDirectory
-from threading import Event, Thread
+from threading import Event
 from typing import Any, Callable, Dict, TypeVar, Coroutine
 
 import cv2
@@ -30,17 +30,15 @@ class BalrogTelegramBot(MessageSender):
         self.stop_event = stop_event
         self.CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
         self.BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-        self.sender_thread = Thread(target=self._launch_polling)
-        self.telegram_endpoint = Application.builder().token(self.BOT_TOKEN).build()
+        self.telegram_endpoint = (Application.builder()
+                                             .token(self.BOT_TOKEN)
+                                             .post_init(self._get_hello_callback())
+                                             .build())
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, TelegramCallbackType] = dict()
         coro_loop = asyncio.get_event_loop()
         pets_data = coro_loop.run_until_complete(self.flap_handler.get_pets_data())
         devices_data = coro_loop.run_until_complete(self.flap_handler.get_devices_data())
-        # Since asyncio closes the event loop, we need to re-open it for the polling
-
-        self.event_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.event_loop)
 
         self._populate_supported_commands(pets_data, devices_data)
         self._populate_command_aliases()
@@ -86,24 +84,31 @@ class BalrogTelegramBot(MessageSender):
     # Telegram thread supporter functions
     def start(self) -> None:
         # Start the polling stuff. this locks the current thread
-        self.sender_thread.start()
-
-    def _launch_polling(self):
-        # Since asyncio closes the event loop, we need to re-open it for the polling
-        asyncio.set_event_loop(self.event_loop)
         self.telegram_endpoint.run_polling(allowed_updates=[Update.MESSAGE])
 
     def stop(self) -> None:
-        self.telegram_endpoint.stop()
-        self.sender_thread.join()
+        pass
+
+    def _get_hello_callback(self):
+        chat_id = self.CHAT_ID
+
+        async def _deferred_hello_msg_callback(app: Application) -> None:
+            nonlocal chat_id
+
+            async def send_hello_message(context: ContextTypes.DEFAULT_TYPE) -> None:
+                await context.bot.send_message(chat_id=chat_id,
+                                               text="The Balrog raises from the abyss...",
+                                               )
+
+            app.job_queue.run_once(send_hello_message, 5)
+        return _deferred_hello_msg_callback
 
     # Raw send text and img functions
 
     def send_text(self, message: str) -> None:
         self.telegram_endpoint.bot.send_message(
             chat_id=self.CHAT_ID,
-            text=message,
-            parse_mode=ParseMode.MARKDOWN_V2
+            text=message
         )
 
     def send_img(self, img: MatLike, caption: str, force_send: bool = False) -> None:
@@ -130,6 +135,7 @@ class BalrogTelegramBot(MessageSender):
 
     def _get_clean_cmd_callback(self) -> TelegramCallbackType:
         async def clean_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+            context.job_queue.run_once()
             await update.message.reply_text('Cleaning old logs...')
             removed_paths = Logging.clean_logs()
             await update.message.reply_text(f'Removed: [{*removed_paths,}]')
@@ -187,15 +193,18 @@ class BalrogTelegramBot(MessageSender):
 
         async def _let_in_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if bot.is_ongoing_let_in:
-                await update.message.reply_text(f"Oops... There is already a 'letin' command in execution. Ignoring...")
+                await update.message.reply_text(f"Oops... There is already a 'letin' command in execution. Ignoring...",
+                                                parse_mode=ParseMode.MARKDOWN_V2)
                 return
 
             bot.is_ongoing_let_in = True
             await update.message.reply_text(f"Ok, door is open for {seconds}s...")
-            await bot.flap_handler.unlock_flap_for_let_in()
+            result = await bot.flap_handler.unlock_flap_for_let_in()
+            await update.message.reply_text(result)
             await asyncio.sleep(seconds)
             await update.message.reply_text(f"Locking door after {seconds}s...")
-            await bot.flap_handler.finish_letin()
+            result_b = await bot.flap_handler.finish_letin()
+            await update.message.reply_text(result_b)
             bot.is_ongoing_let_in = False
         return _let_in_callback
 
@@ -265,7 +274,8 @@ class BalrogTelegramBot(MessageSender):
             nonlocal bot
             # Util function used to mute the sending of verdicts
             timeout = general_config.mute_img_send_minutes
-            await update.message.reply_text(f"Muting Balrog image notifications for the next {timeout} minutes")
+            await update.message.reply_text(f"Muting Balrog image notifications for the next {timeout} minutes",
+                                            parse_mode=ParseMode.MARKDOWN_V2)
             bot.muted_images = True
             await asyncio.sleep(60 * timeout)
             bot.muted_images = False

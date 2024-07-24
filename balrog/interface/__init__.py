@@ -16,14 +16,6 @@ class MessageSender(ABC):
         self._mute_images: bool = False
         self.sender_thread: Optional[Thread] = None
 
-    def __enter__(self):
-        # Default implementation does nothing
-        self.start()
-
-    def __exit__(self, exception_type, exception_value, tb):
-        # Default implementation does nothing
-        self.stop()
-
     @classmethod
     def get_message_sender_instance(
             cls,

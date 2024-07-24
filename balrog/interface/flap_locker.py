@@ -1,4 +1,3 @@
-import asyncio
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -125,20 +124,7 @@ class FlapLocker:
     async def unlock_moria_curfew(self) -> str:
         return await self._set_moria_lock_state(LockState.CURFEW_UNLOCKED)
 
-    async def unlock_for_seconds(self, seconds: int) -> None:
-        old_state = await self.get_lock_state()
-        logger.debug(f"Old state = {old_state}")
-        if old_state >= LockState.CURFEW:
-            new_state = LockState.CURFEW_UNLOCKED
-        else:
-            new_state = LockState.LOCKED_IN
-        logger.debug(f"New state = {new_state}")
-        await self._set_moria_lock_state(new_state)
-        await asyncio.sleep(seconds)
-        logger.debug(f"Setting back old state = {old_state}")
-        await self._set_moria_lock_state(old_state)
-
-    async def unlock_flap_for_let_in(self) -> None:
+    async def unlock_flap_for_let_in(self) -> str:
         self.old_state = await self.get_lock_state()
         logger.debug(f"Old state = {self.old_state}")
         if self.old_state >= LockState.CURFEW:
@@ -146,12 +132,12 @@ class FlapLocker:
         else:
             new_state = LockState.LOCKED_IN
         logger.debug(f"New state = {new_state}")
-        await self._set_moria_lock_state(new_state)
+        return await self._set_moria_lock_state(new_state)
 
-    async def finish_letin(self) -> None:
+    async def finish_letin(self) -> str:
         if self.old_state is not None:
             logger.debug(f"Setting back old state = {self.old_state}")
-            await self._set_moria_lock_state(self.old_state)
+            return await self._set_moria_lock_state(self.old_state)
         self.old_state = None
 
     async def switch_pet_location(self, pet_id: int) -> str:

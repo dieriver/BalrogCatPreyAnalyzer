@@ -11,6 +11,7 @@ config_file_path = 'config.toml'
 class GeneralConfigs:
     max_message_sender_threads: int
     max_frame_processor_threads: int
+    max_aggregator_threads: int
     min_aggregation_frames_threshold: int
     max_frame_buffers: int
     local_timezone: str
@@ -70,6 +71,7 @@ def load_general_config() -> GeneralConfigs:
         return GeneralConfigs(
             loaded_bytes["general"]["max_message_sender_threads"],
             loaded_bytes["general"]["max_frame_processor_threads"],
+            loaded_bytes["general"]["max_aggregator_threads"],
             loaded_bytes["general"]["min_aggregation_frames_threshold"],
             loaded_bytes["general"]["max_frame_buffers"],
             loaded_bytes["general"]["local_timezone"],

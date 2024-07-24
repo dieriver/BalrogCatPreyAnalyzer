@@ -52,10 +52,7 @@ class FrameResultAggregator:
         self.face_counter: int = 0
         self.event_objects: list[EventElement] = []
         self.frame_buffers: ImageBuffers = frame_buffers
-
-    def __enter__(self):
-        # We don't do anything here
-        pass
+        self.aggregator_pool = ThreadPoolExecutor(max_workers=general_config.max_aggregator_threads)
 
     @staticmethod
     def _log(level: int, message: str, exception: Exception = None):
@@ -64,8 +61,14 @@ class FrameResultAggregator:
         else:
             logger.log(level, f"Aggregator - {message}")
 
+    def __enter__(self):
+        # We need to submit the process tasks here
+        for _ in range(0, general_config.max_aggregator_threads):
+            self.aggregator_pool.submit(self.aggregator_thread)
+
     def __exit__(self, exception_type, exception_value, tb):
         self.verdict_sender_pool.shutdown(wait=False, cancel_futures=True)
+        self.aggregator_pool.shutdown(wait=False, cancel_futures=True)
         if exception_type is not None:
             FrameResultAggregator._log(ERROR, f"Something wrong happened in the frame result aggregator thread")
             FrameResultAggregator._log(ERROR, f"Exception type: {repr(exception_type)}")
