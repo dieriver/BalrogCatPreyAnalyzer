@@ -1,9 +1,9 @@
 from dataclasses import dataclass
+from logging import DEBUG
 from typing import Tuple, Optional
 
 import cv2
 from cv2.typing import MatLike
-from logging import DEBUG
 
 from balrog.config import logging_config
 from balrog.processor.cv_helpers import draw_rectangle

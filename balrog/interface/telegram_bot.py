@@ -8,7 +8,6 @@ from typing import Any, Callable, Dict, TypeVar, Coroutine
 import cv2
 from cv2.typing import MatLike
 from telegram import Update
-from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from balrog.config import flap_config, general_config, command_aliases_config
@@ -230,8 +229,7 @@ class BalrogTelegramBot(MessageSender):
 
         async def _let_in_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if bot.is_ongoing_let_in:
-                await update.message.reply_text(f"Oops... There is already a 'letin' command in execution. Ignoring...",
-                                                parse_mode=ParseMode.MARKDOWN_V2)
+                await update.message.reply_text(f"Oops... There is already a 'letin' command in execution. Ignoring...")
                 return
 
             bot.is_ongoing_let_in = True
