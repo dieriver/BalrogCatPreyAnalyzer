@@ -51,7 +51,7 @@ class FlapLocker:
                         f"Since: {corrected_since.strftime(general_config.timestamp_format)}")
         return message
 
-    async def send_device_data(self, device_id: int) -> str:
+    async def get_device_data_str(self, device_id: int) -> str:
         devices: List[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
             if device.id == device_id:

@@ -1,5 +1,6 @@
 import asyncio
 import os
+from enum import Enum, auto
 from tempfile import TemporaryDirectory
 from threading import Event
 from typing import Any, Callable, Dict, TypeVar, Coroutine
@@ -17,6 +18,14 @@ from balrog.utils import Logging, logger
 
 _T = TypeVar("_T")
 TelegramCallbackType = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
+
+
+class _LockMode(Enum):
+    FULL = auto()
+    LOCK_IN = auto()
+    LOCK_OUT = auto()
+    UNLOCK = auto()
+    CURFEW = auto()
 
 
 class BalrogTelegramBot(MessageSender):
@@ -66,10 +75,10 @@ class BalrogTelegramBot(MessageSender):
         self.commands['sendlastcascpic'] = self._get_send_last_casc_pic_cmd_callback()
         self.commands['letin'] = self._get_let_in_callback()
         self.commands['cancelLetin'] = self._get_cancel_let_in_callback()
-        self.commands['lock'] = self._get_lock_moria_callback()
-        self.commands['lockin'] = self._get_lock_moria_in_callback()
-        self.commands['lockout'] = self._get_lock_moria_out_callback()
-        self.commands['unlock'] = self._get_unlock_moria_callback()
+        self.commands['lock'] = self._get_lock_moria_callback_for_status(_LockMode.FULL)
+        self.commands['lockin'] = self._get_lock_moria_callback_for_status(_LockMode.LOCK_IN)
+        self.commands['lockout'] = self._get_lock_moria_callback_for_status(_LockMode.LOCK_OUT)
+        self.commands['unlock'] = self._get_lock_moria_callback_for_status(_LockMode.UNLOCK)
         self.commands['statusPets'] = self._get_status_pets_callback()
         self.commands['mute'] = self._get_mute_notifications_callback()
         # create callbacks for switching the state of pets
@@ -79,7 +88,7 @@ class BalrogTelegramBot(MessageSender):
         for name, device_id in devices_data.items():
             self.commands[f'status{name}'] = self._get_send_device_data_callback(device_id)
         # Not very used commands
-        self.commands['curfew'] = self._get_activate_curfew_callback()
+        self.commands['curfew'] = self._get_lock_moria_callback_for_status(_LockMode.CURFEW)
 
     # Telegram thread supporter functions
     def start(self) -> None:
@@ -160,10 +169,9 @@ class BalrogTelegramBot(MessageSender):
 
     def _get_clean_cmd_callback(self) -> TelegramCallbackType:
         async def clean_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            context.job_queue.run_once()
-            await update.message.reply_text('Cleaning old logs...')
+            new_msg = await update.message.reply_text('Cleaning old logs...')
             removed_paths = Logging.clean_logs()
-            await update.message.reply_text(f'Removed: [{*removed_paths,}]')
+            await new_msg.reply_text(f'Removed: [{*removed_paths,}]')
         return clean_cmd_callback
 
     def _get_restart_cmd_callback(self) -> TelegramCallbackType:
@@ -227,14 +235,18 @@ class BalrogTelegramBot(MessageSender):
                 return
 
             bot.is_ongoing_let_in = True
-            await update.message.reply_text(f"Ok, door is open for {seconds}s...")
+            open_msg = await update.message.reply_text(f"Ok, door is open for {seconds}s...")
             result = await bot.flap_handler.unlock_flap_for_let_in()
-            await update.message.reply_text(result)
-            await asyncio.sleep(seconds)
-            await update.message.reply_text(f"Locking door after {seconds}s...")
-            result_b = await bot.flap_handler.finish_letin()
-            await update.message.reply_text(result_b)
-            bot.is_ongoing_let_in = False
+            await open_msg.reply_text(result)
+
+            async def _finish_let_in():
+                nonlocal bot, update, context
+                lock_msg = await update.message.reply_text(f"Locking door after {seconds}s...")
+                result_lock = await bot.flap_handler.finish_letin()
+                await lock_msg.reply_text(result_lock)
+                bot.is_ongoing_let_in = False
+
+            context.job_queue.run_once(_finish_let_in, seconds)
         return _let_in_callback
 
     def _get_cancel_let_in_callback(self) -> TelegramCallbackType:
@@ -250,42 +262,32 @@ class BalrogTelegramBot(MessageSender):
                 await update.message.reply_text(f"No 'letin' command to cancel")
         return _cancel_let_in_callback
 
-    def _get_lock_moria_callback(self) -> TelegramCallbackType:
-        bot = self
+    def _get_lock_moria_callback_for_status(self, mode: _LockMode):
+        match mode:
+            case _LockMode.FULL:
+                message = "Locking Moria fully..."
+                callback = self.flap_handler.lock_moria
+            case _LockMode.LOCK_IN:
+                message = "Locking Moria for outgoing..."
+                callback = self.flap_handler.lock_moria_in
+            case _LockMode.LOCK_OUT:
+                message = "Locking Moria for incoming..."
+                callback = self.flap_handler.lock_moria_out
+            case _LockMode.UNLOCK:
+                message = "Unlocking Moria..."
+                callback = self.flap_handler.unlock_moria
+            case _LockMode.CURFEW:
+                message = "Activating curfew on Moria..."
+                callback = self.flap_handler.activate_curfew
+            case _:
+                raise RuntimeError(f"Unhandled case for locking mode '{mode}'")
 
         async def _lock_moria(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
-            await update.message.reply_text("Locking Moria...")
-            message = await bot.flap_handler.lock_moria()
-            await update.message.reply_text(message)
+            nonlocal message, callback
+            lock_msg = await update.message.reply_text(message)
+            lock_result = await callback()
+            await lock_msg.reply_text(lock_result)
         return _lock_moria
-
-    def _get_lock_moria_in_callback(self) -> TelegramCallbackType:
-        bot = self
-
-        async def _lock_moria_in(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
-            message = await bot.flap_handler.lock_moria_in()
-            await update.message.reply_text(message)
-        return _lock_moria_in
-
-    def _get_lock_moria_out_callback(self) -> TelegramCallbackType:
-        bot = self
-
-        async def _lock_moria_out(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
-            message = await bot.flap_handler.lock_moria_out()
-            await update.message.reply_text(message)
-        return _lock_moria_out
-
-    def _get_unlock_moria_callback(self) -> TelegramCallbackType:
-        bot = self
-
-        async def _unlock_moria(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
-            message = await bot.flap_handler.unlock_moria()
-            await update.message.reply_text(message)
-        return _unlock_moria
 
     def _get_status_pets_callback(self) -> TelegramCallbackType:
         bot = self
@@ -298,17 +300,20 @@ class BalrogTelegramBot(MessageSender):
 
     def _get_mute_notifications_callback(self) -> TelegramCallbackType:
         bot = self
+        timeout = general_config.mute_img_send_minutes
 
         async def _mute_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
+            nonlocal bot, timeout
             # Util function used to mute the sending of verdicts
-            timeout = general_config.mute_img_send_minutes
-            await update.message.reply_text(f"Muting Balrog image notifications for the next {timeout} minutes",
-                                            parse_mode=ParseMode.MARKDOWN_V2)
+            new_msg = await update.message.reply_text(f"Muting Balrog image notifications "
+                                                      f"for the next {timeout} minutes")
             bot.muted_images = True
-            await asyncio.sleep(60 * timeout)
-            bot.muted_images = False
-            await update.message.reply_text("Restarting Balrog image notifications")
+
+            async def _finish_mute() -> None:
+                nonlocal bot, new_msg
+                bot.muted_images = False
+                await new_msg.reply_text("Restarting Balrog image notifications")
+            context.job_queue.run_once(_finish_mute, 60 * timeout)
         return _mute_notifications
 
     def _get_switch_pet_location_callback(self, pet_id: int) -> TelegramCallbackType:
@@ -316,8 +321,8 @@ class BalrogTelegramBot(MessageSender):
 
         async def _switch_pet_location_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot, pet_id
-            message = await bot.flap_handler.switch_pet_location(pet_id)
-            await update.message.reply_text(message)
+            switch_result = await bot.flap_handler.switch_pet_location(pet_id)
+            await update.message.reply_text(switch_result)
         return _switch_pet_location_callback
 
     def _get_send_device_data_callback(self, device_id: int) -> TelegramCallbackType:
@@ -325,18 +330,9 @@ class BalrogTelegramBot(MessageSender):
 
         async def _send_device_data_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot, device_id
-            message = await bot.flap_handler.send_device_data(device_id)
-            await update.message.reply_text(message)
+            device_result = await bot.flap_handler.get_device_data_str(device_id)
+            await update.message.reply_text(device_result)
         return _send_device_data_callback
-
-    def _get_activate_curfew_callback(self) -> TelegramCallbackType:
-        bot = self
-
-        async def _activate_curfew_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
-            message = await bot.flap_handler.activate_curfew()
-            await update.message.reply_text(message)
-        return _activate_curfew_callback
 
 
 class DebugBot(MessageSender):
