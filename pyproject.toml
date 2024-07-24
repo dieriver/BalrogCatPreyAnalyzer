@@ -13,7 +13,7 @@ dependencies = [
     "matplotlib==3.9.1",
     "opencv-contrib-python-headless==4.10.0.84",
     "protobuf==4.24.2",
-    "python-telegram-bot==13.3",
+    "python-telegram-bot==21.4",
     "tensorflow==2.15.1",
     "surepy>=0.9.0",
     "pytype>=2023.12.18"
