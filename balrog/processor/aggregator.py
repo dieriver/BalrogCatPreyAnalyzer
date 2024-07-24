@@ -3,6 +3,7 @@ import sys
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
+from logging import DEBUG, INFO, WARN, ERROR
 from multiprocessing import Event
 from typing import Tuple, Optional, List
 
@@ -60,15 +61,22 @@ class FrameResultAggregator:
         # We don't do anything here
         pass
 
+    @staticmethod
+    def _log(level: int, message: str, exception: Exception = None):
+        if exception is not None:
+            logger.exception(f"Aggregator - {message}")
+        else:
+            logger.log(level, f"Aggregator - {message}")
+
     def __exit__(self, exception_type, exception_value, tb):
         self.verdict_sender_pool.shutdown(wait=False, cancel_futures=True)
         if exception_type is not None:
-            logger.error(f"Something wrong happened in the frame result aggregator thread")
-            logger.error(f"Exception type: {repr(exception_type)}")
+            FrameResultAggregator._log(ERROR, f"Something wrong happened in the frame result aggregator thread")
+            FrameResultAggregator._log(ERROR, f"Exception type: {repr(exception_type)}")
         if exception_value is not None:
-            logger.error(f"Exception value: {exception_value}")
+            FrameResultAggregator._log(ERROR, f"Exception value: {exception_value}")
         if tb is not None:
-            logger.error(f"Traceback: {traceback.format_tb(tb)}")
+            FrameResultAggregator._log(ERROR, f"Traceback: {traceback.format_tb(tb)}")
             sys.exit(1)
         # We use a "successful" exit code to restart the script
         # This is interpreted as a call to restart the script
@@ -94,18 +102,18 @@ class FrameResultAggregator:
             try:
                 # We check if there are enough frames to work with (according to the config)
                 frames_rdy_for_aggregation = self.frame_buffers.frames_ready_for_aggregation()
-                logger.debug(f"Frames ready for aggregation: {frames_rdy_for_aggregation}")
+                FrameResultAggregator._log(DEBUG, f"Frames ready for aggregation: {frames_rdy_for_aggregation}")
 
                 if frames_rdy_for_aggregation >= general_config.min_aggregation_frames_threshold:
                     # Here we go :)
                     self.aggregate_available_frames(frames_rdy_for_aggregation)
                 else:
                     # We simply wait for new frames to be ready (The camera thread should propulate the deque)
-                    logger.debug(f"Not enough frames ready for aggregation: {frames_rdy_for_aggregation}")
+                    FrameResultAggregator._log(DEBUG, f"Not enough frames ready for aggregation: {frames_rdy_for_aggregation}")
                     time.sleep(3 * 1 / camera_config.camera_fps)
             except Exception as e:
-                logger.exception("Exception in aggregation thread: ", e)
-                logger.info("Cleaning queue since exception")
+                FrameResultAggregator._log(ERROR, "Exception in aggregation thread: ", exception=e)
+                FrameResultAggregator._log(INFO, "Cleaning queue since exception")
                 self.frame_buffers.clear()
 
     def aggregate_available_frames(self, frames_rdy_for_aggregation: int):
@@ -135,12 +143,12 @@ class FrameResultAggregator:
 
             if cascade_obj.face_bool:
                 # If face found add the cumulus points
-                logger.info('**** FACE FOUND! ****')
+                FrameResultAggregator._log(INFO, '**** FACE FOUND! ****')
                 self.face_counter += 1
                 self.cumulus_points += (50 - int(round(100 * cascade_obj.prey_confidence)))
                 self.FACE_FOUND_FLAG = True
 
-            logger.debug(f'CUMULUS: {self.cumulus_points}')
+            # FrameResultAggregator._log(DEBUG, f'CUMULUS: {self.cumulus_points}')
 
             # Check the cumuli points and set flags if necessary
             if self.face_counter > 0 and self.PATIENCE_FLAG:
@@ -155,12 +163,12 @@ class FrameResultAggregator:
             self.event_reset_counter = 0
         else:
             # No cat detected => reset event_counters if necessary
-            logger.info('**** NO CAT FOUND! ****')
+            FrameResultAggregator._log(INFO, '**** NO CAT FOUND! ****')
             self.event_reset_counter += 1
             if self.event_reset_counter >= model_config.event_reset_threshold:
                 # If was True => event now over => clear queue
+                FrameResultAggregator._log(DEBUG, f'--- EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ---')
                 self._process_dont_know_event()
-                logger.debug(f'--- EVENT ENDED: {self.event_reset_counter} > {model_config.event_reset_threshold} ---')
 
         if self.EVENT_FLAG and self.FACE_FOUND_FLAG:
             self.patience_counter += 1
@@ -168,7 +176,7 @@ class FrameResultAggregator:
             self.PATIENCE_FLAG = True
 
     def _process_cat_event(self, image_data: MatLike):
-        logger.info('**** CAT FOUND! ****')
+        FrameResultAggregator._log(INFO, '**** CAT FOUND! ****')
         self.EVENT_FLAG = True
         # Send a message on Telegram to ask what to do
         self.cat_counter += 1
@@ -177,7 +185,7 @@ class FrameResultAggregator:
             send_cat_detected_message(self.bot, image_data)
 
     def _process_no_prey_event(self, verdict_value):
-        logger.info('**** NO PREY DETECTED... YOU CLEAN... ****')
+        FrameResultAggregator._log(INFO, '**** NO PREY DETECTED... YOU CLEAN... ****')
         image, event_str = self._analyze_prey_vals()
         self.verdict_sender_pool.submit(
             send_no_prey_message,
@@ -186,7 +194,7 @@ class FrameResultAggregator:
         self.reset_aggregation_fields()
 
     def _process_prey_event(self, verdict_value):
-        logger.info('**** IT IS A PREY!!!!! ****')
+        FrameResultAggregator._log(INFO, '**** IT IS A PREY!!!!! ****')
         image, event_str = self._analyze_prey_vals()
         self.verdict_sender_pool.submit(
             send_prey_message,
@@ -212,21 +220,23 @@ class FrameResultAggregator:
             min_prey_index, _ = _get_min_prey_tuple(self.event_objects)
 
             if min_prey_index < 0:
-                logger.warning(f"No minimal index & value found in: {[x.prey_confidence for x in self.event_objects]}")
+                FrameResultAggregator._log(WARN, f"No minimal index & value found in: "
+                                                 f"{[x.prey_confidence for x in self.event_objects]}")
                 return None, None
 
             event_str = ''
             face_events = [x for x in self.event_objects if x.face_bool]
             for f_event in face_events:
-                logger.debug('****************')
-                logger.debug(f'Img_Name: {f_event.img_name}')
-                logger.debug(f'PC_Val: {f_event.prey_confidence:.2f}')
-                logger.debug('****************')
+                FrameResultAggregator._log(DEBUG, '****************')
+                FrameResultAggregator._log(DEBUG, f'Img_Name: {f_event.img_name}')
+                FrameResultAggregator._log(DEBUG, f'PC_Val: {f_event.prey_confidence:.2f}')
+                FrameResultAggregator._log(DEBUG, '****************')
                 event_str += f'\n{f_event.img_name} => PC_Val: {f_event.prey_confidence:.2f}'
 
             sender_img = self.event_objects[min_prey_index].output_img
             return sender_img, event_str
-        except Exception:
-            logger.info(f"min_prey_index = {min_prey_index}, event_size = {len(self.event_objects)}")
-            logger.exception('+++ Exception while sending img: ')
+        except Exception as e:
+            FrameResultAggregator._log(INFO, f"min_prey_index = {min_prey_index}, "
+                                             f"event_size = {len(self.event_objects)}")
+            FrameResultAggregator._log(ERROR, '+++ Exception while sending img: ', exception=e)
             return None, None

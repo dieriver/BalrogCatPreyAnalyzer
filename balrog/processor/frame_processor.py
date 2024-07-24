@@ -2,6 +2,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from logging import DEBUG, INFO
 from multiprocessing import Event
 from typing import Optional
 
@@ -54,6 +55,10 @@ class FrameProcessor:
             logger.error(f"Traceback: {''.join(traceback.format_tb(tb))}")
         return True
 
+    @staticmethod
+    def _log(level: int, thread_id: int, message: str):
+        logger.log(level, f"Processor #{thread_id} - {message}")
+
     def feed_to_cascade(self, target_img: MatLike, img_name: str, thread_id: int = -1, frame_index: int = -1) -> tuple[float, EventElement]:
         target_event_obj = EventElement(raw_image=target_img, img_name=img_name)
 
@@ -64,7 +69,7 @@ class FrameProcessor:
             frame_index=frame_index
         )
         total_runtime = time.time() - start_time
-        logger.debug(f'Thread {thread_id} - Total Runtime: {total_runtime}')
+        FrameProcessor._log(DEBUG, thread_id, f'Total Runtime: {total_runtime}')
 
         return total_runtime, target_event_obj
 
@@ -78,11 +83,12 @@ class FrameProcessor:
 
                 if next_frame_index < 0 or next_frame_copy is None:
                     # We couldn't acquire the lock of a frame to compute the cascade; pass
-                    logger.debug(f"Could not get nex_frame_index: {next_frame_index}")
+                    FrameProcessor._log(DEBUG, thread_id, f"Could not get next_frame_index: {next_frame_index}, "
+                                                          f"next_frame: {next_frame_copy}")
                     time.sleep(3 * 1 / camera_config.camera_fps)
                     raise _BreakException()
 
-                logger.debug(f'Thread {thread_id} - Index for cascade: {next_frame_index}')
+                FrameProcessor._log(DEBUG, thread_id, f'Index for cascade: {next_frame_index}')
 
                 total_runtime, cascade_obj = self.feed_to_cascade(
                     target_img=next_frame_copy.img_data,
@@ -91,9 +97,9 @@ class FrameProcessor:
                     frame_index=next_frame_index
                 )
                 overhead = datetime.now(pytz.timezone(general_config.local_timezone)) - next_frame_copy.timestamp
-                logger.debug(f'Thread {thread_id} - Overhead: {overhead.total_seconds()}')
+                # FrameProcessor._log(DEBUG, thread_id, f'Overhead: {overhead.total_seconds()}')
 
-                logger.debug(f"Thread {thread_id} - Writing cascade result of buffer # = {next_frame_index}")
+                FrameProcessor._log(DEBUG, thread_id, f"Writing cascade result of buffer # {next_frame_index}")
                 self.frame_buffers.write_cascade_data(
                     next_frame_index,
                     cascade_obj,
@@ -111,7 +117,7 @@ class FrameProcessor:
                         next_frame_copy.img_data
                     )
                 logger.exception(f"Thread {thread_id} - Exception in processing thread:")
-                logger.info(f"Thread {thread_id} - Cleaning queue since exception")
+                FrameProcessor._log(INFO, thread_id, "Cleaning queue since exception")
                 self.frame_buffers.clear()
             finally:
                 next_frame_index = -1
@@ -124,5 +130,5 @@ class FrameProcessor:
             target_img = cv2.imread(str(resource.resolve()))
         cascade_obj = self.feed_to_cascade(target_img=target_img, img_name=target_img_name)[1]
         current_time = time.time()
-        logger.debug(f'Debug cascade runtime: {current_time - start_time}')
+        FrameProcessor._log(DEBUG, -1, f'Debug cascade runtime: {current_time - start_time}')
         return cascade_obj

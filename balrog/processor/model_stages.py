@@ -146,7 +146,7 @@ class HaarStage:
 
     def haar_do(self, sub_img: MatLike, full_img: MatLike, prev_box: Box) -> Tuple[bool, Box, float]:
         face_found, face_found_box, inference_time,  = self._haar_predict(sub_img)
-        logger.debug('Haar_time: ' + str('%.2f' % inference_time))
+        # logger.debug('Haar_time: ' + str('%.2f' % inference_time))
 
         face_box = face_found_box[:]
 

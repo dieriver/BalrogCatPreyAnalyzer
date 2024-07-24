@@ -3,12 +3,20 @@ from typing import Tuple, Optional
 
 import cv2
 from cv2.typing import MatLike
+from logging import DEBUG
 
 from balrog.config import logging_config
 from balrog.processor.cv_helpers import draw_rectangle
 from balrog.processor.model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
 from balrog.types import Box
 from balrog.utils import logger
+
+
+def _log(level: int, message: str, exception: Exception | None = None) -> None:
+    if exception is not None:
+        logger.exception(message)
+    elif logging_config.enable_cascade_logging:
+        logger.log(level, message)
 
 
 @dataclass
@@ -113,13 +121,6 @@ class Cascade:
         self.eyes_stage = EyeStage()
         self.haar_stage = HaarStage()
 
-    @staticmethod
-    def _log(message: str, exception: Exception | None = None) -> None:
-        if exception is not None:
-            logger.exception(message)
-        elif logging_config.enable_cascade_logging:
-            logger.debug(message)
-
     def do_single_cascade(self, event_img_object: EventElement, thread_id: int, frame_index: int) -> None:
         logger.info(f"Thread {thread_id} - Processing index: '{frame_index}', "
                     f"img_data: {'ABSENT' if event_img_object.raw_image is None else 'Present' }, "
@@ -134,7 +135,7 @@ class Cascade:
         pet_present, pet_box, pet_detected_sub_img, cc_inference_time = _do_cc_mobile_stage(
             cc_mobile_stage=self.cc_mobile_stage, cc_target_img=copy_img_for_cascade
         )
-        logger.debug(f'Thread {thread_id} - CASCADE - CC compute Time: {cc_inference_time}')
+        _log(DEBUG, f'Thread {thread_id} - CASCADE - CC compute Time: {cc_inference_time}')
         event_img_object.pet_present = pet_present
         event_img_object.pet_box = pet_box
         event_img_object.pet_detected_sub_img = pet_detected_sub_img
@@ -142,7 +143,7 @@ class Cascade:
         event_img_object.total_inference_time += cc_inference_time
 
         if pet_present and pet_detected_sub_img.size != 0:
-            logger.debug(f'Thread {thread_id} - CASCADE - Cat Detected!')
+            _log(DEBUG, f'Thread {thread_id} - CASCADE - Cat Detected!')
             rec_img = draw_rectangle(
                 img=original_copy_img,
                 box=pet_box,
@@ -206,15 +207,15 @@ class Cascade:
 
             if detected_face:
                 rec_img = draw_rectangle(img=rec_img, box=detected_face_box, color=(255, 255, 255), text='INF_Pred')
-                Cascade._log(f'Thread {thread_id} - CASCADE - Face Detected!')
+                _log(DEBUG, f'Thread {thread_id} - CASCADE - Face Detected!')
 
                 # Do PC - Check if there is a prey in the crop image under analysis
                 pred_class, pred_val, pc_inference_time = _do_pc_stage(
                     pc_stage=self.pc_stage,
                     pc_target_img=cropped_img
                 )
-                Cascade._log(f'Thread {thread_id} -  CASCADE - Prey Prediction: {pred_class}')
-                Cascade._log(f'Thread {thread_id} - CASCADE - Pred_Val: {pred_val:.2f}')
+                _log(DEBUG, f'Thread {thread_id} -  CASCADE - Prey Prediction: {pred_class}')
+                _log(DEBUG, f'Thread {thread_id} - CASCADE - Pred_Val: {pred_val:.2f}')
                 pc_str = f' Prey: {pred_class} @ {pred_val:.2f}'
                 color = (0, 0, 255) if pred_class else (0, 255, 0)
                 rec_img = _write_text_on_img(img=rec_img, text=pc_str, text_pos=(15, 100), color=color)
@@ -225,12 +226,12 @@ class Cascade:
                 event_img_object.total_inference_time += pc_inference_time
 
             else:
-                Cascade._log(f'Thread {thread_id} - CASCADE - No Face Found...')
+                _log(DEBUG, f'Thread {thread_id} - CASCADE - No Face Found...')
                 ff_str = 'No_Face'
                 rec_img = _write_text_on_img(img=rec_img, text=ff_str, text_pos=(15, 100), color=(255, 255, 0))
 
         else:
-            Cascade._log(f'Thread {thread_id} - CASCADE - No Cat Found...')
+            _log(DEBUG, f'Thread {thread_id} - CASCADE - No Cat Found...')
             rec_img = _write_text_on_img(
                 img=original_copy_img,
                 text='CC_Pred: NoCat',
@@ -246,5 +247,5 @@ class Cascade:
         cc_area = abs(cc_box[0][0] - cc_box[1][0]) * abs(cc_box[0][1] - cc_box[1][1])
         haar_area = abs(haar_box[0][0] - haar_box[1][0]) * abs(haar_box[0][1] - haar_box[1][1])
         overlap = haar_area / cc_area
-        Cascade._log(f'Thread {thread_id} - CASCADE - Overlap: {overlap}')
+        _log(DEBUG, f'Thread {thread_id} - CASCADE - Overlap: {overlap}')
         return overlap

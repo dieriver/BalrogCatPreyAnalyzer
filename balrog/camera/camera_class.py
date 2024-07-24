@@ -27,7 +27,7 @@ class ICamera(abc.ABC):
         self.camera_thread.start()
 
     def __exit__(self, exception_type, exception_value, traceback):
-        logger.warning("Stopping camera thread")
+        logger.warning("Camera - Stopping camera thread")
         # We set the terminate flag and wait for the thread to terminate gracefully
         if not self.stop_event.is_set():
             self.stop_event.set()
@@ -50,10 +50,10 @@ class ICamera(abc.ABC):
     def _write_frame_to_buffer(self, frame_data: MatLike) -> bool:
         index = self.frame_buffers.get_next_index_for_frame()
         if index < 0:
-            logger.warning("Could not find a buffer ready to write an image, discarding the frame")
+            logger.warning("Camera - Could not find a buffer ready to write an image, discarding the frame")
             return False
 
-        logger.debug(f"Writing frame to buffer # {index}")
+        logger.debug(f"Camera - Writing frame to buffer # {index}")
         next_buffer = self.frame_buffers[index]
         next_buffer.write_capture_data(frame_data, datetime.now(pytz.timezone(general_config.local_timezone)))
         self.frame_buffers.mark_position_ready_for_cascade(index)
@@ -79,7 +79,7 @@ class DbgCamera(ICamera):
             time.sleep(1 / self.frame_rate)
 
             if self.stop_event.is_set():
-                logger.warning("Terminating debug camera thread")
+                logger.warning("Camera - Terminating debug camera thread")
                 return
 
 
@@ -108,15 +108,15 @@ class Camera(ICamera):
                 i += 1
                 time.sleep(1 / self.frame_rate)
                 if 0 < self.cleanup_threshold <= i:
-                    logger.info("Camera captures max configured frames; cleaning up and restarting")
+                    logger.info("Camera - Captured max configured frames; cleaning up and restarting")
                     camera.release()
                     del camera
                     break
 
                 if self.stop_event.is_set():
-                    logger.warning("Terminating camera thread - break A")
+                    logger.warning("Camere - Terminating camera thread - break A")
                     break
 
             if self.stop_event.is_set():
-                logger.warning("Terminating camera thread - break B")
+                logger.warning("Camera - Terminating camera thread - break B")
                 return
