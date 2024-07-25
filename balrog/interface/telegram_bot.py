@@ -77,7 +77,7 @@ class BalrogTelegramBot(MessageSender):
         self.commands['help'] = self._get_help_cmd_callback()
         self.commands['clean'] = self._get_clean_cmd_callback()
         self.commands['restart'] = self._get_restart_cmd_callback()
-        self.commands['balrogStatus'] = self._get_node_status_cmd_callback()
+        self.commands['statusBalrog'] = self._get_node_status_cmd_callback()
         self.commands['sendlivepic'] = self._get_send_live_pic_cmd_callback()
         self.commands['sendlastcascpic'] = self._get_send_last_casc_pic_cmd_callback()
         self.commands['letin'] = self._get_let_in_callback()
