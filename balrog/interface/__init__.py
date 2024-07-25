@@ -99,6 +99,8 @@ class MessageSender(ABC):
 
     @property
     def queue_avg_delay(self):
+        if len(self._last_delays) == 0:
+            return None
         return float(sum(self._last_delays)) / float(len(self._last_delays))
 
     def add_delay(self, val: float) -> None:
