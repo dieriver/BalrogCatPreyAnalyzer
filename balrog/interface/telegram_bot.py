@@ -3,7 +3,7 @@ import os
 from enum import Enum, auto
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, Callable, Dict, TypeVar, Coroutine
+from typing import Any, Callable, Dict, Coroutine
 
 import cv2
 from cv2.typing import MatLike
@@ -15,8 +15,7 @@ from balrog.interface import MessageSender
 from balrog.interface.flap_locker import FlapLocker
 from balrog.utils import Logging, logger
 
-_T = TypeVar("_T")
-TelegramCallbackType = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
+_TelegramCallbackType = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
 
 
 class _LockMode(Enum):
@@ -43,7 +42,7 @@ class BalrogTelegramBot(MessageSender):
                                              .post_init(self._get_hello_callback())
                                              .build())
         self.flap_handler = FlapLocker()
-        self.commands: Dict[str, TelegramCallbackType] = dict()
+        self.commands: Dict[str, _TelegramCallbackType] = dict()
         self.message_loop = asyncio.get_event_loop()
         pets_data = self.message_loop.run_until_complete(self.flap_handler.get_pets_data())
         devices_data = self.message_loop.run_until_complete(self.flap_handler.get_devices_data())
@@ -124,46 +123,31 @@ class BalrogTelegramBot(MessageSender):
     def send_text(self, message: str) -> None:
         bot = self
 
-        async def _send_text() -> None:
+        async def _send_text(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
-            bot.telegram_endpoint.bot.send_message(
+            await ctx.bot.send_message(
                 chat_id=bot.CHAT_ID,
                 text=message
             ),
-        asyncio.run_coroutine_threadsafe(_send_text(), self.message_loop)
-
-        # self.telegram_endpoint.bot.send_message(
-        #     chat_id=self.CHAT_ID,
-        #     text=message
-        # )
+        self.telegram_endpoint.job_queue.run_once(_send_text, 0.0)
 
     def send_img(self, img: MatLike, caption: str, force_send: bool = False) -> None:
         bot = self
 
-        async def _send_img() -> None:
+        async def _send_img(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal img, caption, force_send
             if not force_send and bot.muted_images:
                 return
             with TemporaryDirectory() as tmp_dir:
                 cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
-                bot.telegram_endpoint.bot.send_photo(
+                await ctx.bot.send_photo(
                     chat_id=bot.CHAT_ID,
                     photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'),
                     caption=caption
                 )
-        asyncio.run_coroutine_threadsafe(_send_img(), self.message_loop)
+        self.telegram_endpoint.job_queue.run_once(_send_img, 0.0)
 
-        # if not force_send and self.muted_images:
-        #     return
-        # with TemporaryDirectory() as tmp_dir:
-        #     cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
-        #     self.telegram_endpoint.bot.send_photo(
-        #         chat_id=self.CHAT_ID,
-        #         photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'),
-        #         caption=caption
-        #     )
-
-    def _get_help_cmd_callback(self) -> TelegramCallbackType:
+    def _get_help_cmd_callback(self) -> _TelegramCallbackType:
         bot = self
 
         async def help_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -174,14 +158,14 @@ class BalrogTelegramBot(MessageSender):
             await update.message.reply_text(bot_message)
         return help_cmd_callback
 
-    def _get_clean_cmd_callback(self) -> TelegramCallbackType:
+    def _get_clean_cmd_callback(self) -> _TelegramCallbackType:
         async def clean_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             new_msg = await update.message.reply_text('Cleaning old logs...')
             removed_paths = Logging.clean_logs()
             await new_msg.reply_text(f'Removed: [{*removed_paths,}]')
         return clean_cmd_callback
 
-    def _get_restart_cmd_callback(self) -> TelegramCallbackType:
+    def _get_restart_cmd_callback(self) -> _TelegramCallbackType:
         bot = self
 
         async def _restart_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -191,7 +175,7 @@ class BalrogTelegramBot(MessageSender):
             bot.stop_event.set()
         return _restart_cmd_callback
 
-    def _get_node_status_cmd_callback(self) -> TelegramCallbackType:
+    def _get_node_status_cmd_callback(self) -> _TelegramCallbackType:
         bot = self
 
         async def _node_status_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -205,7 +189,7 @@ class BalrogTelegramBot(MessageSender):
             await update.message.reply_text(bot_message)
         return _node_status_cmd_callback
 
-    def _get_send_live_pic_cmd_callback(self) -> TelegramCallbackType:
+    def _get_send_live_pic_cmd_callback(self) -> _TelegramCallbackType:
         bot = self
 
         async def _send_live_pic_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -219,7 +203,7 @@ class BalrogTelegramBot(MessageSender):
                 await update.message.reply_text('No img available yet...')
         return _send_live_pic_cmd_callback
 
-    def _get_send_last_casc_pic_cmd_callback(self) -> TelegramCallbackType:
+    def _get_send_last_casc_pic_cmd_callback(self) -> _TelegramCallbackType:
         bot = self
 
         async def _send_last_casc_pic_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -233,7 +217,7 @@ class BalrogTelegramBot(MessageSender):
                 await update.message.reply_text('No casc img available yet...')
         return _send_last_casc_pic_cmd_callback
 
-    def _get_let_in_callback(self) -> TelegramCallbackType:
+    def _get_let_in_callback(self) -> _TelegramCallbackType:
         bot = self
         seconds = flap_config.let_in_open_seconds
 
@@ -258,7 +242,7 @@ class BalrogTelegramBot(MessageSender):
             context.job_queue.run_once(_finish_let_in, seconds)
         return _let_in_callback
 
-    def _get_cancel_let_in_callback(self) -> TelegramCallbackType:
+    def _get_cancel_let_in_callback(self) -> _TelegramCallbackType:
         bot = self
 
         async def _cancel_let_in_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -298,7 +282,7 @@ class BalrogTelegramBot(MessageSender):
             await lock_msg.reply_text(lock_result)
         return _lock_moria
 
-    def _get_status_pets_callback(self) -> TelegramCallbackType:
+    def _get_status_pets_callback(self) -> _TelegramCallbackType:
         bot = self
 
         async def _send_pets_data_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -307,7 +291,7 @@ class BalrogTelegramBot(MessageSender):
             await update.message.reply_text(message)
         return _send_pets_data_callback
 
-    def _get_mute_notifications_callback(self) -> TelegramCallbackType:
+    def _get_mute_notifications_callback(self) -> _TelegramCallbackType:
         bot = self
         timeout = general_config.mute_img_send_minutes
 
@@ -325,7 +309,7 @@ class BalrogTelegramBot(MessageSender):
             context.job_queue.run_once(_finish_mute, 60 * timeout)
         return _mute_notifications
 
-    def _get_switch_pet_location_callback(self, pet_id: int) -> TelegramCallbackType:
+    def _get_switch_pet_location_callback(self, pet_id: int) -> _TelegramCallbackType:
         bot = self
 
         async def _switch_pet_location_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -334,7 +318,7 @@ class BalrogTelegramBot(MessageSender):
             await update.message.reply_text(switch_result)
         return _switch_pet_location_callback
 
-    def _get_send_device_data_callback(self, device_id: int) -> TelegramCallbackType:
+    def _get_send_device_data_callback(self, device_id: int) -> _TelegramCallbackType:
         bot = self
 
         async def _send_device_data_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
