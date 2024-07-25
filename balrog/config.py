@@ -27,6 +27,7 @@ class LoggingConfigs:
     stdout_debug_level: int
     enable_cascade_logging: bool
     enable_circular_buffer_logging: bool
+    enable_camera_logging: bool
     max_log_file_size_mb: int
     max_log_files_kept: int
     log_dbg_img_folder: str
@@ -92,6 +93,7 @@ def load_logging_config() -> LoggingConfigs:
             logging.getLevelName(loaded_bytes["logging"]["stdout_debug_level"]),
             loaded_bytes["logging"]["enable_cascade_logging"],
             loaded_bytes["logging"]["enable_circular_buffer_logging"],
+            loaded_bytes["logging"]["enable_camera_logging"],
             loaded_bytes["logging"]["max_log_file_size_mb"],
             loaded_bytes["logging"]["max_log_files_kept"],
             f'{loaded_bytes["logging"]["log_base_folder"]}/dbg-images',

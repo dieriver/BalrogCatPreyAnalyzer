@@ -15,6 +15,7 @@ log_dbg_file_name = "cat_logger-dbg.log"
 stdout_debug_level = "INFO"
 enable_cascade_logging = false
 enable_circular_buffer_logging = false
+enable_camera_logging = false
 max_log_file_size_mb = 500
 max_log_files_kept = 2
 
