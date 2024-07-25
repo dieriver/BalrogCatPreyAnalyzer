@@ -78,10 +78,7 @@ class FrameResultAggregator:
             FrameResultAggregator._log(ERROR, f"Exception value: {exception_value}")
         if tb is not None:
             FrameResultAggregator._log(ERROR, f"Traceback: {traceback.format_tb(tb)}")
-            sys.exit(1)
-        # We use a "successful" exit code to restart the script
-        # This is interpreted as a call to restart the script
-        sys.exit(0)
+        return True
 
     def reset_aggregation_fields(self):
         # TODO - Do not rely on this "static" state that needs to be reset every time we reach a verdict
@@ -102,37 +99,40 @@ class FrameResultAggregator:
         while not self.stop_event.is_set():
             try:
                 # We check if there are enough frames to work with (according to the config)
-                frames_rdy_for_aggregation = self.frame_buffers.frames_ready_for_aggregation()
-                FrameResultAggregator._log(DEBUG, f"Frames ready for aggregation: {frames_rdy_for_aggregation}")
+                rdy_for_img, rdy_for_casc, rdy_for_agg = self.frame_buffers.get_frames_totals()
+                FrameResultAggregator._log(DEBUG, f"Frames ready for aggregation: {rdy_for_agg}")
 
-                if frames_rdy_for_aggregation >= general_config.min_aggregation_frames_threshold:
+                if rdy_for_agg >= general_config.min_aggregation_frames_threshold:
                     # Here we go :)
-                    self.aggregate_available_frames(frames_rdy_for_aggregation)
+                    self.aggregate_available_frames(rdy_for_img, rdy_for_casc, rdy_for_agg)
                 else:
                     # We simply wait for new frames to be ready (The camera thread should propulate the deque)
-                    FrameResultAggregator._log(DEBUG, f"Not enough frames ready for aggregation: {frames_rdy_for_aggregation}")
+                    FrameResultAggregator._log(DEBUG, f"Not enough frames ready for aggregation: {rdy_for_agg}")
                     time.sleep(3 * 1 / camera_config.camera_fps)
             except Exception as e:
                 FrameResultAggregator._log(ERROR, "Exception in aggregation thread: ", exception=e)
                 FrameResultAggregator._log(INFO, "Cleaning queue since exception")
                 self.frame_buffers.clear()
 
-    def aggregate_available_frames(self, frames_rdy_for_aggregation: int):
+    def aggregate_available_frames(self, rdy_for_img: int, rdy_for_casc: int, rdy_for_agg: int):
         # We get the last buffer, and extract its data
         next_frame_index, next_frame = self.frame_buffers.get_next_index_for_aggregation()
         if next_frame_index < 0 or next_frame is None:
             return
 
         cascade_obj: EventElement = next_frame.event_element
-        overhead: float = next_frame.overhead
+        cascade_time: float = next_frame.cascade_time
         image_data: MatLike = next_frame.img_data
 
         # Add this such that the bot has some info
         current_time = datetime.now(pytz.timezone(general_config.local_timezone))
         frame_roundtrip_delay = (current_time - next_frame.timestamp).total_seconds()
-        self.bot.node_queue_info = frames_rdy_for_aggregation
-        self.bot.node_live_img = image_data
-        self.bot.node_over_head_info = overhead
+
+        self.bot.frames_rdy_for_img = rdy_for_img
+        self.bot.frames_rdy_for_cascade = rdy_for_casc
+        self.bot.frames_rdy_for_aggregate = rdy_for_agg
+        self.bot.live_img = image_data
+        self.bot.last_casc_time = cascade_time
         self.bot.add_delay(frame_roundtrip_delay)
 
         if cascade_obj.pet_present:
@@ -143,7 +143,7 @@ class FrameResultAggregator:
             self._process_cat_event(image_data)
 
             # Last cascade pic for bot
-            self.bot.node_last_casc_img = cascade_obj.output_img
+            self.bot.last_casc_img = cascade_obj.output_img
 
             if cascade_obj.face_bool:
                 # If face found add the cumulus points

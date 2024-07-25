@@ -25,7 +25,7 @@ class _CaptureImageData:
 class _CascadeResultData:
     event_element: Optional[EventElement] = None
     total_runtime: Optional[float] = None
-    overhead: Optional[float] = None
+    casc_time: Optional[float] = None
 
 
 class _BufferState(Enum):
@@ -140,8 +140,8 @@ class ImageContainer:
         return self.casc_result_data.total_runtime
 
     @property
-    def overhead(self) -> float:
-        return self.casc_result_data.overhead
+    def cascade_time(self) -> float:
+        return self.casc_result_data.casc_time
 
 
 class ImageBuffers:
@@ -216,6 +216,11 @@ class ImageBuffers:
         with self._indexes_lock:
             return [x.buffer_state.value for x in self._circular_buffer]
 
+    def frames_ready_for_frame(self) -> int:
+        with self._indexes_lock:
+            self._log(f"Ready for frame={self._frames_available_for_cascade}, state={self.get_buffer_states()}")
+            return self._frames_available_for_frame
+
     def frames_ready_for_cascade(self) -> int:
         with self._indexes_lock:
             self._log(f"Ready for cascade={self._frames_available_for_cascade}, state={self.get_buffer_states()}")
@@ -225,6 +230,13 @@ class ImageBuffers:
         with self._indexes_lock:
             self._log(f"Ready for aggr={self._frames_available_for_cascade}, state={self.get_buffer_states()}")
             return self._frames_available_for_aggregation
+
+    def get_frames_totals(self) -> Tuple[int, int, int]:
+        with self._indexes_lock:
+            for_frame = self.frames_ready_for_frame()
+            for_casc = self.frames_ready_for_cascade()
+            for_agg = self.frames_ready_for_aggregation()
+            return for_frame, for_casc, for_agg
 
     def get_next_index_for_frame(self) -> int:
         with self._indexes_lock:
@@ -282,10 +294,10 @@ class ImageBuffers:
                           f"state={self.get_buffer_states()}")
                 return cascade_index, self._circular_buffer[cascade_index].clone()
 
-    def write_cascade_data(self, index: int, event_elem: EventElement, total_time: float, overhead: float) -> None:
+    def write_cascade_data(self, index: int, event_elem: EventElement, total_time: float, last_casc_time: float) -> None:
         with self._indexes_lock:
             if self._circular_buffer[index].buffer_state == _BufferState.IN_CASCADE:
-                self._circular_buffer[index].casc_result_data = _CascadeResultData(event_elem, total_time, overhead)
+                self._circular_buffer[index].casc_result_data = _CascadeResultData(event_elem, total_time, last_casc_time)
                 self._circular_buffer[index].buffer_state = _BufferState.WAITING_AGGREGATION
                 self._frames_available_for_aggregation += 1
                 self._log(f"Casc data - Rdy for agg={self._frames_available_for_aggregation}, "

@@ -1,5 +1,6 @@
 import os
 from os import getenv
+from signal import Signals, signal
 from threading import Event
 
 from balrog.camera import ICamera
@@ -9,6 +10,12 @@ from balrog.processor.aggregator import FrameResultAggregator
 from balrog.processor.frame_processor import FrameProcessor
 from balrog.processor.image_container import ImageBuffers
 from balrog.utils.utils import Logging
+
+
+def signal_handler(sig, frame):
+    message_sender.send_text("Balrog goes back to the abyss... for now...")
+    message_sender.stop()
+
 
 Logging.init_logger(
     stdout_logging_level=logging_config.stdout_debug_level,
@@ -31,6 +38,8 @@ message_sender = MessageSender.get_message_sender_instance(
 )
 frame_processor = FrameProcessor(frame_buffers, stop_event)
 frame_aggregator = FrameResultAggregator(frame_buffers, stop_event, message_sender)
+
+signal(Signals.SIGTERM, signal_handler)
 
 with frame_aggregator, frame_processor, camera:
     message_sender.start()

@@ -52,7 +52,7 @@ class FrameProcessor:
         if exception_value is not None:
             logger.error(f"Exception value: {exception_value}")
         if tb is not None:
-            logger.error(f"Traceback: {''.join(traceback.format_tb(tb))}")
+            logger.error(f"Traceback: {traceback.format_tb(tb)}")
         return True
 
     @staticmethod
@@ -96,15 +96,15 @@ class FrameProcessor:
                     thread_id=thread_id,
                     frame_index=next_frame_index
                 )
-                overhead = datetime.now(pytz.timezone(general_config.local_timezone)) - next_frame_copy.timestamp
-                # FrameProcessor._log(DEBUG, thread_id, f'Overhead: {overhead.total_seconds()}')
+                last_casc_time = datetime.now(pytz.timezone(general_config.local_timezone)) - next_frame_copy.timestamp
+                # FrameProcessor._log(DEBUG, thread_id, f'Overhead: {last_casc_time.total_seconds()}')
 
                 FrameProcessor._log(DEBUG, thread_id, f"Writing cascade result of buffer # {next_frame_index}")
                 self.frame_buffers.write_cascade_data(
                     next_frame_index,
                     cascade_obj,
                     total_runtime,
-                    overhead.total_seconds()
+                    last_casc_time.total_seconds()
                 )
             except _BreakException:
                 pass

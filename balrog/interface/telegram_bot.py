@@ -76,7 +76,7 @@ class BalrogTelegramBot(MessageSender):
         self.commands['help'] = self._get_help_cmd_callback()
         self.commands['clean'] = self._get_clean_cmd_callback()
         self.commands['restart'] = self._get_restart_cmd_callback()
-        self.commands['nodestatus'] = self._get_node_status_cmd_callback()
+        self.commands['balrogStatus'] = self._get_node_status_cmd_callback()
         self.commands['sendlivepic'] = self._get_send_live_pic_cmd_callback()
         self.commands['sendlastcascpic'] = self._get_send_last_casc_pic_cmd_callback()
         self.commands['letin'] = self._get_let_in_callback()
@@ -102,7 +102,9 @@ class BalrogTelegramBot(MessageSender):
         self.telegram_endpoint.run_polling(allowed_updates=[Update.MESSAGE])
 
     def stop(self) -> None:
-        pass
+        async def _stop_polling(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            ctx.application.stop_running()
+        self.telegram_endpoint.job_queue.run_once(_stop_polling, 0.0)
 
     def _get_hello_callback(self):
         chat_id = self.CHAT_ID
@@ -171,7 +173,7 @@ class BalrogTelegramBot(MessageSender):
         async def _restart_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
             await update.message.reply_text('Restarting script...')
-            bot.stop()
+            bot.telegram_endpoint.stop_running()
             bot.stop_event.set()
         return _restart_cmd_callback
 
@@ -180,12 +182,17 @@ class BalrogTelegramBot(MessageSender):
 
         async def _node_status_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
-            if bot.node_queue_info is not None and bot.node_over_head_info is not None:
-                bot_message = (f'Queue length: {bot.node_queue_info}\n'
-                               f'Overhead: {bot.node_over_head_info}s\n'
-                               f'Queue delay: {bot.queue_avg_delay}s')
-            else:
-                bot_message = 'No info yet...'
+            rdy_for_img = str(bot.frames_rdy_for_img) if bot.frames_rdy_for_img is not None else "Unknown"
+            rdy_for_casc = str(bot.frames_rdy_for_cascade) if bot.frames_rdy_for_cascade is not None else "Unknown"
+            rdy_for_agg = str(bot.frames_rdy_for_aggregate) if bot.frames_rdy_for_aggregate is not None else "Unknown"
+            last_casc_time = str(bot.last_casc_time) if bot.last_casc_time is not None else "Unknown"
+            roundtrip_delay = str(bot.queue_avg_delay) if bot.queue_avg_delay is not None else "Unknown"
+
+            bot_message = (f'Frames rdy for image: {rdy_for_img}\n'
+                           f'Frames rdy for cascade: {rdy_for_casc}\n'
+                           f'Frames rdy for aggregation: {rdy_for_agg}\n'
+                           f'Last cascade time: {last_casc_time}s\n'
+                           f'Frame roundtrip delay: {roundtrip_delay}s')
             await update.message.reply_text(bot_message)
         return _node_status_cmd_callback
 
@@ -194,10 +201,10 @@ class BalrogTelegramBot(MessageSender):
 
         async def _send_live_pic_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
-            if bot.node_live_img is not None:
+            if bot.live_img is not None:
                 caption = 'Here it is...'
                 with TemporaryDirectory() as tmp_dir:
-                    cv2.imwrite(f'{tmp_dir}/balrog_send_live_img.jpg', bot.node_live_img)
+                    cv2.imwrite(f'{tmp_dir}/balrog_send_live_img.jpg', bot.live_img)
                     await update.message.reply_photo(f'{tmp_dir}/balrog_send_live_img.jpg', caption)
             else:
                 await update.message.reply_text('No img available yet...')
@@ -208,10 +215,10 @@ class BalrogTelegramBot(MessageSender):
 
         async def _send_last_casc_pic_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
-            if bot.node_last_casc_img is not None:
+            if bot.last_casc_img is not None:
                 caption = 'Last Cascade:'
                 with TemporaryDirectory() as tmp_dir:
-                    cv2.imwrite(f'{tmp_dir}/balrog_send_casc_img.jpg', bot.node_last_casc_img)
+                    cv2.imwrite(f'{tmp_dir}/balrog_send_casc_img.jpg', bot.last_casc_img)
                     await update.message.reply_photo(f'{tmp_dir}/balrog_send_casc_img.jpg', caption)
             else:
                 await update.message.reply_text('No casc img available yet...')

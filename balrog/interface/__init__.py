@@ -12,7 +12,9 @@ class MessageSender(ABC):
         # Data coming and used form unexpected places (other files)
         self._node_live_img: Optional[MatLike] = None
         self._node_last_casc_img: Optional[MatLike] = None
-        self._node_queue_info: Optional[int] = None
+        self._frames_rdy_for_img: Optional[int] = None
+        self._frames_rdy_for_casc: Optional[int] = None
+        self._frames_rdy_for_agg: Optional[int] = None
         self._node_over_head_info: Optional[float] = None
         self._last_delays: Deque[float] = collections.deque(maxlen=20)
         self._mute_images: bool = False
@@ -48,35 +50,51 @@ class MessageSender(ABC):
         pass
 
     @property
-    def node_live_img(self) -> MatLike | None:
+    def live_img(self) -> MatLike | None:
         return self._node_live_img
 
-    @node_live_img.setter
-    def node_live_img(self, node_live_img: MatLike) -> None:
+    @live_img.setter
+    def live_img(self, node_live_img: MatLike) -> None:
         self._node_live_img = node_live_img
 
     @property
-    def node_last_casc_img(self) -> MatLike | None:
+    def last_casc_img(self) -> MatLike | None:
         return self._node_last_casc_img
 
-    @node_last_casc_img.setter
-    def node_last_casc_img(self, node_last_casc_img: MatLike) -> None:
+    @last_casc_img.setter
+    def last_casc_img(self, node_last_casc_img: MatLike) -> None:
         self._node_last_casc_img = node_last_casc_img
 
     @property
-    def node_queue_info(self) -> int | None:
-        return self._node_queue_info
+    def frames_rdy_for_img(self) -> int:
+        return self._frames_rdy_for_img
 
-    @node_queue_info.setter
-    def node_queue_info(self, node_queue_info: int) -> None:
-        self._node_queue_info = node_queue_info
+    @frames_rdy_for_img.setter
+    def frames_rdy_for_img(self, frames_rdy_for_img: int) -> None:
+        self._frames_rdy_for_img = frames_rdy_for_img
 
     @property
-    def node_over_head_info(self):
+    def frames_rdy_for_cascade(self) -> int:
+        return self._frames_rdy_for_casc
+
+    @frames_rdy_for_cascade.setter
+    def frames_rdy_for_cascade(self, frames_rdy_for_cascade: int) -> None:
+        self._frames_rdy_for_casc = frames_rdy_for_cascade
+
+    @property
+    def frames_rdy_for_aggregate(self) -> int | None:
+        return self._frames_rdy_for_agg
+
+    @frames_rdy_for_aggregate.setter
+    def frames_rdy_for_aggregate(self, frames_rdy_for_agg: int) -> None:
+        self._frames_rdy_for_agg = frames_rdy_for_agg
+
+    @property
+    def last_casc_time(self):
         return self._node_over_head_info
 
-    @node_over_head_info.setter
-    def node_over_head_info(self, node_over_head_info: float) -> None:
+    @last_casc_time.setter
+    def last_casc_time(self, node_over_head_info: float) -> None:
         self._node_over_head_info = node_over_head_info
 
     @property
