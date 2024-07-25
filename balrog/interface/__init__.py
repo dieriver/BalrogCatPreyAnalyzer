@@ -55,7 +55,7 @@ class MessageSender(ABC):
 
     @live_img.setter
     def live_img(self, node_live_img: MatLike) -> None:
-        self._node_live_img = node_live_img
+        self._node_live_img = node_live_img.copy()
 
     @property
     def last_casc_img(self) -> MatLike | None:
@@ -63,7 +63,7 @@ class MessageSender(ABC):
 
     @last_casc_img.setter
     def last_casc_img(self, node_last_casc_img: MatLike) -> None:
-        self._node_last_casc_img = node_last_casc_img
+        self._node_last_casc_img = node_last_casc_img.copy()
 
     @property
     def frames_rdy_for_img(self) -> int:

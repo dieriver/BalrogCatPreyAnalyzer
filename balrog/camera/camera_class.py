@@ -49,7 +49,7 @@ class ICamera(abc.ABC):
     @staticmethod
     def _log(level: int, message: str):
         if logging_config.enable_camera_logging:
-            logger.log(level, f"{message}")
+            logger.log(level, f"Camera - {message}")
 
     def _write_frame_to_buffer(self, frame_data: MatLike) -> bool:
         index = self.frame_buffers.get_next_index_for_frame()
@@ -112,8 +112,8 @@ class Camera(ICamera):
                 while camera.isOpened():
                     success, frame = camera.read()
                     frame_written = super()._write_frame_to_buffer(frame)
-                    ICamera._log(DEBUG, f"Status - Captured: {captured_frames}, last_status:{success}")
                     captured_frames += 1
+                    ICamera._log(DEBUG, f"Status - Captured: {captured_frames}, last_status: {success}")
 
                     time.sleep(1 / self.frame_rate)
 
@@ -122,7 +122,7 @@ class Camera(ICamera):
                         # Frame capture was not successful, or it could not be written to the buffer
                         # try again
                         continue
-                    if 0 < self.cleanup_threshold <= captured_frames:
+                    if captured_frames >= self.cleanup_threshold:
                         raise _CleanCameraException()
                     if self.stop_event.is_set():
                         raise _StopCameraException()
