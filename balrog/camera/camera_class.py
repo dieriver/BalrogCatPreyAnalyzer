@@ -48,7 +48,7 @@ class ICamera(abc.ABC):
 
     @staticmethod
     def _log(level: int, message: str):
-        if logging_config.enable:
+        if logging_config.enable_camera_logging:
             logger.log(level, f"{message}")
 
     def _write_frame_to_buffer(self, frame_data: MatLike) -> bool:

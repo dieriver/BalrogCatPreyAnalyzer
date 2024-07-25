@@ -40,6 +40,7 @@ frame_processor = FrameProcessor(frame_buffers, stop_event)
 frame_aggregator = FrameResultAggregator(frame_buffers, stop_event, message_sender)
 
 signal(Signals.SIGTERM, signal_handler)
+signal(Signals.SIGINT, signal_handler)
 
 with frame_aggregator, frame_processor, camera:
     message_sender.start()

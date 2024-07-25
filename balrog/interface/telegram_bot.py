@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 from enum import Enum, auto
 from tempfile import TemporaryDirectory
 from threading import Event
@@ -338,12 +339,14 @@ class BalrogTelegramBot(MessageSender):
 class DebugBot(MessageSender):
     def __init__(self):
         super().__init__()
+        self.stop_event = Event()
 
     def start(self) -> None:
-        pass
+        while not self.stop_event.is_set():
+            time.sleep(1)
 
     def stop(self) -> None:
-        pass
+        self.stop_event.set()
 
     def send_img(self, img: MatLike, caption: str) -> None:
         # Nothing to do here; we simply ignore the invocation
