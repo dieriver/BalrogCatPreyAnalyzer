@@ -2,7 +2,7 @@ import abc
 import os
 import time
 from datetime import datetime
-from logging import DEBUG, INFO, WARN
+from logging import DEBUG, INFO, WARN, ERROR
 from multiprocessing import Event
 from threading import Thread
 
@@ -21,7 +21,7 @@ class ICamera(abc.ABC):
         self.cleanup_threshold: int = cleanup_threshold
         self.frame_buffers: ImageBuffers = frame_buffers
         self.stop_event: Event = stop_event
-        self.camera_thread: Thread = Thread(target=self.fill_queue, args=(), daemon=True)
+        self.camera_thread: Thread = Thread(target=self.fill_queue, args=(), daemon=True, name="Camera")
 
     def __enter__(self):
         self.camera_thread.start()
@@ -47,7 +47,9 @@ class ICamera(abc.ABC):
             return Camera(fps, frame_buffers, stop_event, cleanup_threshold)
 
     @staticmethod
-    def _log(level: int, message: str):
+    def _log(level: int, message: str, exception: Exception = None):
+        if exception is not None:
+            logger.exception(message, exc_info=exception)
         if logging_config.enable_camera_logging:
             logger.log(level, f"Camera - {message}")
 
@@ -131,6 +133,8 @@ class Camera(ICamera):
             except _StopCameraException:
                 ICamera._log(WARN, "Terminating camera thread")
                 return
+            except Exception as e:
+                ICamera._log(ERROR, f'There was an exception in the camera thread!!', e)
             finally:
                 if camera is not None:
                     ICamera._log(DEBUG, f"Releasing camera object")

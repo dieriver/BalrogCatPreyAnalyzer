@@ -35,7 +35,8 @@ class FrameProcessor:
         self.stop_event = stop_event
         self.base_cascade = Cascade()
         self.frame_buffers = frame_buffers
-        self.frame_processor_pool = ThreadPoolExecutor(max_workers=general_config.max_frame_processor_threads)
+        self.frame_processor_pool = ThreadPoolExecutor(max_workers=general_config.max_frame_processor_threads,
+                                                       thread_name_prefix="Frame-Proc")
 
     def __enter__(self):
         # Do this to force run all networks s.t. the network inference time stabilizes

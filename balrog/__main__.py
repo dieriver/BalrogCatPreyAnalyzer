@@ -1,4 +1,5 @@
 import os
+import time
 from os import getenv
 from signal import Signals, signal
 from threading import Event
@@ -14,6 +15,7 @@ from balrog.utils.utils import Logging
 
 def signal_handler(sig, frame):
     message_sender.send_text("Balrog goes back to the abyss... for now...")
+    time.sleep(1)
     message_sender.stop()
 
 

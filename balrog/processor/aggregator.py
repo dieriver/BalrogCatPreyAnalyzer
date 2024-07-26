@@ -41,7 +41,8 @@ class FrameResultAggregator:
     def __init__(self, frame_buffers: ImageBuffers, stop_event: Event, message_sender: MessageSender):
         self.stop_event: Event = stop_event
         self.bot: MessageSender = message_sender
-        self.verdict_sender_pool = ThreadPoolExecutor(max_workers=general_config.max_message_sender_threads)
+        self.verdict_sender_pool = ThreadPoolExecutor(max_workers=general_config.max_message_sender_threads,
+                                                      thread_name_prefix="Verdict")
         # Aggregation fields
         self.EVENT_FLAG: bool = False
         self.PATIENCE_FLAG: bool = False
@@ -54,7 +55,8 @@ class FrameResultAggregator:
         self.face_counter: int = 0
         self.event_objects: list[EventElement] = []
         self.frame_buffers: ImageBuffers = frame_buffers
-        self.aggregator_pool = ThreadPoolExecutor(max_workers=general_config.max_aggregator_threads)
+        self.aggregator_pool = ThreadPoolExecutor(max_workers=general_config.max_aggregator_threads,
+                                                  thread_name_prefix="Aggregator")
 
     @staticmethod
     def _log(level: int, message: str, exception: Exception = None):
