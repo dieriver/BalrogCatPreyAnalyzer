@@ -218,7 +218,7 @@ class ImageBuffers:
 
     def frames_ready_for_frame(self) -> int:
         with self._indexes_lock:
-            self._log(f"Ready for frame={self._frames_available_for_cascade}, state={self.get_buffer_states()}")
+            self._log(f"Ready for frame={self._frames_available_for_frame}, state={self.get_buffer_states()}")
             return self._frames_available_for_frame
 
     def frames_ready_for_cascade(self) -> int:
@@ -228,11 +228,12 @@ class ImageBuffers:
 
     def frames_ready_for_aggregation(self) -> int:
         with self._indexes_lock:
-            self._log(f"Ready for aggr={self._frames_available_for_cascade}, state={self.get_buffer_states()}")
+            self._log(f"Ready for aggr={self._frames_available_for_aggregation}, state={self.get_buffer_states()}")
             return self._frames_available_for_aggregation
 
     def get_frames_totals(self) -> Tuple[int, int, int]:
         with self._indexes_lock:
+            self._log(f"Frames totals:")
             for_frame = self.frames_ready_for_frame()
             for_casc = self.frames_ready_for_cascade()
             for_agg = self.frames_ready_for_aggregation()
@@ -253,7 +254,7 @@ class ImageBuffers:
                 # If they are equal, the circular buffer is full
                 self._log(f"Full - Empty={self._frames_available_for_frame}, buf_state={buffer_state}, "
                           f"state={self.get_buffer_states()}")
-                return -1
+                return -2
             else:
                 # If they are different, we assume the frame is available
                 empty_frame_index = self._first_empty_frame
@@ -267,6 +268,9 @@ class ImageBuffers:
     def write_frame_on_next_available_buffer(self, frame_data: MatLike, timestamp: datetime) -> int:
         with self._indexes_lock:
             next_avail_buffer = self._get_next_index_for_frame()
+            if next_avail_buffer < 0:
+                return next_avail_buffer
+
             next_buffer = self[next_avail_buffer]
             next_buffer.write_capture_data(frame_data, timestamp)
             self.mark_position_ready_for_cascade(next_avail_buffer)
@@ -292,7 +296,7 @@ class ImageBuffers:
                 # There are no available frames for cascade; first unprocessed cascade does not have frame
                 self._log(f"Fail - Empty={self._frames_available_for_cascade}, buf_state={buffer_state}, "
                           f"state={self.get_buffer_states()}")
-                return -1, None
+                return -2, None
             else:
                 cascade_index = self._first_unprocessed_cascade
                 self._circular_buffer[cascade_index].buffer_state = _BufferState.IN_CASCADE
@@ -323,7 +327,7 @@ class ImageBuffers:
             buffer_state = self._circular_buffer[self._last_non_aggregated_frame].buffer_state
             if self._frames_available_for_aggregation <= 0 or buffer_state != _BufferState.WAITING_AGGREGATION:
                 # No frames are available for aggregation; the last non aggregated frame has not gone through cascade
-                return -1, None
+                return -2, None
             else:
                 aggregate_index = self._last_non_aggregated_frame
                 buffer_clone = self._circular_buffer[aggregate_index].clone()
