@@ -106,7 +106,7 @@ class FrameResultAggregator:
 
                 if rdy_for_agg >= general_config.min_aggregation_frames_threshold:
                     # Here we go :)
-                    self.aggregate_available_frames(rdy_for_img, rdy_for_casc, rdy_for_agg)
+                    self.aggregate_next_frame(rdy_for_img, rdy_for_casc, rdy_for_agg)
                 else:
                     # We simply wait for new frames to be ready (The camera thread should propulate the deque)
                     FrameResultAggregator._log(DEBUG, f"Not enough frames ready for aggregation: {rdy_for_agg}")
@@ -116,12 +116,14 @@ class FrameResultAggregator:
                 FrameResultAggregator._log(INFO, "Cleaning queue since exception")
                 self.frame_buffers.clear()
 
-    def aggregate_available_frames(self, rdy_for_img: int, rdy_for_casc: int, rdy_for_agg: int):
+    def aggregate_next_frame(self, rdy_for_img: int, rdy_for_casc: int, rdy_for_agg: int):
         # We get the last buffer, and extract its data
-        next_frame_index, next_frame = self.frame_buffers.get_next_index_for_aggregation()
+        next_frame_index, next_frame = self.frame_buffers.get_next_buffer_for_aggregation()
         if next_frame_index < 0 or next_frame is None:
+            FrameResultAggregator._log(DEBUG, f"No next frame to aggregate: {next_frame_index}, {next_frame}")
             return
 
+        FrameResultAggregator._log(DEBUG, f"Aggregating frame #{next_frame_index}")
         cascade_obj: EventElement = next_frame.event_element
         cascade_time: float = next_frame.cascade_time
         image_data: MatLike = next_frame.img_data
@@ -153,8 +155,6 @@ class FrameResultAggregator:
                 self.face_counter += 1
                 self.cumulus_points += (50 - int(round(100 * cascade_obj.prey_confidence)))
                 self.FACE_FOUND_FLAG = True
-
-            # FrameResultAggregator._log(DEBUG, f'CUMULUS: {self.cumulus_points}')
 
             # Check the cumuli points and set flags if necessary
             if self.face_counter > 0 and self.PATIENCE_FLAG:

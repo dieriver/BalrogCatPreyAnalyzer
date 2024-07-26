@@ -80,7 +80,7 @@ class FrameProcessor:
         while not self.stop_event.is_set():
             try:
                 # Feed the latest image in the Queue through the cascade
-                next_frame_index, next_frame_copy = self.frame_buffers.get_next_index_for_cascade()
+                next_frame_index, next_frame_copy = self.frame_buffers.get_next_buffer_for_cascade()
 
                 if next_frame_index < 0 or next_frame_copy is None:
                     # We couldn't acquire the lock of a frame to compute the cascade; pass

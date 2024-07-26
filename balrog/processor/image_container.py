@@ -238,7 +238,7 @@ class ImageBuffers:
             for_agg = self.frames_ready_for_aggregation()
             return for_frame, for_casc, for_agg
 
-    def get_next_index_for_frame(self) -> int:
+    def _get_next_index_for_frame(self) -> int:
         with self._indexes_lock:
             # Border case: at the start, all indexes are -1
             if self._first_empty_frame < 0:
@@ -264,13 +264,21 @@ class ImageBuffers:
                           f"state={self.get_buffer_states()}")
                 return empty_frame_index
 
+    def write_frame_on_next_available_buffer(self, frame_data: MatLike, timestamp: datetime) -> int:
+        with self._indexes_lock:
+            next_avail_buffer = self._get_next_index_for_frame()
+            next_buffer = self[next_avail_buffer]
+            next_buffer.write_capture_data(frame_data, timestamp)
+            self.mark_position_ready_for_cascade(next_avail_buffer)
+            return next_avail_buffer
+
     def mark_position_ready_for_cascade(self, index: int) -> None:
         with self._indexes_lock:
             self._circular_buffer[index].buffer_state = _BufferState.WAITING_CASCADE
             self._frames_available_for_cascade += 1
             self._log(f"Avail for casc={self._frames_available_for_cascade}, state={self.get_buffer_states()}")
 
-    def get_next_index_for_cascade(self) -> Tuple[int, Optional[ImageContainer]]:
+    def get_next_buffer_for_cascade(self) -> Tuple[int, Optional[ImageContainer]]:
         with self._indexes_lock:
             # Border case: at the start, all indexes are -1
             if self._first_unprocessed_cascade < 0:
@@ -303,7 +311,7 @@ class ImageBuffers:
                 self._log(f"Casc data - Rdy for agg={self._frames_available_for_aggregation}, "
                           f"state={self.get_buffer_states()}")
 
-    def get_next_index_for_aggregation(self) -> Tuple[int, Optional[ImageContainer]]:
+    def get_next_buffer_for_aggregation(self) -> Tuple[int, Optional[ImageContainer]]:
         with self._indexes_lock:
             # Border case: at the start, all indexes are -1
             if self._last_non_aggregated_frame < 0:
@@ -318,7 +326,7 @@ class ImageBuffers:
                 return -1, None
             else:
                 aggregate_index = self._last_non_aggregated_frame
-                buffer_to_return = self._circular_buffer[aggregate_index].clone()
+                buffer_clone = self._circular_buffer[aggregate_index].clone()
                 self._last_non_aggregated_frame = ((self._last_non_aggregated_frame + 1) % len(self._circular_buffer))
                 self._frames_available_for_aggregation -= 1
                 self._log(f"Releasing buffer # {aggregate_index}")
@@ -326,4 +334,4 @@ class ImageBuffers:
                 self._frames_available_for_frame += 1
                 self._log(f"Good - Aggr={self._frames_available_for_aggregation}, returned={aggregate_index}, "
                           f"state={self.get_buffer_states()}")
-                return aggregate_index, buffer_to_return
+                return aggregate_index, buffer_clone

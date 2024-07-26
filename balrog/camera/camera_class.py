@@ -54,16 +54,31 @@ class ICamera(abc.ABC):
             logger.log(level, f"Camera - {message}")
 
     def _write_frame_to_buffer(self, frame_data: MatLike) -> bool:
-        index = self.frame_buffers.get_next_index_for_frame()
+        # Writing the frame to the circular buffer needs to be atomic; Let's assume we get the next
+        # available buffer for a frame:
+        # [AGG, AGG, CASC, CASC, AVAIL, AVAIL]
+        # If we get the next frame: 4 and the release the locks. The camera thread gets preempted
+        # _without writing the data_. In the meantime another thread on cascade (frames 2 or 3) gets
+        # an exception, and cleans the buffer leaving this state:
+        # [AVAIL, AVAIL, AVAIL, AVAIL, AVAIL, AVAIL]
+        # Cascade thread gets preempted, and this one returns to CPU. We still need to write to buffer
+        # number 4:
+        # [AVAIL, AVAIL, AVAIL, AVAIL, RDY_CASC, AVAIL]
+        # Next iterations of this thread will start writing on 0, 1... until 3 (because when cleaning,
+        # the indexes were reset). Then, when trying to write the next frame to buffer 4, then it
+        # encounters that is busy. Due to the invariant, this thread _assumes_ all the buffers are full,
+        # so it discards the recently captured frame, and all the subsequents, leading to a stall
+        # This is fixed by writing the data atomically
+        index = self.frame_buffers.write_frame_on_next_available_buffer(
+            frame_data,
+            datetime.now(pytz.timezone(general_config.local_timezone))
+        )
         if index < 0:
             ICamera._log(WARN, "Could not find a buffer ready to write an image, discarding the frame")
             return False
-
-        ICamera._log(DEBUG, f"Writing frame to buffer # {index}")
-        next_buffer = self.frame_buffers[index]
-        next_buffer.write_capture_data(frame_data, datetime.now(pytz.timezone(general_config.local_timezone)))
-        self.frame_buffers.mark_position_ready_for_cascade(index)
-        return True
+        else:
+            ICamera._log(DEBUG, f"Frame wrote to buffer # {index}")
+            return True
 
     @abc.abstractmethod
     def fill_queue(self) -> None:
@@ -121,9 +136,7 @@ class Camera(ICamera):
 
                     if not success or not frame_written:
                         ICamera._log(DEBUG, f"Frame capture not success or not written")
-                        # Frame capture was not successful, or it could not be written to the buffer
-                        # try again
-                        continue
+
                     if captured_frames >= self.cleanup_threshold:
                         raise _CleanCameraException()
                     if self.stop_event.is_set():
