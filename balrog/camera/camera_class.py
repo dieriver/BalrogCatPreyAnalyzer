@@ -54,6 +54,11 @@ class ICamera(abc.ABC):
             logger.log(level, f"Camera - {message}")
 
     def _write_frame_to_buffer(self, frame_data: MatLike) -> bool:
+        if frame_data is None:
+            # Nothing to write
+            ICamera._log(DEBUG, f"Trying to write a non existing frame: {frame_data}")
+            return False
+
         # Writing the frame to the circular buffer needs to be atomic; Let's assume we get the next
         # available buffer for a frame:
         # [AGG, AGG, CASC, CASC, AVAIL, AVAIL]
@@ -125,19 +130,19 @@ class Camera(ICamera):
         while True:
             try:
                 camera = cv2.VideoCapture(self.stream_url)
-                captured_frames = 0
+                capture_tries = 0
                 while camera.isOpened():
                     success, frame = camera.read()
                     frame_written = super()._write_frame_to_buffer(frame)
-                    captured_frames += 1
-                    ICamera._log(DEBUG, f"Status - Captured: {captured_frames}, last_status: {success}")
-
-                    time.sleep(1 / self.frame_rate)
+                    capture_tries += 1
+                    ICamera._log(DEBUG, f"Status - Captured: {capture_tries}, last_status: {success}")
 
                     if not success or not frame_written:
                         ICamera._log(DEBUG, f"Frame capture not success or not written")
 
-                    if captured_frames >= self.cleanup_threshold:
+                    time.sleep(1 / self.frame_rate)
+
+                    if capture_tries >= self.cleanup_threshold:
                         raise _CleanCameraException()
                     if self.stop_event.is_set():
                         raise _StopCameraException()
