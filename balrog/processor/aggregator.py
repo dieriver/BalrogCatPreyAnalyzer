@@ -3,6 +3,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from dataclasses import replace
 from logging import DEBUG, INFO, WARN, ERROR
 from multiprocessing import Event
 from typing import Tuple, Optional, List
@@ -124,7 +125,7 @@ class FrameResultAggregator:
             return
 
         FrameResultAggregator._log(DEBUG, f"Aggregating frame #{next_frame_index}")
-        cascade_obj: EventElement = next_frame.event_element
+        cascade_obj: EventElement = replace(next_frame.event_element)
         cascade_time: float = next_frame.cascade_time
         image_data: MatLike = next_frame.img_data
 
@@ -246,3 +247,4 @@ class FrameResultAggregator:
                                              f"event_size = {len(self.event_objects)}")
             FrameResultAggregator._log(ERROR, '+++ Exception while sending img: ', exception=e)
             return None, None
+
