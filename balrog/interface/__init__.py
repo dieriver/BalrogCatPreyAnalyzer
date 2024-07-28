@@ -1,6 +1,7 @@
 import collections
 from abc import ABC, abstractmethod
 from multiprocessing import Event
+from pathlib import Path
 from threading import Thread
 from typing import Self, Optional, Deque
 
@@ -46,7 +47,7 @@ class MessageSender(ABC):
         pass
 
     @abstractmethod
-    def send_img(self, img: MatLike, caption: str) -> None:
+    def send_img(self, img: Path, caption: str) -> None:
         pass
 
     @property

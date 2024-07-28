@@ -2,8 +2,8 @@ import sys
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from dataclasses import replace
+from datetime import datetime
 from logging import DEBUG, INFO, WARN, ERROR
 from multiprocessing import Event
 from typing import Tuple, Optional, List

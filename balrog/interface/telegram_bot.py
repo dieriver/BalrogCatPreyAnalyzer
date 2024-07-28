@@ -2,12 +2,12 @@ import asyncio
 import os
 import time
 from enum import Enum, auto
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
 from typing import Any, Callable, Dict, Coroutine
 
 import cv2
-from cv2.typing import MatLike
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -124,31 +124,33 @@ class BalrogTelegramBot(MessageSender):
     # Raw send text and img functions
 
     def send_text(self, message: str) -> None:
-        bot = self
+        data = {"msg": message}
 
         async def _send_text(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
             await ctx.bot.send_message(
-                chat_id=bot.CHAT_ID,
-                text=message
+                chat_id=ctx.job.chat_id,
+                text=ctx.job.data.msg
             ),
-        self.telegram_endpoint.job_queue.run_once(_send_text, 0.0)
+        self.telegram_endpoint.job_queue.run_once(_send_text, 0.0, data=data)
 
-    def send_img(self, img: MatLike, caption: str, force_send: bool = False) -> None:
-        bot = self
+    def send_img(self, img: Path, caption: str, force_send: bool = False) -> None:
+        data = {
+            "caption": caption,
+            "img_path": str(img),
+            "force_send": force_send,
+            "muted_images": self.muted_images
+        }
 
         async def _send_img(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal img, caption, force_send
-            if not force_send and bot.muted_images:
+            if not ctx.job.data.force_send and ctx.job.data.muted_images:
                 return
-            with TemporaryDirectory() as tmp_dir:
-                cv2.imwrite(f'{tmp_dir}/balrog_send_img.jpg', img)
-                await ctx.bot.send_photo(
-                    chat_id=bot.CHAT_ID,
-                    photo=open(f'{tmp_dir}/balrog_send_img.jpg', 'rb'),
-                    caption=caption
-                )
-        self.telegram_endpoint.job_queue.run_once(_send_img, 0.0)
+            await ctx.bot.send_photo(
+                chat_id=ctx.job.chat_id,
+                photo=open(ctx.job.data.img_path, 'rb'),
+                caption=ctx.job.data.caption
+            )
+            os.remove(ctx.job.data.img_path)
+        self.telegram_endpoint.job_queue.run_once(_send_img, 0.0, data=data)
 
     def _get_help_cmd_callback(self) -> _TelegramCallbackType:
         bot = self
@@ -348,7 +350,7 @@ class DebugBot(MessageSender):
     def stop(self) -> None:
         self.stop_event.set()
 
-    def send_img(self, img: MatLike, caption: str) -> None:
+    def send_img(self, img: Path, caption: str) -> None:
         # Nothing to do here; we simply ignore the invocation
         logger.warning(f"DebugTelegramBot - Ignoring sending image!")
 
