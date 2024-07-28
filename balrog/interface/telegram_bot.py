@@ -41,7 +41,7 @@ class BalrogTelegramBot(MessageSender):
         self.BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
         self.telegram_endpoint = (Application.builder()
                                              .token(self.BOT_TOKEN)
-                                             .post_init(self._get_hello_callback())
+                                             .post_init(self.send_hello_message)
                                              .build())
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, _TelegramCallbackType] = dict()
@@ -108,19 +108,8 @@ class BalrogTelegramBot(MessageSender):
             ctx.application.stop_running()
         self.telegram_endpoint.job_queue.run_once(_stop_polling, 0.0)
 
-    def _get_hello_callback(self):
-        chat_id = self.CHAT_ID
-
-        async def _deferred_hello_msg_callback(app: Application) -> None:
-            nonlocal chat_id
-
-            async def send_hello_message(context: ContextTypes.DEFAULT_TYPE) -> None:
-                await context.bot.send_message(chat_id=chat_id,
-                                               text="Balrog raises from the abyss...",
-                                               )
-
-            app.job_queue.run_once(send_hello_message, 5)
-        return _deferred_hello_msg_callback
+    async def send_hello_message(self, app: Application) -> None:
+        self.send_text("Balrog raises from the abyss...")
 
     # Raw send text and img functions
 
