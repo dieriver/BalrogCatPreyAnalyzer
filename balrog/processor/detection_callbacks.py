@@ -12,10 +12,9 @@ from balrog.utils import logger
 def _dump_image_in_temp_file(img: MatLike) -> Optional[Path]:
     if img is None:
         return None
-    temp_file = NamedTemporaryFile(delete=False, delete_on_close=False)
+    temp_file = NamedTemporaryFile(delete=False, suffix=".jpg")
     cv2.imwrite(temp_file.name, img)
     return Path(temp_file.name)
-
 
 
 def _handle_send_image(msg_sender: MessageSender, img: MatLike,

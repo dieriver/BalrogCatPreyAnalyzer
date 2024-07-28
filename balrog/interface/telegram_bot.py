@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -124,33 +125,41 @@ class BalrogTelegramBot(MessageSender):
     # Raw send text and img functions
 
     def send_text(self, message: str) -> None:
-        data = {"msg": message}
+        data = {
+            "msg": message,
+            "chat_id": self.CHAT_ID
+        }
 
-        async def _send_text(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        async def _send_text_callback(ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await ctx.bot.send_message(
-                chat_id=ctx.job.chat_id,
-                text=ctx.job.data.msg
-            ),
-        self.telegram_endpoint.job_queue.run_once(_send_text, 0.0, data=data)
+                chat_id=ctx.job.data["chat_id"],
+                text=ctx.job.data["msg"]
+            )
+            logger.info(f"Sender - Msg: '{ctx.job.data['msg']}', Sent: {datetime.now()}")
+        self.telegram_endpoint.job_queue.run_once(_send_text_callback, 0.0, data=data)
+        logger.info(f"Sender - Msg: '{message}', Scheduled: {datetime.now()}")
 
     def send_img(self, img: Path, caption: str, force_send: bool = False) -> None:
         data = {
             "caption": caption,
             "img_path": str(img),
             "force_send": force_send,
-            "muted_images": self.muted_images
+            "muted_images": self.muted_images,
+            "chat_id": self.CHAT_ID
         }
 
-        async def _send_img(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-            if not ctx.job.data.force_send and ctx.job.data.muted_images:
+        async def _send_img_callback(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            if not ctx.job.data["force_send"] and ctx.job.data["muted_images"]:
                 return
             await ctx.bot.send_photo(
-                chat_id=ctx.job.chat_id,
-                photo=open(ctx.job.data.img_path, 'rb'),
-                caption=ctx.job.data.caption
+                chat_id=ctx.job.data["chat_id"],
+                photo=open(ctx.job.data["img_path"], 'rb'),
+                caption=ctx.job.data["caption"]
             )
-            os.remove(ctx.job.data.img_path)
-        self.telegram_endpoint.job_queue.run_once(_send_img, 0.0, data=data)
+            logger.info(f"Sender - File: {ctx.job.data['img_path']}, Sent: {datetime.now()}")
+            os.remove(ctx.job.data["img_path"])
+        self.telegram_endpoint.job_queue.run_once(_send_img_callback, 0.0, data=data)
+        logger.info(f"Sender - File: {str(img)}, Scheduled: {datetime.now()}")
 
     def _get_help_cmd_callback(self) -> _TelegramCallbackType:
         bot = self
