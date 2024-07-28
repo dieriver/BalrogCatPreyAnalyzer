@@ -19,16 +19,6 @@ from balrog.processor.detection_callbacks import send_cat_detected_message, send
 from balrog.utils import logger
 
 
-def _get_min_prey_tuple(events: List[EventElement]) -> Tuple[int, float]:
-    minimum: float = sys.float_info.max
-    min_index: int = -1
-    for index, event in enumerate(events):
-        if event.prey_confidence is not None and event.prey_confidence < minimum:
-            minimum = event.prey_confidence
-            min_index = index
-    return min_index, minimum
-
-
 class FrameResultAggregator:
     """
     Implementation of the aggregation loop of the software. This class:
@@ -223,25 +213,27 @@ class FrameResultAggregator:
             self
     ) -> Tuple[Optional[MatLike], Optional[str]]:
         min_prey_index = None
+        sender_image: MatLike = None
         try:
-            min_prey_index, _ = _get_min_prey_tuple(self.event_objects)
-
-            if min_prey_index < 0:
-                FrameResultAggregator._log(WARN, f"No minimal index & value found in: "
-                                                 f"{[x.prey_confidence for x in self.event_objects]}")
-                return None, None
-
             event_str = ''
-            face_events = [x for x in self.event_objects if x.face_bool]
-            for f_event in face_events:
-                FrameResultAggregator._log(DEBUG, '****************')
-                FrameResultAggregator._log(DEBUG, f'Img_Name: {f_event.img_name}')
-                FrameResultAggregator._log(DEBUG, f'PC_Val: {f_event.prey_confidence:.2f}')
-                FrameResultAggregator._log(DEBUG, '****************')
-                event_str += f'\n{f_event.img_name} => PC_Val: {f_event.prey_confidence:.2f}'
+            minimum: float = sys.float_info.max
 
-            sender_img = self.event_objects[min_prey_index].output_img
-            return sender_img, event_str
+            for idx, event in enumerate(self.event_objects):
+                if event is None:
+                    FrameResultAggregator._log(DEBUG, "Analyzing non-existing event: ignoring")
+                    continue
+
+                if event.prey_confidence is not None and event.prey_confidence < minimum:
+                    minimum = event.prey_confidence
+                    sender_image = event.output_img
+                if event.face_bool:
+                    FrameResultAggregator._log(DEBUG, '****************')
+                    FrameResultAggregator._log(DEBUG, f'Img_Name: {event.img_name}')
+                    FrameResultAggregator._log(DEBUG, f'PC_Val: {event.prey_confidence:.2f}')
+                    FrameResultAggregator._log(DEBUG, '****************')
+                    event_str += f'\n{event.img_name} => PC_Val: {event.prey_confidence:.2f}'
+
+            return sender_image, event_str
         except Exception as e:
             FrameResultAggregator._log(INFO, f"min_prey_index = {min_prey_index}, "
                                              f"event_size = {len(self.event_objects)}")
