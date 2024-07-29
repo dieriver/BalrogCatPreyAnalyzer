@@ -138,15 +138,17 @@ class BalrogTelegramBot(MessageSender):
         }
 
         async def _send_img_callback(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-            if not ctx.job.data["force_send"] and ctx.job.data["muted_images"]:
-                return
-            await ctx.bot.send_photo(
-                chat_id=ctx.job.data["chat_id"],
-                photo=open(ctx.job.data["img_path"], 'rb'),
-                caption=ctx.job.data["caption"]
-            )
-            logger.info(f"Sender - File: {ctx.job.data['img_path']}, Sent: {datetime.now()}")
-            os.remove(ctx.job.data["img_path"])
+            try:
+                if not ctx.job.data["force_send"] and ctx.job.data["muted_images"]:
+                    return
+                await ctx.bot.send_photo(
+                    chat_id=ctx.job.data["chat_id"],
+                    photo=open(ctx.job.data["img_path"], 'rb'),
+                    caption=ctx.job.data["caption"]
+                )
+                logger.info(f"Sender - File: {ctx.job.data['img_path']}, Sent: {datetime.now()}")
+            finally:
+                os.remove(ctx.job.data["img_path"])
         self.telegram_endpoint.job_queue.run_once(_send_img_callback, 0.0, data=data)
         logger.info(f"Sender - File: {str(img)}, Scheduled: {datetime.now()}")
 

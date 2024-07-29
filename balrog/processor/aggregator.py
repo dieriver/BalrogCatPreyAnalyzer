@@ -4,7 +4,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
-from logging import DEBUG, INFO, WARN, ERROR
+from logging import DEBUG, INFO, ERROR
 from multiprocessing import Event
 from typing import Tuple, Optional, List
 
@@ -215,7 +215,8 @@ class FrameResultAggregator:
         min_prey_index = None
         sender_image: MatLike = None
         try:
-            event_str = ''
+            full_event_str = ""
+            aggregated_confidences: List[str] = []
             minimum: float = sys.float_info.max
 
             for idx, event in enumerate(self.event_objects):
@@ -226,14 +227,17 @@ class FrameResultAggregator:
                 if event.prey_confidence is not None and event.prey_confidence < minimum:
                     minimum = event.prey_confidence
                     sender_image = event.output_img
-                if event.face_bool:
-                    FrameResultAggregator._log(DEBUG, '****************')
-                    FrameResultAggregator._log(DEBUG, f'Img_Name: {event.img_name}')
-                    FrameResultAggregator._log(DEBUG, f'PC_Val: {event.prey_confidence:.2f}')
-                    FrameResultAggregator._log(DEBUG, '****************')
-                    event_str += f'\n{event.img_name} => PC_Val: {event.prey_confidence:.2f}'
+                full_event_str += '****************'
 
-            return sender_image, event_str
+                if event.face_bool:
+                    full_event_str += f'Img_Name: {event.img_name}\n'
+                    full_event_str += f'PC_Val: {event.prey_confidence:.2f}\n'
+                    aggregated_confidences.append(f"{event.prey_confidence:.2f}")
+
+                full_event_str += '****************'
+                FrameResultAggregator._log(DEBUG, full_event_str)
+
+            return sender_image, f"Aggregated {len(aggregated_confidences)} frames: {aggregated_confidences}"
         except Exception as e:
             FrameResultAggregator._log(INFO, f"min_prey_index = {min_prey_index}, "
                                              f"event_size = {len(self.event_objects)}")

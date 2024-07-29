@@ -20,7 +20,7 @@ def _dump_image_in_temp_file(img: MatLike) -> Optional[Path]:
 def _handle_send_image(msg_sender: MessageSender, img: MatLike,
                        cumuli: float, event_str: str,
                        base_message: str, end_message: str) -> None:
-    caption = f'Cumuli: {cumuli} => {base_message}{event_str}\n{end_message}'
+    caption = f'Cumuli: {cumuli:.2f} => {base_message}{event_str}\n{end_message}'
 
     img_path = _dump_image_in_temp_file(img)
     if img_path is not None and caption is not None:
