@@ -197,7 +197,8 @@ class BalrogTelegramBot(MessageSender):
                            f'Frames rdy for cascade: {rdy_for_casc}\n'
                            f'Frames rdy for aggregation: {rdy_for_agg}\n'
                            f'Last cascade time: {last_casc_time}s\n'
-                           f'Frame roundtrip delay: {roundtrip_delay}s')
+                           f'Frame roundtrip delay: {roundtrip_delay}s\n'
+                           f"Notifications: {'Disabled' if bot.muted_images else 'Enabled'}")
             await update.message.reply_text(bot_message)
         return _node_status_cmd_callback
 
