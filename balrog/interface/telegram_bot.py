@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Coroutine, Optional
 
 import cv2
 from telegram import Update, Message
-from telegram.ext import Application, CommandHandler, ContextTypes, Job
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 from balrog.config import flap_config, general_config, command_aliases_config
 from balrog.interface import MessageSender
@@ -53,8 +53,6 @@ class BalrogTelegramBot(MessageSender):
         self._populate_command_aliases()
         self._is_ongoing_let_in: bool = False
         self.mute_msg: Optional[Message] = None
-
-        self.unmute_job: Optional[Job] = None
 
         # Add all commands to handler
         handlers = []
@@ -310,9 +308,8 @@ class BalrogTelegramBot(MessageSender):
         if not ctx.job.data.muted_images or ctx.job.data.mute_msg is None:
             ctx.job.data.send_text("Images were not muted; Ignoring.")
 
-        if ctx.job.data.unmute_job is not None:
-            ctx.job.data.unmute_job.schedule_removal()
-            ctx.job.data.unmute_job = None
+        for job in ctx.job_queue.get_jobs_by_name("resume_notifications"):
+            job.schedule_removal()
 
         ctx.job.data.muted_images = False
         await ctx.job.data.mute_msg.reply_text("Restarting Balrog image notifications")
@@ -340,10 +337,11 @@ class BalrogTelegramBot(MessageSender):
             bot.mute_msg = await update.message.reply_text(f"Muting Balrog image notifications "
                                                            f"for the next {delay} minutes")
             bot.muted_images = True
-            bot.unmute_job = context.job_queue.run_once(
+            context.job_queue.run_once(
                 BalrogTelegramBot._resume_notifications,
                 60 * delay,
-                data=bot
+                data=bot,
+                name="resume_notifications"
             )
         return _mute_notifications
 
