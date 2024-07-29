@@ -6,11 +6,11 @@ from enum import Enum, auto
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, Callable, Dict, Coroutine
+from typing import Any, Callable, Dict, Coroutine, Optional
 
 import cv2
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram import Update, Message
+from telegram.ext import Application, CommandHandler, ContextTypes, Job
 
 from balrog.config import flap_config, general_config, command_aliases_config
 from balrog.interface import MessageSender
@@ -37,10 +37,10 @@ class BalrogTelegramBot(MessageSender):
         if os.getenv('TELEGRAM_BOT_TOKEN') == "":
             raise Exception("Telegram Bot token not set!. Please set the 'TELEGRAM_BOT_TOKEN' environment variable")
         self.stop_event = stop_event
-        self.CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-        self.BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+        self.chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.telegram_endpoint = (Application.builder()
-                                             .token(self.BOT_TOKEN)
+                                             .token(self.bot_token)
                                              .post_init(self.send_hello_message)
                                              .build())
         self.flap_handler = FlapLocker()
@@ -52,6 +52,9 @@ class BalrogTelegramBot(MessageSender):
         self._populate_supported_commands(pets_data, devices_data)
         self._populate_command_aliases()
         self._is_ongoing_let_in: bool = False
+        self.mute_msg: Optional[Message] = None
+
+        self.unmute_job: Optional[Job] = None
 
         # Add all commands to handler
         handlers = []
@@ -89,6 +92,7 @@ class BalrogTelegramBot(MessageSender):
         self.commands['unlock'] = self._get_lock_moria_callback_for_status(_LockMode.UNLOCK)
         self.commands['statusPets'] = self._get_status_pets_callback()
         self.commands['mute'] = self._get_mute_notifications_callback()
+        self.commands['unmute'] = self._get_resume_notifications_callback()
         # create callbacks for switching the state of pets
         for name, pet_id in pets_data.items():
             self.commands[f'switch{name}'] = self._get_switch_pet_location_callback(pet_id)
@@ -116,7 +120,7 @@ class BalrogTelegramBot(MessageSender):
     def send_text(self, message: str) -> None:
         data = {
             "msg": message,
-            "chat_id": self.CHAT_ID
+            "chat_id": self.chat_id
         }
 
         async def _send_text_callback(ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -134,7 +138,7 @@ class BalrogTelegramBot(MessageSender):
             "img_path": str(img),
             "force_send": force_send,
             "muted_images": self.muted_images,
-            "chat_id": self.CHAT_ID
+            "chat_id": self.chat_id
         }
 
         async def _send_img_callback(ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -301,23 +305,60 @@ class BalrogTelegramBot(MessageSender):
             await update.message.reply_text(message)
         return _send_pets_data_callback
 
+    @staticmethod
+    async def _resume_notifications(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        if not ctx.job.data.muted_images or ctx.job.data.mute_msg is None:
+            ctx.job.data.send_text("Images were not muted; Ignoring.")
+
+        if ctx.job.data.unmute_job is not None:
+            ctx.job.data.unmute_job.schedule_removal()
+            ctx.job.data.unmute_job = None
+
+        ctx.job.data.muted_images = False
+        await ctx.job.data.mute_msg.reply_text("Restarting Balrog image notifications")
+        ctx.job.data.mute_msg = None
+
     def _get_mute_notifications_callback(self) -> _TelegramCallbackType:
         bot = self
         timeout = general_config.mute_img_send_minutes
 
         async def _mute_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot, timeout
-            # Util function used to mute the sending of verdicts
-            new_msg = await update.message.reply_text(f"Muting Balrog image notifications "
-                                                      f"for the next {timeout} minutes")
-            bot.muted_images = True
+            if bot.muted_images:
+                await update.message.reply_text(f"Image notifications were already muted; Ignoring.")
+                return
 
-            async def _finish_mute(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-                nonlocal bot, new_msg
-                bot.muted_images = False
-                await new_msg.reply_text("Restarting Balrog image notifications")
-            context.job_queue.run_once(_finish_mute, 60 * timeout)
+            delay = timeout
+            try:
+                if context.args is not None and len(context.args) >= 1:
+                    delay = int(context.args[0])
+            except ValueError:
+                # Nothing to do here; we use the default delay if we couldn't parse the first argument
+                pass
+
+            # Util function used to mute the sending of verdicts
+            bot.mute_msg = await update.message.reply_text(f"Muting Balrog image notifications "
+                                                           f"for the next {delay} minutes")
+            bot.muted_images = True
+            bot.unmute_job = context.job_queue.run_once(
+                BalrogTelegramBot._resume_notifications,
+                60 * delay,
+                data=bot
+            )
         return _mute_notifications
+
+    def _get_resume_notifications_callback(self) -> _TelegramCallbackType:
+        bot = self
+
+        async def _resume_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+            nonlocal bot
+            bot.mute_msg = update.message
+            bot.unmute_job = context.job_queue.run_once(
+                BalrogTelegramBot._resume_notifications,
+                0,
+                data=bot
+            )
+        return _resume_notifications
 
     def _get_switch_pet_location_callback(self, pet_id: int) -> _TelegramCallbackType:
         bot = self
