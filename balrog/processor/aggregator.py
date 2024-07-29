@@ -237,7 +237,9 @@ class FrameResultAggregator:
                 full_event_str += '****************'
                 FrameResultAggregator._log(DEBUG, full_event_str)
 
-            return sender_image, f"Aggregated {len(aggregated_confidences)} frames: {aggregated_confidences}"
+            return sender_image, (f"Aggregated {len(aggregated_confidences)} "
+                                  f"{'frames' if len(aggregated_confidences) > 1 else 'frame'}: "
+                                  f"{aggregated_confidences}")
         except Exception as e:
             FrameResultAggregator._log(INFO, f"min_prey_index = {min_prey_index}, "
                                              f"event_size = {len(self.event_objects)}")
