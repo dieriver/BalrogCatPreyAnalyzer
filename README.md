@@ -110,22 +110,11 @@ Then, we build a python wheel and install the Tensorflow Object Detection API:
 ```shell
 $ source /path/to/virt-env/bin/activate
 (venv) pip install build
-(venv) python -m build wheel
+(venv) python -m build --wheel
 (venv) pip install dist/*.whl
 ```
 
-## NOT NEEDED - Remove
-
-We also need to download the SSD_Lite model from the [TensorFlow detection model zoo](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md)
-and unzip it in the tensorflow path:
-
-```shell
-cd /path/to/tf-models/research/object_detection
-wget http://download.tensorflow.org/models/object_detection/ssdlite_mobilenet_v2_coco_2018_05_09.tar.gz
-tar -xzvf ssdlite_mobilenet_v2_coco_2018_05_09.tar.gz
-```
-
-## Python libraries and its python dependencies
+## Install Balrog and its dependencies
 Finally, we are ready to install this module and its dependencies. To do so, we simply activate the virtual environment,
 and run pip to install this package:
 
@@ -141,7 +130,6 @@ Balrog uses a few environment variables to configure the interfaces: Camera inpu
 details. To configure this, you need to execute the following lines in your shell:
 
 ```shell
-export BALROG_TENSOFLOW_PATH=/path/to/tensorflow1/models/research # No needed anymore!
 export CAMERA_STREAM_URI=<camera_rstp_url>
 export SUREPET_USER=<surepet_user>
 export SUREPET_PASSWORD=<surepet-password>
@@ -149,8 +137,6 @@ export TELEGRAM_BOT_TOKEN=<telegram_bot_token>
 export TELEGRAM_CHAT_ID=<telegram_chat_id>
 ```
 
-Please note that the `BALROG_TENSORFLOW_PATH` needs to contain an absolute path to the `models/research` folder of
-the `tensorflow` package you unzipped before.
 You can add these lines at the end of the `virt-env/bin/activate` file, so these variables are available each time
 that you activate the python virtual environment.
 
