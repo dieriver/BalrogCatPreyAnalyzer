@@ -11,7 +11,7 @@ from balrog.processor.image_container import ImageBuffers
 from balrog.utils.utils import Logging
 
 
-def signal_handler(sig, frame):
+def _shutdown_signal_handler(sig, frame):
     message_sender.stop()
 
 
@@ -34,8 +34,8 @@ message_sender = MessageSender.get_message_sender_instance(
 frame_processor = FrameProcessor(frame_buffers)
 frame_aggregator = FrameResultAggregator(frame_buffers, message_sender)
 
-signal(Signals.SIGTERM, signal_handler)
-signal(Signals.SIGINT, signal_handler)
+signal(Signals.SIGTERM, _shutdown_signal_handler)
+signal(Signals.SIGINT, _shutdown_signal_handler)
 
 with frame_aggregator, frame_processor, camera:
     message_sender.start()

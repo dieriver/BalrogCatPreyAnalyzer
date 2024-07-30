@@ -38,11 +38,13 @@ class BalrogTelegramBot(MessageSender):
             raise Exception("Telegram Bot token not set!. Please set the 'TELEGRAM_BOT_TOKEN' environment variable")
         self.chat_id = os.getenv('TELEGRAM_CHAT_ID')
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        self.telegram_endpoint = (Application.builder()
-                                             .token(self.bot_token)
-                                             .post_init(self.get_send_hello())
-                                             .post_stop(self.get_send_goodbye())
-                                             .build())
+        self.telegram_endpoint = (
+            Application.builder()
+                       .token(self.bot_token)
+                       .post_init(self.get_send_message("Balrog raises from the abyss..."))
+                       .post_stop(self.get_send_message("Balrog goes back to the abyss... for now..."))
+                       .build()
+        )
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, _TelegramCallbackType] = dict()
         self.message_loop = asyncio.get_event_loop()
@@ -110,27 +112,13 @@ class BalrogTelegramBot(MessageSender):
     def stop(self) -> None:
         self.telegram_endpoint.stop_running()
 
-    def get_send_hello(self) -> Callable[[Application], Coroutine[Any, Any, None]]:
+    def get_send_message(self, msg: str) -> Callable[[Application], Coroutine[Any, Any, None]]:
         chat_id = self.chat_id
 
         async def _send_hello_message(app: Application) -> None:
-            nonlocal chat_id
-            await app.bot.send_message(
-                chat_id=chat_id,
-                text="Balrog raises from the abyss..."
-            )
+            nonlocal chat_id, msg
+            await app.bot.send_message(chat_id=chat_id, text=msg)
         return _send_hello_message
-
-    def get_send_goodbye(self) -> Callable[[Application], Coroutine[Any, Any, None]]:
-        chat_id = self.chat_id
-
-        async def _send_hello_goodbye(app: Application) -> None:
-            nonlocal chat_id
-            await app.bot.send_message(
-                chat_id=chat_id,
-                text="Balrog raises from the abyss..."
-            )
-        return _send_hello_goodbye
 
     # Raw send text and img functions
 
