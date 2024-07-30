@@ -41,7 +41,7 @@ class BalrogTelegramBot(MessageSender):
         self.telegram_endpoint = (Application.builder()
                                              .token(self.bot_token)
                                              .post_init(self.get_send_hello())
-                                             .post_stop(self.send_goodbye_message)
+                                             .post_stop(self.get_send_goodbye())
                                              .build())
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, _TelegramCallbackType] = dict()
@@ -131,9 +131,6 @@ class BalrogTelegramBot(MessageSender):
                 text="Balrog raises from the abyss..."
             )
         return _send_hello_goodbye
-
-    async def send_goodbye_message(self, app: Application) -> None:
-        self.send_text("Balrog goes back to the abyss... for now...")
 
     # Raw send text and img functions
 
