@@ -1,6 +1,5 @@
 import os
 import pathlib
-import sys
 import time
 from pathlib import Path
 from typing import Tuple, Sequence
@@ -8,7 +7,9 @@ from typing import Tuple, Sequence
 import cv2
 import numpy as np
 import tensorflow as tf
+import kagglehub as hub
 from cv2.typing import MatLike
+from object_detection.utils import label_map_util
 
 from balrog.config import general_config
 from balrog.processor.cv_helpers import resize_img_to_square
@@ -21,10 +22,6 @@ if (_tensorflow_models_path is None or
         not pathlib.Path(_tensorflow_models_path).is_dir()):
     raise Exception("The BALROG_TENSOFLOW_PATH was not set, or points to an "
                     "invalid location. Please check the assigned value")
-
-sys.path.append(_tensorflow_models_path)
-
-from object_detection.utils import label_map_util
 
 
 _PC_model_file = 'models/Prey_Classifier/0.86_512_05_VGG16_ownData_FTfrom15_350_Epochs_2020_05_15_11_40_56.h5'
@@ -47,6 +44,10 @@ class CCMobileNetStage:
         # network predicts `5`, we know that this corresponds to `airplane`.
         # Here we use internal utility functions, but anything that returns a
         # dictionary mapping integers to appropriate string labels would be fine
+
+        # "TF2" way to dynamically load the ssd model from Kaggle Hub and easily "call" the model
+        model_files = hub.model_download("tensorflow/ssd-mobilenet-v2/tensorFlow2/ssd-mobilenet-v2")
+        self.detect_function = tf.saved_model.load(model_files)
 
         # Path to frozen detection graph .pb file, which contains the model that is used
         # for object detection.
@@ -120,6 +121,11 @@ class CCMobileNetStage:
         (boxes, scores, classes, num) = self.sess.run(
             [self.detection_boxes, self.detection_scores, self.detection_classes, self.num_detections],
             feed_dict={self.image_tensor: frame_expanded})
+
+        # detection_result = self.detect_function(tf.convert_to_tensor(frame_expanded, dtype=tf.uint8))
+        # detection_result = self.detect_function(frame_expanded)
+        # print(detection_result)
+
         end_time = time.time()
         inference_time = end_time - start_time
 

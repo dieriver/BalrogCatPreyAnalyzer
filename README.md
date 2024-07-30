@@ -16,17 +16,44 @@ For detailed information about how the Deep Learning part works, please check th
 
 # Requirements
 ## Dependencies
-As stated by the original repo, this software relies on tensorflow models that need to be downloaded separately.
-Before doing this, we need to install some packages (in Debian-based systems):
+As stated by the original repo, this software relies on tensorflow object detection API that need to be downloaded
+separately. Before doing this, we need to install some packages (in Debian-based systems):
 
 ```shell
 sudo apt install libglu1-mesa-dev libglx-mesa0
 ```
 
+## Python virtual environment
+Please note that Balrog Cat Prey Analyzer depends *on python 3.11*, and python 3.12 is not supported. To fulfill this,
+please run (in Debian-based systems):
+
+```shell
+sudo apt-get install python3.11-full
+```
+
+To install all dependencies, it is recommended to create a python virtual environment (using the python3.11-venv
+package which should have been installed with the command below):
+
+```shell
+pwd # This will show the current path; we assume this returned '/path/to'
+python3.11 -m venv virt-env
+```
+
+which will create a python virtual environment under the `virt-env` folder. To activate the virtual environment, simply
+use the following command:
+
+```shell
+source /path/to/virt-env/bin/activate
+(virt-env) $
+```
+
+This will allow to install python packages without messing with the python installation on your machine.
+
+
 ## Protobuf compiler
-The code also requires a rather old version of the protobuf compiler to work (v3.19.0). To install this version, please
-go to the [asset page](https://github.com/protocolbuffers/protobuf/releases/tag/v3.19.0) of that release, and download
-the build for your architecture.
+The Tensorflow Object Detection APU also requires a rather old version of the protobuf compiler to work (v3.19.0). To
+install this version, please go to the [asset page](https://github.com/protocolbuffers/protobuf/releases/tag/v3.19.0)
+of that release, and download the build for your architecture.
 For x86_64, you can simply run:
 
 ```shell
@@ -43,52 +70,67 @@ After doing this, please check that the `protoc` compiler is available on your s
 which should return the version of libprotoc that you just installer. If the command returns an error (command not
 found), please make sure that the folder `~/.local/bin` is in your PATH variable, and try again. 
 
-## Tensorflow models
-To download the tensorflow models, we simply run (as stated in [tensorflow object detection repo](https://github.com/EdjeElectronics/TensorFlow-Object-Detection-on-the-Raspberry-Pi)):
+
+## Tensorflow Object Detection API
+To download the tensorflow Object Detection API, we simply run (adapted from the [tensorflow object detection repo](https://github.com/EdjeElectronics/TensorFlow-Object-Detection-on-the-Raspberry-Pi)):
 
 ```shell
-mkdir tensorflow1
-cd tensorflow1
 pwd # We use this to check the full path of the tensorflow models base folder (tensorflow1). We use it in the rest of this readme
-git clone --depth 1 https://github.com/tensorflow/models.git
+git clone --depth 1 https://github.com/tensorflow/models.git tf-models
 ```
 
-We now need to use the protobuf compiler to compile the tensorflow models:
+We now need to use the protobuf compiler to generate the source of the API using the proto files:
 
 ```shell
-cd /path/to/tensorflow1/models/research
+cd /path/to/tf-models/research
 protoc object_detection/protos/*.proto --python_out=.
 ```
+
+to ease the installation, we copy the `setup.py`:
+
+```shell
+cd /path/to/tf-models/research
+cp object_detection/packages/tf2/setup.py .
+```
+
+IMPORTANT: We need to adapt the tensorflow dependencies of this library. To do so, change the required version of the 
+`tf-models-officials`:
+
+```shell
+'tf-models-official>=2.5.1',
+```
+
+to (adding `2.15.0` as the maximum version supported):
+
+```shell
+'tf-models-official>=2.5.1,<=2.15.0',
+```
+
+Then, we build a python wheel and install the Tensorflow Object Detection API:
+```shell
+$ source /path/to/virt-env/bin/activate
+(venv) pip install build
+(venv) python -m build wheel
+(venv) pip install dist/*.whl
+```
+
+## NOT NEEDED - Remove
 
 We also need to download the SSD_Lite model from the [TensorFlow detection model zoo](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md)
 and unzip it in the tensorflow path:
 
 ```shell
-cd /path/to/tensorflow1/models/research/object_detection
+cd /path/to/tf-models/research/object_detection
 wget http://download.tensorflow.org/models/object_detection/ssdlite_mobilenet_v2_coco_2018_05_09.tar.gz
 tar -xzvf ssdlite_mobilenet_v2_coco_2018_05_09.tar.gz
 ```
 
 ## Python libraries and its python dependencies
-Finally, we are ready to install this module and its dependencies. Please note that Balrog Cat Prey Analyzer depends
-*on python 3.11*, and python 3.12 is not supported. To fulfill this, please run (in Debian-based systems):
+Finally, we are ready to install this module and its dependencies. To do so, we simply activate the virtual environment,
+and run pip to install this package:
 
 ```shell
-sudo apt-get install python3.11-full
-```
-
-To install the runtime dependencies, it is recommended to create a python virtual environment (using the python3.11-venv
-package which should have been installed with the command below):
-
-```shell
-python3.11 -m venv virt-env
-```
-
-Which will create a python virtual environment under the `virt-env` folder. To install this module and its dependencies,
-we need to activate the virtual environment, and run pip to install this package:
-
-```shell
-$ source virt-env/bin/activate
+$ source /path/to/virt-env/bin/activate
 (virt-env) $ pip install .
 ```
 
@@ -99,7 +141,7 @@ Balrog uses a few environment variables to configure the interfaces: Camera inpu
 details. To configure this, you need to execute the following lines in your shell:
 
 ```shell
-export BALROG_TENSOFLOW_PATH=/path/to/tensorflow1/models/research
+export BALROG_TENSOFLOW_PATH=/path/to/tensorflow1/models/research # No needed anymore!
 export CAMERA_STREAM_URI=<camera_rstp_url>
 export SUREPET_USER=<surepet_user>
 export SUREPET_PASSWORD=<surepet-password>
@@ -133,7 +175,7 @@ module.
 Before executing, you need to create the configuration file. You can use the `config-template.toml` file as a base, and
 create the `config.toml` file with its content.
 
-It is recommended to *not* modify the configurations under the `model` section, since they directly control the
+It is recommended to *not modify* the configurations under the `model` section, since they directly control the
 sensitivity of the verdicts generated by the tensorflow model.
 
 # Execution
@@ -141,14 +183,14 @@ To execute, simply activate your python virtual environment, export the required
 execute the module:
 
 ```shell
-$ source virt-env/bin/activate
+$ source /path/to/virt-env/bin/activate
 (virt-env) $ python3 -m balrog
 ```
 
 This repository also contains a start script that you can use in a "production" environment:
 
 ```shell
-$ source virt-env/bin/activate
+$ source /path/to/virt-env/bin/activate
 (virt-env) $ ./balrog.sh
 ```
 

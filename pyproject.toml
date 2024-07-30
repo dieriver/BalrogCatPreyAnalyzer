@@ -7,16 +7,16 @@ readme = "README.md"
 license = { file= "LICENSE" }
 requires-python = ">= 3.11, <3.12"
 dependencies = [
-    "cython==3.0.6",
-    "pillow==10.0.0",
-    "lxml==4.9.3",
-    "matplotlib==3.9.1",
+    "cython",
+    "kagglehub",
+    "lxml",
+    "matplotlib<=3.9.1",
     "opencv-contrib-python-headless==4.10.0.84",
-    "protobuf==4.24.2",
-    "python-telegram-bot[job-queue]==21.4",
-    "tensorflow==2.15.1",
+    "pillow",
+    "python-telegram-bot[job-queue]<=21.4",
+    "pytype>=2023.12.18",
     "surepy>=0.9.0",
-    "pytype>=2023.12.18"
+    "tensorflow<=2.15.1"
 ]
 authors = [
     { name = "niciBume", email = "unknown@example.com" },
