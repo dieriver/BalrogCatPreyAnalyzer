@@ -215,7 +215,6 @@ class FrameResultAggregator:
         min_prey_index = None
         sender_image: MatLike = None
         try:
-            full_event_str = ""
             aggregated_confidences: List[str] = []
             minimum: float = sys.float_info.max
 
@@ -227,7 +226,7 @@ class FrameResultAggregator:
                 if event.prey_confidence is not None and event.prey_confidence < minimum:
                     minimum = event.prey_confidence
                     sender_image = event.output_img
-                full_event_str += '****************'
+                full_event_str = '****************\n'
 
                 if event.face_bool:
                     full_event_str += f'Img_Name: {event.img_name}\n'

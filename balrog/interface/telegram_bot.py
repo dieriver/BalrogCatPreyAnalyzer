@@ -392,8 +392,8 @@ class DebugBot(MessageSender):
 
     def send_img(self, img: Path, caption: str) -> None:
         # Nothing to do here; we simply ignore the invocation
-        logger.warning(f"DebugTelegramBot - Ignoring sending image!")
+        logger.warning(f"DebugTelegramBot - Ignoring sending image: {str(img)}! - Caption: '{caption}'")
 
     def send_text(self, message: str) -> None:
         # Nothing to do here; we simply ignore the invocation
-        logger.warning(f"DebugTelegramBot - Ignoring sending text!")
+        logger.warning(f"DebugTelegramBot - Ignoring sending text! - Caption: '{message}'")

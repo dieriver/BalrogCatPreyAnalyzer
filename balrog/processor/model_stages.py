@@ -118,13 +118,20 @@ class CCMobileNetStage:
 
         # Perform the actual detection by running the model with the image as input
         start_time = time.time()
-        (boxes, scores, classes, num) = self.sess.run(
-            [self.detection_boxes, self.detection_scores, self.detection_classes, self.num_detections],
-            feed_dict={self.image_tensor: frame_expanded})
+        # (boxes, scores, classes, num) = self.sess.run(
+        #     [self.detection_boxes, self.detection_scores, self.detection_classes, self.num_detections],
+        #     feed_dict={self.image_tensor: frame_expanded})
 
         # detection_result = self.detect_function(tf.convert_to_tensor(frame_expanded, dtype=tf.uint8))
-        # detection_result = self.detect_function(frame_expanded)
-        # print(detection_result)
+        detection_result = self.detect_function(frame_expanded)
+        num = detection_result['num_detections'].numpy()
+        scores = detection_result['detection_scores'].numpy()
+        classes = detection_result['detection_classes'].numpy()
+        boxes = detection_result['detection_boxes'].numpy()
+        # print(f"Num = {num}")
+        # print(f"Scores = {scores}")
+        # print(f"Classes = {classes}")
+        # print(f"Boxes = {boxes}")
 
         end_time = time.time()
         inference_time = end_time - start_time
