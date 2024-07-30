@@ -4,7 +4,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
-from logging import DEBUG, INFO, ERROR
+from logging import DEBUG, INFO, ERROR, WARN
 from multiprocessing import Event
 from typing import Tuple, Optional, List
 
@@ -29,8 +29,8 @@ class FrameResultAggregator:
       * Aggregates the results, computing cumulative with previous frames' results
       * Invokes the telegram callbacks with the verdicts.
     """
-    def __init__(self, frame_buffers: ImageBuffers, stop_event: Event, message_sender: MessageSender):
-        self.stop_event: Event = stop_event
+    def __init__(self, frame_buffers: ImageBuffers, message_sender: MessageSender):
+        self.stop_event: Event = Event()
         self.bot: MessageSender = message_sender
         self.verdict_sender_pool = ThreadPoolExecutor(max_workers=general_config.max_message_sender_threads,
                                                       thread_name_prefix="Verdict")
@@ -62,6 +62,8 @@ class FrameResultAggregator:
             self.aggregator_pool.submit(self.aggregator_thread)
 
     def __exit__(self, exception_type, exception_value, tb):
+        FrameResultAggregator._log(WARN, "Stopping aggregator threads")
+        self.stop_event.set()
         self.verdict_sender_pool.shutdown(wait=False, cancel_futures=True)
         self.aggregator_pool.shutdown(wait=False, cancel_futures=True)
         if exception_type is not None:

@@ -16,7 +16,9 @@ class Logging:
     def init_logger(stdout_logging_level: int, max_log_size: int, max_log_files: int) -> None:
         logger_surepy = logging.getLogger("surepy")
         logger.setLevel(logging.DEBUG)
+        logger.propagate = False
         logger_surepy.setLevel(logging.DEBUG)
+        logger_surepy.propagate = False
 
         stdout_handler = logging.StreamHandler(stream=sys.stdout)
         file_handler = logging.handlers.RotatingFileHandler(

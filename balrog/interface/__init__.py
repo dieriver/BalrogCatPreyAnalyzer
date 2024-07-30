@@ -24,15 +24,14 @@ class MessageSender(ABC):
     @classmethod
     def get_message_sender_instance(
             cls,
-            is_debug: bool = False,
-            stop_event: Event = None
+            is_debug: bool = False
     ) -> Self:
         if is_debug:
             from balrog.interface.telegram_bot import DebugBot
             return DebugBot()
         else:
             from balrog.interface.telegram_bot import BalrogTelegramBot
-            return BalrogTelegramBot(stop_event)
+            return BalrogTelegramBot()
 
     @abstractmethod
     def start(self) -> None:

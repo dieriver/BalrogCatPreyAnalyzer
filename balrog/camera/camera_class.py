@@ -16,18 +16,18 @@ from balrog.utils import logger, get_resource_path
 
 
 class ICamera(abc.ABC):
-    def __init__(self, fps: int, frame_buffers: ImageBuffers, stop_event: Event, cleanup_threshold: int):
+    def __init__(self, fps: int, frame_buffers: ImageBuffers, cleanup_threshold: int):
         self.frame_rate: int = fps
         self.cleanup_threshold: int = cleanup_threshold
         self.frame_buffers: ImageBuffers = frame_buffers
-        self.stop_event: Event = stop_event
+        self.stop_event: Event = Event()
         self.camera_thread: Thread = Thread(target=self.fill_queue, args=(), daemon=True, name="Camera")
 
     def __enter__(self):
         self.camera_thread.start()
 
     def __exit__(self, exception_type, exception_value, traceback):
-        ICamera._log(WARN, "Stopping camera thread")
+        ICamera._log(WARN, "Stopping camera threads")
         # We set the terminate flag and wait for the thread to terminate gracefully
         if not self.stop_event.is_set():
             self.stop_event.set()
@@ -37,14 +37,13 @@ class ICamera(abc.ABC):
     def get_instance(
             fps: int,
             frame_buffers: ImageBuffers,
-            stop_event: Event,
             cleanup_threshold: int,
             is_debug: bool = False
     ):
         if is_debug:
-            return DbgCamera(fps, frame_buffers, stop_event)
+            return DbgCamera(fps, frame_buffers)
         else:
-            return Camera(fps, frame_buffers, stop_event, cleanup_threshold)
+            return Camera(fps, frame_buffers, cleanup_threshold)
 
     @staticmethod
     def _log(level: int, message: str, exception: Exception = None):
@@ -94,8 +93,8 @@ class DbgCamera(ICamera):
     """
     Debug camera class that simply feeds a single static image into the frames
     """
-    def __init__(self, fps: int, frame_buffers: ImageBuffers, stop_event: Event):
-        super().__init__(fps, frame_buffers, stop_event, -1)
+    def __init__(self, fps: int, frame_buffers: ImageBuffers):
+        super().__init__(fps, frame_buffers, -1)
 
     def fill_queue(self) -> None:
         with get_resource_path("dbg_casc.jpg") as resource:
@@ -118,8 +117,8 @@ class _CleanCameraException(Exception):
 
 
 class Camera(ICamera):
-    def __init__(self, fps: int, frame_buffers: ImageBuffers, stop_event: Event, cleanup_threshold: int):
-        super().__init__(fps, frame_buffers, stop_event, cleanup_threshold)
+    def __init__(self, fps: int, frame_buffers: ImageBuffers, cleanup_threshold: int):
+        super().__init__(fps, frame_buffers, cleanup_threshold)
         stream_uri = os.getenv('CAMERA_STREAM_URI')
         if stream_uri is None or stream_uri == "":
             raise Exception("Camera stream URI not set!. Please set the 'CAMERA_STREAM_URI' environment variable")

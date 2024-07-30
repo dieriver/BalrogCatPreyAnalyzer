@@ -9,7 +9,7 @@ from balrog.interface import MessageSender
 from balrog.utils import logger
 
 
-def _dump_image_in_temp_file(img: MatLike) -> Optional[Path]:
+def _dump_image_in_temp_file(img: Optional[MatLike]) -> Optional[Path]:
     if img is None:
         return None
     temp_file = NamedTemporaryFile(delete=False, suffix=".jpg")
@@ -17,7 +17,7 @@ def _dump_image_in_temp_file(img: MatLike) -> Optional[Path]:
     return Path(temp_file.name)
 
 
-def _handle_send_image(msg_sender: MessageSender, img: MatLike,
+def _handle_send_image(msg_sender: MessageSender, img: Optional[MatLike],
                        cumuli: float, event_str: str,
                        base_message: str, end_message: str) -> None:
     caption = f'Cumuli: {cumuli:.2f} => {base_message}\n{event_str}\n{end_message}'
@@ -31,7 +31,7 @@ def send_prey_message(msg_sender: MessageSender, cumuli: float, event_str: str, 
     base_message = "PREY IN DA HOUSE!"
     end_message = ""
 
-    logger.info(f"Sending prey message - img: {sender_img is not None}")
+    logger.info(f"Sending prey message - Image Present: {'Yes' if sender_img is not None else 'No'}")
     _handle_send_image(msg_sender, sender_img, cumuli, event_str, base_message, end_message)
 
 
@@ -39,7 +39,7 @@ def send_no_prey_message(msg_sender: MessageSender, cumuli: float, event_str: st
     base_message = "Cat is clean..."
     end_message = "Maybe use /letin?"
 
-    logger.info(f"Sending no prey message - img: {sender_img is not None}")
+    logger.info(f"Sending no prey message - Image Present: {'Yes' if sender_img is not None else 'No'}")
     _handle_send_image(msg_sender, sender_img, cumuli, event_str, base_message, end_message)
 
 
@@ -47,12 +47,12 @@ def send_dont_know_message(msg_sender: MessageSender, cumuli: float, event_str: 
     base_message = "Cant say for sure..."
     end_message = "Maybe use /letin?"
 
-    logger.info(f"Sending don't know message - img: {sender_img is not None}")
+    logger.info(f"Sending don't know message - Image Present: {'Yes' if sender_img is not None else 'No'}")
     _handle_send_image(msg_sender, sender_img, cumuli, event_str, base_message, end_message)
 
 
 def send_cat_detected_message(msg_sender: MessageSender, live_img: MatLike) -> None:
-    logger.debug(f"Sending cat detected message - img: {live_img is not None}")
+    logger.debug(f"Sending cat detected message - Image Present: {'Yes' if live_img is not None else 'No'}")
     img_path = _dump_image_in_temp_file(live_img)
     try:
         caption = f'Gato incoming! \nMaybe use /letin, /unlock, /lock, /lockin or /lockout?'

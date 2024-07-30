@@ -2,7 +2,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from logging import DEBUG, INFO
+from logging import DEBUG, INFO, WARN
 from multiprocessing import Event
 from typing import Optional
 
@@ -31,10 +31,10 @@ class FrameProcessor:
       * Writes the results to the circular buffer
       * Marks the buffer as ready to be aggregated
     """
-    def __init__(self, frame_buffers: ImageBuffers, stop_event: Event):
-        self.stop_event = stop_event
-        self.base_cascade = Cascade()
-        self.frame_buffers = frame_buffers
+    def __init__(self, frame_buffers: ImageBuffers):
+        self.stop_event: Event = Event()
+        self.base_cascade: Cascade = Cascade()
+        self.frame_buffers: ImageBuffers = frame_buffers
         self.frame_processor_pool = ThreadPoolExecutor(max_workers=general_config.max_frame_processor_threads,
                                                        thread_name_prefix="Frame-Proc")
 
@@ -46,6 +46,8 @@ class FrameProcessor:
             self.frame_processor_pool.submit(self.process_frame, i)
 
     def __exit__(self, exception_type, exception_value, tb):
+        FrameProcessor._log(WARN, -1, "Stopping frame processor threads")
+        self.stop_event.set()
         self.frame_processor_pool.shutdown(wait=False, cancel_futures=True)
         if exception_type is not None:
             logger.error(f"Something wrong happened in the frame processor thread")

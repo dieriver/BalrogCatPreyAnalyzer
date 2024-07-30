@@ -29,19 +29,19 @@ class _LockMode(Enum):
 
 
 class BalrogTelegramBot(MessageSender):
-    def __init__(self, stop_event: Event):
+    def __init__(self):
         # Insert Chat ID and Bot Token according to Telegram API
         super().__init__()
         if os.getenv('TELEGRAM_CHAT_ID') == "":
             raise Exception("Telegram CHAT ID not set!. Please set the 'TELEGRAM_CHAT_ID' environment variable")
         if os.getenv('TELEGRAM_BOT_TOKEN') == "":
             raise Exception("Telegram Bot token not set!. Please set the 'TELEGRAM_BOT_TOKEN' environment variable")
-        self.stop_event = stop_event
         self.chat_id = os.getenv('TELEGRAM_CHAT_ID')
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.telegram_endpoint = (Application.builder()
                                              .token(self.bot_token)
                                              .post_init(self.send_hello_message)
+                                             .post_stop(self.send_goodbye_message)
                                              .build())
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, _TelegramCallbackType] = dict()
@@ -113,6 +113,9 @@ class BalrogTelegramBot(MessageSender):
     async def send_hello_message(self, app: Application) -> None:
         self.send_text("Balrog raises from the abyss...")
 
+    async def send_goodbye_message(self, app: Application) -> None:
+        self.send_text("Balrog goes back to the abyss... for now...")
+
     # Raw send text and img functions
 
     def send_text(self, message: str) -> None:
@@ -179,7 +182,6 @@ class BalrogTelegramBot(MessageSender):
             nonlocal bot
             await update.message.reply_text('Restarting script...')
             bot.telegram_endpoint.stop_running()
-            bot.stop_event.set()
         return _restart_cmd_callback
 
     def _get_node_status_cmd_callback(self) -> _TelegramCallbackType:

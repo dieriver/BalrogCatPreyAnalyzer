@@ -14,8 +14,6 @@ from balrog.utils.utils import Logging
 
 
 def signal_handler(sig, frame):
-    message_sender.send_text("Balrog goes back to the abyss... for now...")
-    time.sleep(1)
     message_sender.stop()
 
 
@@ -24,22 +22,19 @@ Logging.init_logger(
     max_log_size=logging_config.max_log_file_size_mb,
     max_log_files=logging_config.max_log_files_kept
 )
-stop_event = Event()
 frame_buffers = ImageBuffers(2 * general_config.max_frame_buffers, logging_config.enable_circular_buffer_logging)
 
 camera = ICamera.get_instance(
     fps=camera_config.camera_fps,
     frame_buffers=frame_buffers,
-    stop_event=stop_event,
     cleanup_threshold=camera_config.camera_cleanup_frames_threshold,
     is_debug=getenv("BALROG_USE_NULL_CAMERA") is not None
 )
 message_sender = MessageSender.get_message_sender_instance(
-    is_debug=os.getenv("BALROG_USE_NULL_TELEGRAM") is not None,
-    stop_event=stop_event
+    is_debug=os.getenv("BALROG_USE_NULL_TELEGRAM") is not None
 )
-frame_processor = FrameProcessor(frame_buffers, stop_event)
-frame_aggregator = FrameResultAggregator(frame_buffers, stop_event, message_sender)
+frame_processor = FrameProcessor(frame_buffers)
+frame_aggregator = FrameResultAggregator(frame_buffers, message_sender)
 
 signal(Signals.SIGTERM, signal_handler)
 signal(Signals.SIGINT, signal_handler)
