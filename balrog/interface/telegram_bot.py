@@ -40,7 +40,7 @@ class BalrogTelegramBot(MessageSender):
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.telegram_endpoint = (Application.builder()
                                              .token(self.bot_token)
-                                             .post_init(self.send_hello_message)
+                                             .post_init(self.get_send_hello())
                                              .post_stop(self.send_goodbye_message)
                                              .build())
         self.flap_handler = FlapLocker()
@@ -104,14 +104,33 @@ class BalrogTelegramBot(MessageSender):
     def start(self) -> None:
         # Start the polling stuff. this locks the current thread
         self.telegram_endpoint.run_polling(allowed_updates=[Update.MESSAGE], stop_signals=[])
+        # We wait for the
+        time.sleep(2)
 
     def stop(self) -> None:
-        async def _stop_polling(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-            ctx.application.stop_running()
-        self.telegram_endpoint.job_queue.run_once(_stop_polling, 0.0)
+        self.telegram_endpoint.stop_running()
 
-    async def send_hello_message(self, app: Application) -> None:
-        self.send_text("Balrog raises from the abyss...")
+    def get_send_hello(self) -> Callable[[Application], Coroutine[Any, Any, None]]:
+        chat_id = self.chat_id
+
+        async def _send_hello_message(app: Application) -> None:
+            nonlocal chat_id
+            await app.bot.send_message(
+                chat_id=chat_id,
+                text="Balrog raises from the abyss..."
+            )
+        return _send_hello_message
+
+    def get_send_goodbye(self) -> Callable[[Application], Coroutine[Any, Any, None]]:
+        chat_id = self.chat_id
+
+        async def _send_hello_goodbye(app: Application) -> None:
+            nonlocal chat_id
+            await app.bot.send_message(
+                chat_id=chat_id,
+                text="Balrog raises from the abyss..."
+            )
+        return _send_hello_goodbye
 
     async def send_goodbye_message(self, app: Application) -> None:
         self.send_text("Balrog goes back to the abyss... for now...")
