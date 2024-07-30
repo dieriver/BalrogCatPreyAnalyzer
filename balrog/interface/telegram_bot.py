@@ -103,7 +103,7 @@ class BalrogTelegramBot(MessageSender):
     # Telegram thread supporter functions
     def start(self) -> None:
         # Start the polling stuff. this locks the current thread
-        self.telegram_endpoint.run_polling(allowed_updates=[Update.MESSAGE])
+        self.telegram_endpoint.run_polling(allowed_updates=[Update.MESSAGE], stop_signals=[])
 
     def stop(self) -> None:
         async def _stop_polling(ctx: ContextTypes.DEFAULT_TYPE) -> None:

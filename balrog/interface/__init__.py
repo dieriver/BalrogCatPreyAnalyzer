@@ -1,6 +1,5 @@
 import collections
 from abc import ABC, abstractmethod
-from multiprocessing import Event
 from pathlib import Path
 from threading import Thread
 from typing import Self, Optional, Deque

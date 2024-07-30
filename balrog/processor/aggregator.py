@@ -1,6 +1,5 @@
 import sys
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime
@@ -52,7 +51,7 @@ class FrameResultAggregator:
     @staticmethod
     def _log(level: int, message: str, exception: Exception = None):
         if exception is not None:
-            logger.exception(f"Aggregator - {message}")
+            logger.exception(f"Aggregator - {message}", exc_info=exception)
         else:
             logger.log(level, f"Aggregator - {message}")
 
@@ -72,7 +71,7 @@ class FrameResultAggregator:
         if exception_value is not None:
             FrameResultAggregator._log(ERROR, f"Exception value: {exception_value}")
         if tb is not None:
-            FrameResultAggregator._log(ERROR, f"Traceback: {traceback.format_tb(tb)}")
+            FrameResultAggregator._log(ERROR, f"Traceback:", exception=tb)
         return True
 
     def reset_aggregation_fields(self):

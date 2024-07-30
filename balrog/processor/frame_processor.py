@@ -1,8 +1,7 @@
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from logging import DEBUG, INFO, WARN
+from logging import DEBUG, INFO, WARN, ERROR
 from multiprocessing import Event
 from typing import Optional
 
@@ -50,17 +49,20 @@ class FrameProcessor:
         self.stop_event.set()
         self.frame_processor_pool.shutdown(wait=False, cancel_futures=True)
         if exception_type is not None:
-            logger.error(f"Something wrong happened in the frame processor thread")
-            logger.error(f"Exception type: {exception_type}")
+            FrameProcessor._log(ERROR, -1, f"Something wrong happened in the frame processor thread")
+            FrameProcessor._log(ERROR, -1, f"Exception type: {exception_type}")
         if exception_value is not None:
-            logger.error(f"Exception value: {exception_value}")
+            FrameProcessor._log(ERROR, -1, f"Exception value: {exception_value}")
         if tb is not None:
-            logger.error(f"Traceback: {traceback.format_tb(tb)}")
+            FrameProcessor._log(ERROR, -1, f"Traceback:", exception=tb)
         return True
 
     @staticmethod
-    def _log(level: int, thread_id: int, message: str):
-        logger.log(level, f"Processor #{thread_id} - {message}")
+    def _log(level: int, thread_id: int, message: str, exception: Exception = None):
+        if exception is not None:
+            logger.exception(f"Processor #{thread_id} - {message}", exc_info=exception)
+        else:
+            logger.log(level, f"Processor #{thread_id} - {message}")
 
     def feed_to_cascade(self, target_img: MatLike, img_name: str, thread_id: int = -1, frame_index: int = -1) -> tuple[float, EventElement]:
         target_event_obj = EventElement(raw_image=target_img, img_name=img_name)

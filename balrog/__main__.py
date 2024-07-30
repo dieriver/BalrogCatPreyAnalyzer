@@ -1,8 +1,6 @@
 import os
-import time
 from os import getenv
 from signal import Signals, signal
-from threading import Event
 
 from balrog.camera import ICamera
 from balrog.config import general_config, camera_config, logging_config
