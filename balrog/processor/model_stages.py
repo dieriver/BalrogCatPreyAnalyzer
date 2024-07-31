@@ -34,10 +34,11 @@ class CCMobileNetStage:
         logger.debug('CNN is ready to go!')
 
     def do_cc(self, target_img: MatLike) -> Tuple[bool, Box, float]:
-        colored_img = cv2.cvtColor(target_img, cv2.COLOR_BGR2RGB)
+        img_copy = target_img.copy()
+        colored_img = cv2.cvtColor(img_copy, cv2.COLOR_BGR2RGB)
         resized_colored_img = resize_img_to_square(colored_img, 300, 1.0)
 
-        pet_detected, pet_box, inference_time = self._pet_detector(target_img, resized_colored_img)
+        pet_detected, pet_box, inference_time = self._pet_detector(img_copy, resized_colored_img)
         return pet_detected, pet_box, inference_time
 
     # This function contains the code to detect a pet, determine if it's
@@ -48,8 +49,6 @@ class CCMobileNetStage:
         # Perform the actual detection by running the model with the image as input
         start_time = time.time()
         detection_result = self.detect_function(frame_expanded)
-        num = detection_result['num_detections'].numpy()
-        scores = detection_result['detection_scores'].numpy()
         classes = detection_result['detection_classes'].numpy()
         boxes = detection_result['detection_boxes'].numpy()
 
@@ -75,11 +74,11 @@ class CCMobileNetStage:
 class HaarStage:
     def __init__(self):
         with get_resource_path(_HAAR_model_file) as model_file:
-            self.face_cascade = cv2.CascadeClassifier(str(model_file).strip())
+            self.face_cascade = cv2.CascadeClassifier(str(model_file))
 
     def haar_do(self, sub_img: MatLike, full_img: MatLike, prev_box: Box) -> Tuple[bool, Box, float]:
-        face_found, face_found_box, inference_time,  = self._haar_predict(sub_img)
-        # logger.debug('Haar_time: ' + str('%.2f' % inference_time))
+        img_copy = sub_img.copy()
+        face_found, face_found_box, inference_time,  = self._haar_predict(img_copy)
 
         face_box = face_found_box[:]
 
@@ -117,37 +116,40 @@ class HaarStage:
         return face_found, face_box, inference_time
 
 
+def _apply_keras_model_on_image(model: tf.keras.Model, img: MatLike) -> Tuple[bool, float, float]:
+    size = 224
+    img_copy = img.copy()
+    preprocessed_img = resize_img_to_square(img_copy, size, normalize=True).reshape((1, size, size, 3))
+
+    start_time = time.time()
+    class_pred = model.predict(preprocessed_img)
+    inference_time = time.time() - start_time
+    prey_value = class_pred[0][0]
+    return prey_value <= 0.5, prey_value, inference_time
+
+
+def _get_f1(y_true, y_pred):  # taken from old keras source code
+    import tensorflow.keras.backend as keras
+
+    true_positives = keras.sum(keras.round(keras.clip(y_true * y_pred, 0, 1)))
+    possible_positives = keras.sum(keras.round(keras.clip(y_true, 0, 1)))
+    predicted_positives = keras.sum(keras.round(keras.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + keras.epsilon())
+    recall = true_positives / (possible_positives + keras.epsilon())
+    f1_val = 2 * (precision * recall) / (precision + recall + keras.epsilon())
+    return f1_val
+
+
 class PCStage:
     def __init__(self):
         # Handle args
         with get_resource_path(_PC_model_file) as model_file:
-            custom_objects = {'get_f1': PCStage._get_f1} if 'F1' in _PC_model_file else None
+            custom_objects = {'get_f1': _get_f1} if 'F1' in _PC_model_file else None
             self.pc_model = tf.keras.models.load_model(str(model_file),
                                                        custom_objects=custom_objects)
 
-    @staticmethod
-    def _get_f1(y_true, y_pred):  # taken from old keras source code
-        import tensorflow.keras.backend as keras
-
-        true_positives = keras.sum(keras.round(keras.clip(y_true * y_pred, 0, 1)))
-        possible_positives = keras.sum(keras.round(keras.clip(y_true, 0, 1)))
-        predicted_positives = keras.sum(keras.round(keras.clip(y_pred, 0, 1)))
-        precision = true_positives / (predicted_positives + keras.epsilon())
-        recall = true_positives / (possible_positives + keras.epsilon())
-        f1_val = 2 * (precision * recall) / (precision + recall + keras.epsilon())
-        return f1_val
-
     def pc_do(self, target_img: MatLike) -> Tuple[bool, float, float]:
-        size = 224
-        preprocessed_img = resize_img_to_square(target_img, size, (1. / 255)).reshape((1, size, size, 3))
-
-        start_time = time.time()
-        class_pred = self.pc_model.predict(preprocessed_img)
-        inference_time = time.time() - start_time
-
-        prey_value = class_pred[0][0]
-
-        return prey_value <= 0.5, prey_value, inference_time
+        return _apply_keras_model_on_image(self.pc_model, target_img)
 
 
 class FFStage:
@@ -157,16 +159,7 @@ class FFStage:
             self.ff_model: tf.keras.Model = tf.keras.models.load_model(str(model_file))
 
     def face_fur_do(self, target_img: MatLike) -> Tuple[bool, float, float]:
-        size = 224
-        preprocessed_img = resize_img_to_square(target_img, size, (1. / 255)).reshape((1, size, size, 3))
-
-        start_time = time.time()
-        class_pred = self.ff_model.predict(preprocessed_img)
-        inference_time = time.time() - start_time
-
-        pred = class_pred[0][0]
-
-        return pred <= 0.5, pred, inference_time
+        return _apply_keras_model_on_image(self.ff_model, target_img)
 
 
 class EyeStage:
@@ -190,14 +183,15 @@ class EyeStage:
         return img_resize, top, left
 
     def _eye_full_prediction(self, image: MatLike, face_box: Box) -> Tuple[Box, float]:
-        preprocessed_img, top, left = self._resize_img(image)
+        img_copy = image.copy()
+        preprocessed_img, top, left = self._resize_img(img_copy)
         inputs = (preprocessed_img.astype('float32') / 255).reshape((1, self.TARGET_SIZE, self.TARGET_SIZE, 3))
         start_time = time.time()
         pred_eyes = self.eye_model.predict(inputs)[0].reshape((-1, 2))
         inference_time = time.time() - start_time
 
-        ratio_h = self.TARGET_SIZE / image.shape[0]
-        ratio_w = self.TARGET_SIZE / image.shape[1]
+        ratio_h = self.TARGET_SIZE / img_copy.shape[0]
+        ratio_w = self.TARGET_SIZE / img_copy.shape[1]
 
         pred_eyes[0][0] = int(pred_eyes[0][0] / ratio_w) + face_box[0][0] - left
         pred_eyes[0][1] = int(pred_eyes[0][1] / ratio_h) + face_box[0][1] - top
