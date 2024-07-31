@@ -23,14 +23,12 @@ class CCMobileNetStage:
         # ****Initialize TensorFlow model****
 
         # "TF2" way to dynamically load the ssd model from Kaggle Hub and easily "call" the model
+        # model_files = hub.model_download("tensorflow/centernet-resnet/tensorFlow2/50v2-512x512")
         model_files = hub.model_download("tensorflow/ssd-mobilenet-v2/tensorFlow2/ssd-mobilenet-v2")
         self.detect_function = tf.saved_model.load(model_files)
 
-        # Config tensorflow
-        config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=2,
-                                          inter_op_parallelism_threads=general_config.max_frame_processor_threads * 2,
-                                          allow_soft_placement=True,
-                                          device_count={'CPU': 2})
+        tf.config.threading.set_inter_op_parallelism_threads(general_config.max_frame_processor_threads + 1)
+        tf.config.threading.set_intra_op_parallelism_threads(general_config.max_frame_processor_threads * 2)
 
         logger.info(f"TF Config: inter_threads = {tf.config.threading.get_inter_op_parallelism_threads()}")
         logger.info(f"TF Config: intra_threads = {tf.config.threading.get_intra_op_parallelism_threads()}")

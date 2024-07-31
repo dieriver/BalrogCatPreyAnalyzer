@@ -9,7 +9,7 @@ from threading import Event
 from typing import Any, Callable, Dict, Coroutine, Optional
 
 import cv2
-from telegram import Update, Message
+from telegram import Update, Message, Bot
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from balrog.config import flap_config, general_config, command_aliases_config
@@ -38,13 +38,12 @@ class BalrogTelegramBot(MessageSender):
             raise Exception("Telegram Bot token not set!. Please set the 'TELEGRAM_BOT_TOKEN' environment variable")
         self.chat_id = os.getenv('TELEGRAM_CHAT_ID')
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        self.telegram_endpoint = (
-            Application.builder()
-                       .token(self.bot_token)
-                       .post_init(self.get_send_message("Balrog raises from the abyss..."))
-                       .post_stop(self.get_send_message("Balrog goes back to the abyss... for now..."))
-                       .build()
-        )
+        app_builder = Application.builder()
+        app_builder.token(self.bot_token)
+        app_builder.concurrent_updates(True)
+        app_builder.post_init(self.get_send_message("Balrog raises from the abyss..."))
+        app_builder.post_stop(self.get_send_message("Balrog goes back to the abyss... for now..."))
+        self.telegram_endpoint = app_builder.build()
         self.flap_handler = FlapLocker()
         self.commands: Dict[str, _TelegramCallbackType] = dict()
         self.message_loop = asyncio.get_event_loop()
@@ -128,13 +127,13 @@ class BalrogTelegramBot(MessageSender):
             "chat_id": self.chat_id
         }
 
-        async def _send_text_callback(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-            await ctx.bot.send_message(
-                chat_id=ctx.job.data["chat_id"],
-                text=ctx.job.data["msg"]
+        async def _send_text_callback(args: Dict[str, Any], bot: Bot) -> None:
+            await bot.send_message(
+                chat_id=args["chat_id"],
+                text=args["msg"]
             )
-            logger.info(f"Sender - Msg: '{ctx.job.data['msg']}', Sent: {datetime.now()}")
-        self.telegram_endpoint.job_queue.run_once(_send_text_callback, 0.0, data=data)
+            logger.info(f"Sender - Msg: '{args['msg']}', Sent: {datetime.now()}")
+        self.telegram_endpoint.create_task(_send_text_callback(data, self.telegram_endpoint.bot))
         logger.info(f"Sender - Msg: '{message}', Scheduled: {datetime.now()}")
 
     def send_img(self, img: Path, caption: str, force_send: bool = False) -> None:
@@ -146,19 +145,19 @@ class BalrogTelegramBot(MessageSender):
             "chat_id": self.chat_id
         }
 
-        async def _send_img_callback(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        async def _send_img_callback(args: Dict[str, Any], bot: Bot) -> None:
             try:
-                if not ctx.job.data["force_send"] and ctx.job.data["muted_images"]:
+                if not args["force_send"] and args["muted_images"]:
                     return
-                await ctx.bot.send_photo(
-                    chat_id=ctx.job.data["chat_id"],
-                    photo=open(ctx.job.data["img_path"], 'rb'),
-                    caption=ctx.job.data["caption"]
+                await bot.send_photo(
+                    chat_id=args["chat_id"],
+                    photo=open(args["img_path"], 'rb'),
+                    caption=args["caption"]
                 )
-                logger.info(f"Sender - File: {ctx.job.data['img_path']}, Sent: {datetime.now()}")
+                logger.info(f"Sender - File: {data['img_path']}, Sent: {datetime.now()}")
             finally:
-                os.remove(ctx.job.data["img_path"])
-        self.telegram_endpoint.job_queue.run_once(_send_img_callback, 0.0, data=data)
+                os.remove(data["img_path"])
+        self.telegram_endpoint.create_task(_send_img_callback(data, self.telegram_endpoint.bot))
         logger.info(f"Sender - File: {str(img)}, Scheduled: {datetime.now()}")
 
     def _get_help_cmd_callback(self) -> _TelegramCallbackType:
@@ -185,7 +184,7 @@ class BalrogTelegramBot(MessageSender):
         async def _restart_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
             await update.message.reply_text('Restarting script...')
-            bot.telegram_endpoint.stop_running()
+            bot.stop()
         return _restart_cmd_callback
 
     def _get_node_status_cmd_callback(self) -> _TelegramCallbackType:
