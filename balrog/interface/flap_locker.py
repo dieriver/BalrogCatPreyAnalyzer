@@ -38,17 +38,22 @@ class FlapLocker:
             devices_data[registered_device.name] = registered_device.id
         return devices_data
 
+    @staticmethod
+    def _parse_pet_data(pet: Pet):
+        corrected_since: datetime = pet.activity.since.astimezone(pytz.timezone(general_config.local_timezone))
+        return (f"\nPet '{pet.name}', Location: {pet.location}, "
+                f"Since: {corrected_since.strftime(general_config.timestamp_format)}")
+
     # Functions used to send data from surepy to the telegram interface
-    async def get_pets_status_str(self) -> str:
+    async def get_pets_status_str(self, filter_by_id: Optional[int] = None) -> str:
         # list with all pets
-        pets: List[Dict[str, Any]] = await self.surepy.sac.get_pets()
+        pets: List[Pet] = await self._get_fresh_pets()
         message = f"I found this:"
         for pet in pets:
-            location: Location = Location(pet['status']['activity']['where'])
-            location_since: datetime = datetime.fromisoformat(pet['status']['activity']['since'])
-            corrected_since: datetime = location_since.astimezone(pytz.timezone(general_config.local_timezone))
-            message += (f"\nPet '{pet['name']}', Location: {location}, "
-                        f"Since: {corrected_since.strftime(general_config.timestamp_format)}")
+            if filter_by_id is not None and pet.pet_id != filter_by_id:
+                continue
+            else:
+                message += FlapLocker._parse_pet_data(pet)
         return message
 
     async def get_device_data_str(self, device_id: int) -> str:
@@ -169,4 +174,11 @@ class FlapLocker:
             device
             for device in (await self.surepy.get_entities(refresh=True)).values()
             if isinstance(device, SurepyDevice)
+        ]
+
+    async def _get_fresh_pets(self) -> List[Pet]:
+        return [
+            device
+            for device in (await self.surepy.get_entities(refresh=True)).values()
+            if isinstance(device, Pet)
         ]

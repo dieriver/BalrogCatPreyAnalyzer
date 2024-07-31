@@ -103,15 +103,18 @@ class BalrogTelegramBot(MessageSender):
         self.commands['mute'] = self._get_mute_notifications_callback()
         self.commands['unmute'] = self._get_resume_notifications_callback()
         self.commands['switch'] = self._get_switch_location_callback()
-        # create callbacks for switching the state of pets
         for pet_name in self.pets_data:
+            # Callbacks for switching the state of pets
             self.commands[f'switch{pet_name}'] = self._get_switch_location_callback(pet_name=pet_name)
+            # Callbacks for getting the state of pets
+            self.commands[f'status{pet_name}'] = self._get_status_callback(status_arg=pet_name)
         self.commands['status'] = self._get_status_callback()
-        self.commands['statusPets'] = self._get_status_all_pets_callback()
-        self.commands['statusBalrog'] = self._get_balrog_status_cmd_callback()
+        self.commands['statusPets'] = self._get_status_callback(status_arg="pets")
+        self.commands['statusBalrog'] = self._get_status_callback(status_arg="balrog")
         # create callbacks for status of the devices
         for device_name in self.devices_data:
             self.commands[f'status{device_name}'] = self._get_status_callback(status_arg=device_name)
+
         # Not very used commands
         self.commands['curfew'] = self._get_lock_moria_callback_for_status(_LockMode.CURFEW)
 
@@ -406,29 +409,36 @@ class BalrogTelegramBot(MessageSender):
 
     def _get_status_callback(self, status_arg: Optional[str] = None) -> _TelegramCallbackType:
         bot = self
-        device_data = {k.lower(): v for k, v in self.devices_data}
+        device_data = {k.lower(): v for k, v in self.devices_data.items()}
+        pet_data = {k.lower(): v for k, v in self.pets_data.items()}
 
         async def _send_device_data_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot, device_data, status_arg
+            nonlocal bot, device_data, pet_data, status_arg
 
             arg = await _get_value_from_var_or_args(status_arg, context.args, update, "Status of what??...")
             if arg is None:
                 return
 
-            match arg.lower():
+            arg_low = arg.lower()
+
+            match arg_low:
                 case "balrog":
                     balrog_status_coro = self._get_balrog_status_cmd_callback()
                     return await balrog_status_coro(update, context)
                 case "pets":
                     pets_status_coro = self._get_status_all_pets_callback()
                     return await pets_status_coro(update, context)
-                case _:
-                    if arg.lower() not in device_data:
-                        await update.message.reply_text(f"Device '{arg}' is unknown...")
-                        return
-                    device_id = device_data[arg.lower()]
+                case arg_low if arg_low in device_data:
+                    device_id = device_data[arg_low]
                     device_result = await bot.flap_handler.get_device_data_str(device_id)
                     await update.message.reply_text(device_result)
+                case arg_low if arg_low in pet_data:
+                    pet_id = pet_data[arg_low]
+                    pet_result = await bot.flap_handler.get_pets_status_str(filter_by_id=pet_id)
+                    await update.message.reply_text(pet_result)
+                case _:
+                    await update.message.reply_text(f"Device or pet '{arg}' is unknown...")
+                    return
         return _send_device_data_callback
 
 
