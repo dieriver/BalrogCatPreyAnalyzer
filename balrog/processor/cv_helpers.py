@@ -8,7 +8,7 @@ from balrog.types import Box
 
 def put_text(img: MatLike, text: str) -> MatLike:
     font = cv2.FONT_HERSHEY_SIMPLEX
-    color = (102, 51, 0)
+    color = (153, 153, 255)
     font_scale = 1.5
     line_type = 3
     y_pos, _, _ = img.shape
@@ -23,12 +23,7 @@ def draw_rectangle(img: MatLike, box: Box, color: Sequence[float], text: str) ->
     line_type = 3
     text_pos = (box[0][0], int(box[0][1] - 16))
 
-    cv2.putText(img, text,
-                text_pos,
-                font,
-                font_scale,
-                color,
-                line_type)
+    cv2.putText(img, text, text_pos, font, font_scale, color, line_type)
     return cv2.rectangle(img, (box[0][0], box[0][1]), (box[1][0], box[1][1]), color, 5)
 
 
