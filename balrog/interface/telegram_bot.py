@@ -127,14 +127,17 @@ class BalrogTelegramBot(MessageSender):
             "chat_id": self.chat_id
         }
 
-        async def _send_text_callback(args: Dict[str, Any], bot: Bot) -> None:
+        async def _send_text_callback(args: Dict[str, Any], init_tstamp: datetime, bot: Bot) -> None:
+            sent_tstamp = datetime.now()
             await bot.send_message(
                 chat_id=args["chat_id"],
                 text=args["msg"]
             )
-            logger.info(f"Sender - Msg: '{args['msg']}', Sent: {datetime.now()}")
-        self.telegram_endpoint.create_task(_send_text_callback(data, self.telegram_endpoint.bot))
-        logger.info(f"Sender - Msg: '{message}', Scheduled: {datetime.now()}")
+            delta = (sent_tstamp - init_tstamp).seconds
+            logger.info(f"Sender - Msg: '{args['msg']}', Sent: {sent_tstamp}, Total: {delta:.2f}s")
+        scheduled_tstamp = datetime.now()
+        logger.info(f"Sender - Msg: '{message}', Scheduled: {scheduled_tstamp}")
+        self.telegram_endpoint.create_task(_send_text_callback(data, scheduled_tstamp, self.telegram_endpoint.bot))
 
     def send_img(self, img: Path, caption: str, force_send: bool = False) -> None:
         data = {
@@ -145,7 +148,8 @@ class BalrogTelegramBot(MessageSender):
             "chat_id": self.chat_id
         }
 
-        async def _send_img_callback(args: Dict[str, Any], bot: Bot) -> None:
+        async def _send_img_callback(args: Dict[str, Any], init_tstamp: datetime, bot: Bot) -> None:
+            sent_tstamp = datetime.now()
             try:
                 if not args["force_send"] and args["muted_images"]:
                     return
@@ -154,11 +158,13 @@ class BalrogTelegramBot(MessageSender):
                     photo=open(args["img_path"], 'rb'),
                     caption=args["caption"]
                 )
-                logger.info(f"Sender - File: {data['img_path']}, Sent: {datetime.now()}")
+                delta = (sent_tstamp - init_tstamp).seconds
+                logger.info(f"Sender - File: {data['img_path']}, Sent: {sent_tstamp}, Total: {delta:.2f}s")
             finally:
                 os.remove(data["img_path"])
-        self.telegram_endpoint.create_task(_send_img_callback(data, self.telegram_endpoint.bot))
-        logger.info(f"Sender - File: {str(img)}, Scheduled: {datetime.now()}")
+        scheduled_tstamp = datetime.now()
+        logger.info(f"Sender - File: {str(img)}, Scheduled: {scheduled_tstamp}")
+        self.telegram_endpoint.create_task(_send_img_callback(data, scheduled_tstamp, self.telegram_endpoint.bot))
 
     def _get_help_cmd_callback(self) -> _TelegramCallbackType:
         bot = self

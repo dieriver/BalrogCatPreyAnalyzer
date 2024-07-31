@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from logging import DEBUG
 from typing import Tuple, Optional
 
@@ -26,6 +27,8 @@ class EventElement:
     raw_image: MatLike
     # Main Output
     output_img: MatLike = None
+    # Event preocessing time
+    total_time: float = None
     # CC Stage
     pet_detected_sub_img: Box = None
     # Pet

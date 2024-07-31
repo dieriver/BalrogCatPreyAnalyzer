@@ -123,6 +123,7 @@ class FrameResultAggregator:
         # Add this such that the bot has some info
         current_time = datetime.now(pytz.timezone(general_config.local_timezone))
         frame_roundtrip_delay = (current_time - next_frame.timestamp).total_seconds()
+        cascade_obj.total_time = frame_roundtrip_delay
 
         self.bot.frames_rdy_for_img = rdy_for_img
         self.bot.frames_rdy_for_cascade = rdy_for_casc
@@ -217,6 +218,7 @@ class FrameResultAggregator:
         sender_image: MatLike = None
         try:
             aggregated_confidences: List[str] = []
+            aggregated_processing_times: List[str] = []
             minimum: float = sys.float_info.max
 
             for idx, event in enumerate(self.event_objects):
@@ -233,13 +235,15 @@ class FrameResultAggregator:
                     full_event_str += f'Img_Name: {event.img_name}\n'
                     full_event_str += f'PC_Val: {event.prey_confidence:.2f}\n'
                     aggregated_confidences.append(f"{event.prey_confidence:.2f}")
+                    aggregated_processing_times.append(f"{event.total_time:.2f}")
 
                 full_event_str += '****************'
                 FrameResultAggregator._log(DEBUG, full_event_str)
 
             return sender_image, (f"Aggregated {len(aggregated_confidences)} "
                                   f"{'frames' if len(aggregated_confidences) > 1 else 'frame'}: "
-                                  f"{aggregated_confidences}")
+                                  f"{aggregated_confidences}\n"
+                                  f"Processing times: {aggregated_processing_times}")
         except Exception as e:
             FrameResultAggregator._log(INFO, f"min_prey_index = {min_prey_index}, "
                                              f"event_size = {len(self.event_objects)}")
