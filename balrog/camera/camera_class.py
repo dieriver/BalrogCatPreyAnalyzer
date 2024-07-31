@@ -12,6 +12,7 @@ from cv2.typing import MatLike
 
 from balrog.config import general_config, logging_config
 from balrog.processor import ImageBuffers
+from balrog.processor.cv_helpers import put_text
 from balrog.utils import logger, get_resource_path
 
 
@@ -73,9 +74,11 @@ class ICamera(abc.ABC):
         # encounters that is busy. Due to the invariant, this thread _assumes_ all the buffers are full,
         # so it discards the recently captured frame, and all the subsequents, leading to a stall
         # This is fixed by writing the data atomically
+        tstamp = datetime.now(pytz.timezone(general_config.local_timezone))
+        frame = put_text(frame_data, f"Captured: {tstamp}")
         index = self.frame_buffers.write_frame_on_next_available_buffer(
-            frame_data,
-            datetime.now(pytz.timezone(general_config.local_timezone))
+            frame,
+            tstamp
         )
         if index < 0:
             ICamera._log(WARN, "Could not find a buffer ready to write an image, discarding the frame")

@@ -36,7 +36,7 @@ class CCMobileNetStage:
     def do_cc(self, target_img: MatLike) -> Tuple[bool, Box, float]:
         img_copy = target_img.copy()
         colored_img = cv2.cvtColor(img_copy, cv2.COLOR_BGR2RGB)
-        resized_colored_img = resize_img_to_square(colored_img, 300, 1.0)
+        resized_colored_img = resize_img_to_square(colored_img, 300)
 
         pet_detected, pet_box, inference_time = self._pet_detector(img_copy, resized_colored_img)
         return pet_detected, pet_box, inference_time
