@@ -198,17 +198,17 @@ class BalrogTelegramBot(MessageSender):
 
         async def _node_status_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot
-            rdy_for_img = str(bot.frames_rdy_for_img) if bot.frames_rdy_for_img is not None else "Unknown"
-            rdy_for_casc = str(bot.frames_rdy_for_cascade) if bot.frames_rdy_for_cascade is not None else "Unknown"
-            rdy_for_agg = str(bot.frames_rdy_for_aggregate) if bot.frames_rdy_for_aggregate is not None else "Unknown"
-            last_casc_time = str(bot.last_casc_time) if bot.last_casc_time is not None else "Unknown"
-            roundtrip_delay = str(bot.queue_avg_delay) if bot.queue_avg_delay is not None else "Unknown"
+            rdy_for_img = f"{bot.frames_rdy_for_img}" if bot.frames_rdy_for_img is not None else "Unknown"
+            rdy_for_casc = f"{bot.frames_rdy_for_cascade}" if bot.frames_rdy_for_cascade is not None else "Unknown"
+            rdy_for_agg = f"{bot.frames_rdy_for_aggregate}" if bot.frames_rdy_for_aggregate is not None else "Unknown"
+            last_casc_time = f"{bot.last_casc_time} s." if bot.last_casc_time is not None else "Unknown"
+            roundtrip_delay = f"{bot.queue_avg_delay} s." if bot.queue_avg_delay is not None else "Unknown"
 
             bot_message = (f'Frames rdy for image: {rdy_for_img}\n'
                            f'Frames rdy for cascade: {rdy_for_casc}\n'
                            f'Frames rdy for aggregation: {rdy_for_agg}\n'
-                           f'Last cascade time: {last_casc_time}s\n'
-                           f'Frame roundtrip delay: {roundtrip_delay}s\n'
+                           f'Last cascade time: {last_casc_time}\n'
+                           f'Frame roundtrip delay: {roundtrip_delay}\n'
                            f"Notifications: {'Disabled' if bot.muted_images else 'Enabled'}")
             await update.message.reply_text(bot_message)
         return _node_status_cmd_callback
