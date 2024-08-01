@@ -8,8 +8,8 @@ from balrog.types import Box
 
 def put_text(img: MatLike, text: str) -> MatLike:
     font = cv2.FONT_HERSHEY_SIMPLEX
-    color = (153, 153, 255)
-    font_scale = 1.5
+    color = (75, 75, 255)
+    font_scale = 1.2
     line_type = 3
     y_pos, _, _ = img.shape
     text_pos = (10, y_pos - 16)
