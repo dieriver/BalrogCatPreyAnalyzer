@@ -1,5 +1,6 @@
+import builtins
 import os
-from datetime import datetime
+import datetime
 from typing import Any, Dict, List, Optional
 
 import pytz
@@ -39,8 +40,15 @@ class FlapLocker:
         return devices_data
 
     @staticmethod
-    def _parse_pet_data(pet: Pet):
-        corrected_since: datetime = pet.activity.since.astimezone(pytz.timezone(general_config.local_timezone))
+    def _parse_pet_data(pet: Pet) -> Optional[str]:
+        match type(pet.activity.since):
+            case builtins.str:
+                location_since = datetime.datetime.fromisoformat(str(pet.activity.since))
+            case datetime.datetime:
+                location_since = pet.activity.since
+            case _:
+                location_since = datetime.datetime(1970, 1, 1, 0, 0, 0)
+        corrected_since: datetime = location_since.astimezone(pytz.timezone(general_config.local_timezone))
         return (f"\nPet '{pet.name}', Location: {pet.location}, "
                 f"Since: {corrected_since.strftime(general_config.timestamp_format)}")
 
