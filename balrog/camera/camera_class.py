@@ -128,21 +128,36 @@ class Camera(ICamera):
         self.stream_url: str = stream_uri
 
     def fill_queue(self) -> None:
-        camera = None
+        camera = cv2.VideoCapture()
         while True:
             try:
-                camera = cv2.VideoCapture(self.stream_url)
+                camera.open(self.stream_url)
+                ICamera._log(INFO, f"Capture backend name: {camera.getBackendName()}")
+                ICamera._log(INFO, f"Capture FPS: {camera.get(cv2.CAP_PROP_FPS)}")
                 capture_tries = 0
+                previous_capture = time.time()
+
                 while camera.isOpened():
+                    # General strategy:
+                    # As stated in https://stackoverflow.com/questions/52068277/change-frame-rate-in-opencv-3-4-2
+                    # We cannot "time.sleep" to wait before capturing the next frame. This will end up in frames
+                    # overflowing the buffer of the underlying capture backend (FFMPEG in Linux), and generating delay
+                    # instead, we immediately try to read
                     success, frame = camera.read()
+
+                    now = time.time()
+                    time_elapsed = now - previous_capture
+                    if time_elapsed <= 1 / self.frame_rate:
+                        continue
+
+                    # At this time, we know that it has passed, at least, 1/frame_rate secs; we can process this frame
+                    previous_capture = now
                     frame_written = super()._write_frame_to_buffer(frame)
                     capture_tries += 1
                     ICamera._log(DEBUG, f"Status - Captured: {capture_tries}, last_status: {success}")
 
                     if not success or not frame_written:
                         ICamera._log(DEBUG, f"Frame capture not success or not written")
-
-                    time.sleep(1 / self.frame_rate)
 
                     if capture_tries >= self.cleanup_threshold:
                         raise _CleanCameraException()
@@ -159,4 +174,3 @@ class Camera(ICamera):
                 if camera is not None:
                     ICamera._log(DEBUG, f"Releasing camera object")
                     camera.release()
-                    del camera
