@@ -132,8 +132,9 @@ class Camera(ICamera):
         while True:
             try:
                 camera.open(self.stream_url)
+                camera_fps = camera.get(cv2.CAP_PROP_FPS)
                 ICamera._log(INFO, f"Capture backend name: {camera.getBackendName()}")
-                ICamera._log(INFO, f"Capture FPS: {camera.get(cv2.CAP_PROP_FPS)}")
+                ICamera._log(INFO, f"Capture FPS: {camera_fps}")
                 capture_tries = 0
                 previous_capture = time.time()
 
@@ -141,13 +142,17 @@ class Camera(ICamera):
                     # General strategy:
                     # As stated in https://stackoverflow.com/questions/52068277/change-frame-rate-in-opencv-3-4-2
                     # We cannot "time.sleep" to wait before capturing the next frame. This will end up in frames
-                    # overflowing the buffer of the underlying capture backend (FFMPEG in Linux), and generating delay
-                    # instead, we immediately try to read
+                    # overflowing the buffer of the underlying capture backend (FFMPEG in Linux), and generating
+                    # delay on the captured frames. Instead, we try the read the next available frame, and determine
+                    # if it has passed enough time to match the configured fps (not the reported camera fps!)
                     success, frame = camera.read()
 
                     now = time.time()
                     time_elapsed = now - previous_capture
                     if time_elapsed <= 1 / self.frame_rate:
+                        # The next frame won't be available until, at least, 1/camera_fps seconds
+                        # It is safe to sleep until then
+                        time.sleep(1 / camera_fps)
                         continue
 
                     # At this time, we know that it has passed, at least, 1/frame_rate secs; we can process this frame
