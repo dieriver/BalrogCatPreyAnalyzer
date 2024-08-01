@@ -37,6 +37,7 @@ class LoggingConfigs:
 class CameraConfigs:
     camera_fps: int
     camera_cleanup_frames_threshold: int
+    busy_wait_frame_capturing: bool = False
 
 
 @dataclass
@@ -103,9 +104,15 @@ def load_logging_config() -> LoggingConfigs:
 def load_camera_config() -> CameraConfigs:
     with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
+        if "busy_wait_frame_capturing" in loaded_bytes["camera"]:
+            busy_wait_capture = loaded_bytes["camera"]["busy_wait_frame_capturing"]
+        else:
+            busy_wait_capture = False
+
         return CameraConfigs(
             loaded_bytes["camera"]["camera_fps"],
-            loaded_bytes["camera"]["camera_cleanup_frames_threshold"]
+            loaded_bytes["camera"]["camera_cleanup_frames_threshold"],
+            busy_wait_capture
         )
 
 

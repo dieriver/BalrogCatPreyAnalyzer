@@ -3,7 +3,7 @@ from os import getenv
 from signal import Signals, signal
 
 from balrog.camera import ICamera
-from balrog.config import general_config, camera_config, logging_config
+from balrog.config import general_config, logging_config
 from balrog.interface import MessageSender
 from balrog.processor.aggregator import FrameResultAggregator
 from balrog.processor.frame_processor import FrameProcessor
@@ -23,9 +23,7 @@ Logging.init_logger(
 frame_buffers = ImageBuffers(2 * general_config.max_frame_buffers, logging_config.enable_circular_buffer_logging)
 
 camera = ICamera.get_instance(
-    fps=camera_config.camera_fps,
     frame_buffers=frame_buffers,
-    cleanup_threshold=camera_config.camera_cleanup_frames_threshold,
     is_debug=getenv("BALROG_USE_NULL_CAMERA") is not None
 )
 message_sender = MessageSender.get_message_sender_instance(

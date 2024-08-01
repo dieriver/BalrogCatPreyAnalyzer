@@ -22,6 +22,7 @@ max_log_files_kept = 2
 [camera]
 camera_fps = 10
 camera_cleanup_frames_threshold = 60
+busy_wait_frame_capturing = false
 
 [model]
 event_reset_threshold = 6
@@ -35,3 +36,4 @@ let_in_open_seconds = 40
 
 [commands_map]
 lockout = ["releaseKrakens"]
+statusPets = ["statusKrakens", "whereIsTheKraken"]

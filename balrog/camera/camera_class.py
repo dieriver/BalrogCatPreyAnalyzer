@@ -10,7 +10,7 @@ import cv2
 import pytz
 from cv2.typing import MatLike
 
-from balrog.config import general_config, logging_config
+from balrog.config import general_config, logging_config, camera_config
 from balrog.processor import ImageBuffers
 from balrog.processor.cv_helpers import put_text
 from balrog.utils import logger, get_resource_path
@@ -36,11 +36,11 @@ class ICamera(abc.ABC):
 
     @staticmethod
     def get_instance(
-            fps: int,
             frame_buffers: ImageBuffers,
-            cleanup_threshold: int,
             is_debug: bool = False
     ):
+        fps = camera_config.camera_fps
+        cleanup_threshold = camera_config.camera_cleanup_frames_threshold
         if is_debug:
             return DbgCamera(fps, frame_buffers)
         else:
@@ -150,9 +150,10 @@ class Camera(ICamera):
                     now = time.time()
                     time_elapsed = now - previous_capture
                     if time_elapsed <= 1 / self.frame_rate:
-                        # The next frame won't be available until, at least, 1/camera_fps seconds
-                        # It is safe to sleep until then
-                        time.sleep(1 / camera_fps)
+                        if not camera_config.busy_wait_frame_capturing:
+                            # The next frame won't be available until, at least, 1/camera_fps seconds
+                            # If configured, it is safe to sleep until then (this can generate a bit of capture delay)
+                            time.sleep(1 / camera_fps)
                         continue
 
                     # At this time, we know that it has passed, at least, 1/frame_rate secs; we can process this frame
