@@ -1,4 +1,5 @@
 import time
+import copy as cpy
 from typing import Tuple, Sequence
 
 import cv2
@@ -34,7 +35,7 @@ class CCMobileNetStage:
         logger.debug('CNN is ready to go!')
 
     def do_cc(self, target_img: MatLike) -> Tuple[bool, Box, float]:
-        img_copy = target_img.copy()
+        img_copy = cpy.deepcopy(target_img)
         colored_img = cv2.cvtColor(img_copy, cv2.COLOR_BGR2RGB)
         resized_colored_img = resize_img_to_square(colored_img, 300)
 
@@ -77,7 +78,7 @@ class HaarStage:
             self.face_cascade = cv2.CascadeClassifier(str(model_file))
 
     def haar_do(self, sub_img: MatLike, full_img: MatLike, prev_box: Box) -> Tuple[bool, Box, float]:
-        img_copy = sub_img.copy()
+        img_copy = cpy.deepcopy(sub_img)
         face_found, face_found_box, inference_time,  = self._haar_predict(img_copy)
 
         face_box = face_found_box[:]
@@ -118,7 +119,7 @@ class HaarStage:
 
 def _apply_keras_model_on_image(model: tf.keras.Model, img: MatLike) -> Tuple[bool, float, float]:
     size = 224
-    img_copy = img.copy()
+    img_copy = cpy.deepcopy(img)
     preprocessed_img = resize_img_to_square(img_copy, size, normalize=True).reshape((1, size, size, 3))
 
     start_time = time.time()
@@ -183,7 +184,7 @@ class EyeStage:
         return img_resize, top, left
 
     def _eye_full_prediction(self, image: MatLike, face_box: Box) -> Tuple[Box, float]:
-        img_copy = image.copy()
+        img_copy = cpy.deepcopy(image)
         preprocessed_img, top, left = self._resize_img(img_copy)
         inputs = (preprocessed_img.astype('float32') / 255).reshape((1, self.TARGET_SIZE, self.TARGET_SIZE, 3))
         start_time = time.time()
@@ -228,6 +229,6 @@ class EyeStage:
         pc_ymin = int(eyes_box[0][1])
         pc_xmax = int(eyes_box[1][0])
         pc_ymax = int(eyes_box[1][1])
-        eyes_img_crop = raw_image[pc_ymin:pc_ymax, pc_xmin:pc_xmax].copy()
+        eyes_img_crop = cpy.deepcopy(raw_image[pc_ymin:pc_ymax, pc_xmin:pc_xmax])
 
         return eyes_img_crop, eyes_box, inference_time

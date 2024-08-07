@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from logging import DEBUG
 from typing import Tuple, Optional
 
+import copy as cpy
 import cv2
 from cv2.typing import MatLike
 
@@ -89,7 +90,7 @@ def _do_haar_stage(
     pc_ymin = int(face_box[0][1])
     pc_xmax = int(face_box[1][0])
     pc_ymax = int(face_box[1][1])
-    face_sub_img = raw_img[pc_ymin:pc_ymax, pc_xmin:pc_xmax].copy()
+    face_sub_img = cpy.deepcopy(raw_img[pc_ymin:pc_ymax, pc_xmin:pc_xmax])
 
     return face_found, face_sub_img, face_box, haar_inference_time
 
@@ -130,8 +131,8 @@ class Cascade:
         if event_img_object.raw_image is None:
             return
 
-        original_copy_img = event_img_object.raw_image.copy()
-        copy_img_for_cascade = event_img_object.raw_image.copy()
+        original_copy_img = cpy.deepcopy(event_img_object.raw_image)
+        copy_img_for_cascade = cpy.deepcopy(event_img_object.raw_image)
 
         # Do CC - Recognizes pet (either cat or dog)
         pet_present, pet_box, pet_detected_sub_img, cc_inference_time = _do_cc_mobile_stage(
