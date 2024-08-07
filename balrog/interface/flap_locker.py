@@ -105,7 +105,7 @@ class FlapLocker:
             logger.debug('WARNING: We assume that the old state was "LOCKED_OUT"')
             return LockState.LOCKED_OUT
 
-    async def _set_moria_lock_state(self, state: LockState) -> str:
+    async def _set_moria_lock_state(self, state: LockState) -> bool:
         # list with all devices
         devices: List[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
@@ -114,30 +114,31 @@ class FlapLocker:
                 result_lock = await self.surepy.sac._set_lock_state(device.id, state)
                 result_device = await self.surepy.get_device(device.id)
                 if result_lock and result_device:
-                    return 'Done'
+                    return True
+        return False
 
-    async def unlock_moria(self) -> str:
+    async def unlock_moria(self) -> bool:
         return await self._set_moria_lock_state(LockState.UNLOCKED)
 
-    async def lock_moria_in(self) -> str:
+    async def lock_moria_in(self) -> bool:
         return await self._set_moria_lock_state(LockState.LOCKED_IN)
 
-    async def lock_moria_out(self) -> str:
+    async def lock_moria_out(self) -> bool:
         return await self._set_moria_lock_state(LockState.LOCKED_OUT)
 
-    async def lock_moria(self) -> str:
+    async def lock_moria(self) -> bool:
         return await self._set_moria_lock_state(LockState.LOCKED_ALL)
 
-    async def activate_curfew(self) -> str:
+    async def activate_curfew(self) -> bool:
         return await self._set_moria_lock_state(LockState.CURFEW)
 
-    async def lock_moria_curfew(self) -> str:
+    async def lock_moria_curfew(self) -> bool:
         return await self._set_moria_lock_state(LockState.CURFEW_LOCKED)
 
-    async def unlock_moria_curfew(self) -> str:
+    async def unlock_moria_curfew(self) -> bool:
         return await self._set_moria_lock_state(LockState.CURFEW_UNLOCKED)
 
-    async def unlock_flap_for_let_in(self) -> str:
+    async def unlock_flap_for_let_in(self) -> bool:
         self.old_state = await self.get_lock_state()
         logger.debug(f"Old state = {self.old_state}")
         if self.old_state >= LockState.CURFEW:
@@ -147,7 +148,7 @@ class FlapLocker:
         logger.debug(f"New state = {new_state}")
         return await self._set_moria_lock_state(new_state)
 
-    async def finish_letin(self) -> str:
+    async def finish_letin(self) -> bool:
         if self.old_state is not None:
             logger.debug(f"Setting back old state = {self.old_state}")
             return await self._set_moria_lock_state(self.old_state)

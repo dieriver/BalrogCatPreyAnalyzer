@@ -1,8 +1,8 @@
+import copy as cpy
 from dataclasses import dataclass
 from logging import DEBUG
 from typing import Tuple, Optional
 
-import copy as cpy
 import cv2
 from cv2.typing import MatLike
 

@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Coroutine, Optional, List
 
 import cv2
 from telegram import Update, Message
+from telegram.constants import ReactionEmoji
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackContext
 
 from balrog.config import flap_config, general_config, command_aliases_config
@@ -270,14 +271,18 @@ class BalrogTelegramBot(MessageSender):
 
             bot.is_ongoing_let_in = True
             open_msg = await update.message.reply_text(f"Ok, door is open for {seconds}s...")
-            result = await bot.flap_handler.unlock_flap_for_let_in()
-            await open_msg.reply_text(result)
+            let_in_success = await bot.flap_handler.unlock_flap_for_let_in()
+            # await open_msg.reply_text(result)
+            reaction = ReactionEmoji.THUMBS_UP if let_in_success else ReactionEmoji.THUMBS_DOWN
+            await open_msg.set_reaction(reaction)
 
             async def _finish_let_in(ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 nonlocal bot, update
                 lock_msg = await update.message.reply_text(f"Locking door after {seconds}s...")
-                result_lock = await bot.flap_handler.finish_letin()
-                await lock_msg.reply_text(result_lock)
+                result_success = await bot.flap_handler.finish_letin()
+                # await lock_msg.reply_text(result_success)
+                react = ReactionEmoji.THUMBS_UP if result_success else ReactionEmoji.THUMBS_DOWN
+                await lock_msg.set_reaction(react)
                 bot.is_ongoing_let_in = False
 
             context.job_queue.run_once(_finish_let_in, seconds)
@@ -319,8 +324,10 @@ class BalrogTelegramBot(MessageSender):
         async def _lock_moria(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal message, callback
             lock_msg = await update.message.reply_text(message)
-            lock_result = await callback()
-            await lock_msg.reply_text(lock_result)
+            lock_success = await callback()
+            # await lock_msg.reply_text(lock_success)
+            reaction = ReactionEmoji.THUMBS_UP if lock_success else ReactionEmoji.THUMBS_DOWN
+            await lock_msg.set_reaction(reaction)
         return _lock_moria
 
     def _get_status_all_pets_callback(self) -> _TelegramCallbackType:
