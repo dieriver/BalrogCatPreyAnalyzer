@@ -64,12 +64,12 @@ def _do_cc_mobile_stage(
         cc_target_img: MatLike
 ) -> Tuple[bool, Optional[Box], Optional[MatLike], float]:
     pet_presence, pet_box, inference_time = cc_mobile_stage.do_cc(target_img=cc_target_img)
-    if pet_presence:
+    if pet_presence and pet_box is not None:
         img_xmin = pet_box[0][0]
         img_ymin = pet_box[0][1]
         img_xmax = pet_box[1][0]
         img_ymax = pet_box[1][1]
-        detected_pet_img = cc_target_img[img_ymin:img_ymax, img_xmin:img_xmax]
+        detected_pet_img = cpy.deepcopy(cc_target_img[img_ymin:img_ymax, img_xmin:img_xmax])
         return pet_presence, pet_box, detected_pet_img, inference_time
     else:
         return pet_presence, None, None, inference_time

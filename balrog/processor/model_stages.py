@@ -52,22 +52,28 @@ class CCMobileNetStage:
         detection_result = self.detect_function(frame_expanded)
         classes = detection_result['detection_classes'].numpy()
         boxes = detection_result['detection_boxes'].numpy()
+        detections = detection_result['num_detections'].numpy()
 
         end_time = time.time()
         inference_time = end_time - start_time
 
-        # Check the class of the top detected object by looking at classes[0][0].
-        # If the top detected object is a cat (17) or a dog (18) (or a teddy bear (88) for test purposes),
-        # find its center coordinates by looking at the boxes[0][0] variable.
-        # boxes[0][0] variable holds coordinates of detected objects as (ymin, xmin, ymax, xmax)
-        xmin = int(boxes[0][0][1] * original_frame.shape[1])
-        ymin = int(boxes[0][0][0] * original_frame.shape[0])
-        xmax = int(boxes[0][0][3] * original_frame.shape[1])
-        ymax = int(boxes[0][0][2] * original_frame.shape[0])
-        pet_box: Box = np.array([(xmin, ymin), (xmax, ymax)]).reshape((-1, 2))
+        if detections == 0:
+            # Nothing was detected:
+            pet_detected = False
+            pet_box = None
+        else:
+            # Check the class of the top detected object by looking at classes[0][0].
+            # If the top detected object is a cat (17) or a dog (18) (or a teddy bear (88) for test purposes),
+            # find its center coordinates by looking at the boxes[0][0] variable.
+            # boxes[0][0] variable holds coordinates of detected objects as (ymin, xmin, ymax, xmax)
+            xmin = int(boxes[0][0][1] * original_frame.shape[1])
+            ymin = int(boxes[0][0][0] * original_frame.shape[0])
+            xmax = int(boxes[0][0][3] * original_frame.shape[1])
+            ymax = int(boxes[0][0][2] * original_frame.shape[0])
+            pet_box: Box = np.array([(xmin, ymin), (xmax, ymax)]).reshape((-1, 2))
 
-        # A pet was detected if the top detected object is of class 17 (cat) or 18 (dog)
-        pet_detected = int(classes[0][0]) == 17 or int(classes[0][0]) == 18
+            # A pet was detected if the top detected object is of class 17 (cat) or 18 (dog)
+            pet_detected = int(classes[0][0]) == 17 or int(classes[0][0]) == 18
 
         return pet_detected, pet_box, inference_time
 
@@ -94,9 +100,14 @@ class HaarStage:
         start_time = time.time()
         bw_image = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
 
-        faces: Sequence[cv2.typing.Rect] = self.face_cascade.detectMultiScale(
-            image=bw_image, scaleFactor=1.3, minNeighbors=1, minSize=(25, 25)
-        )
+        if bw_image.size != 0:
+            faces: Sequence[cv2.typing.Rect] = self.face_cascade.detectMultiScale(
+                image=bw_image, scaleFactor=1.3, minNeighbors=1, minSize=(25, 25)
+            )
+        else:
+            # Something happened with the image; it has a size of 0x0
+            faces = []
+
         inference_time = time.time() - start_time
 
         if len(faces) != 0:
