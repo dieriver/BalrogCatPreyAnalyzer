@@ -116,13 +116,16 @@ def _write_text_on_img(img: MatLike, text: str, text_pos: Tuple[int, int],
 
 
 class Cascade:
-    def __init__(self):
+    def __init__(self, max_open_cv_workers: int):
         # Models
         self.cc_mobile_stage = CCMobileNetStage()
         self.pc_stage = PCStage()
         self.ff_stage = FFStage()
         self.eyes_stage = EyeStage()
-        self.haar_stage = HaarStage()
+        self.haar_stage = HaarStage(max_open_cv_workers=max_open_cv_workers)
+
+    def shutdown(self):
+        self.haar_stage.shutdown()
 
     def do_single_cascade(self, event_img_object: EventElement, thread_id: int, frame_index: int) -> None:
         logger.info(f"Processor #{thread_id} - Processing index: '{frame_index}', "

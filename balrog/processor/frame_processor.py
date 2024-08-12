@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from logging import DEBUG, INFO, WARN, ERROR
 from multiprocessing import Event
+from multiprocessing.shared_memory import SharedMemory
 from typing import Optional
 
 import cv2
@@ -32,7 +33,7 @@ class FrameProcessor:
     """
     def __init__(self, frame_buffers: ImageBuffers):
         self.stop_event: Event = Event()
-        self.base_cascade: Cascade = Cascade()
+        self.base_cascade: Cascade = Cascade(max_open_cv_workers=general_config.max_frame_processor_threads)
         self.frame_buffers: ImageBuffers = frame_buffers
         self.frame_processor_pool = ThreadPoolExecutor(max_workers=general_config.max_frame_processor_threads,
                                                        thread_name_prefix="Frame-Proc")
@@ -48,6 +49,7 @@ class FrameProcessor:
         FrameProcessor._log(WARN, -1, "Stopping frame processor threads")
         self.stop_event.set()
         self.frame_processor_pool.shutdown(wait=False, cancel_futures=True)
+        self.base_cascade.shutdown()
         if exception_type is not None:
             FrameProcessor._log(ERROR, -1, f"Something wrong happened in the frame processor thread")
             FrameProcessor._log(ERROR, -1, f"Exception type: {exception_type}")

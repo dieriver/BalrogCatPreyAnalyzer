@@ -1,5 +1,6 @@
 import copy as cpy
 import time
+from concurrent.futures import ProcessPoolExecutor
 from typing import Tuple, Sequence
 
 import cv2
@@ -10,6 +11,7 @@ from cv2.typing import MatLike
 
 from balrog.config import general_config
 from balrog.processor.cv_helpers import resize_img_to_square
+from balrog.processor.haar_executor import HaarExecutor, perform_haar_detection
 from balrog.types import Box
 from balrog.utils import logger, get_resource_path
 
@@ -81,9 +83,13 @@ class CCMobileNetStage:
 
 
 class HaarStage:
-    def __init__(self):
+    def __init__(self, max_open_cv_workers: int):
         with get_resource_path(_HAAR_model_file) as model_file:
-            self.face_cascade = cv2.CascadeClassifier(str(model_file))
+            self.haar_executor = HaarExecutor(str(model_file))
+        self.open_cv_pool = ProcessPoolExecutor(max_workers=max_open_cv_workers, initializer=self.haar_executor.init)
+
+    def shutdown(self):
+        self.open_cv_pool.shutdown(wait=False, cancel_futures=True)
 
     def haar_do(self, sub_img: MatLike, full_img: MatLike, prev_box: Box) -> Tuple[bool, Box, float]:
         img_copy = cpy.deepcopy(sub_img)
@@ -103,11 +109,10 @@ class HaarStage:
         bw_image = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
 
         if bw_image.size != 0:
-            faces: Sequence[cv2.typing.Rect] = self.face_cascade.detectMultiScale(
-                image=bw_image, scaleFactor=1.3, minNeighbors=1, minSize=(25, 25)
-            )
+            future_detections = self.open_cv_pool.submit(perform_haar_detection, bw_image)
+            faces: Sequence[cv2.typing.Rect] = future_detections.result()
         else:
-            # Something happened with the image; it has a size of 0x0
+            # Something happened with the image; it has a dimension of 0
             faces = []
 
         inference_time = time.time() - start_time
