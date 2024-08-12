@@ -38,6 +38,7 @@ class CCMobileNetStage:
         img_copy = cpy.deepcopy(target_img)
         colored_img = cv2.cvtColor(img_copy, cv2.COLOR_BGR2RGB)
         resized_colored_img = resize_img_to_square(colored_img, 300)
+        resized_colored_img = np.expand_dims(resized_colored_img, axis=0)
 
         pet_detected, pet_box, inference_time = self._pet_detector(img_copy, resized_colored_img)
         return pet_detected, pet_box, inference_time
@@ -45,11 +46,12 @@ class CCMobileNetStage:
     # This function contains the code to detect a pet, determine if it's
     # inside or outside, and send a text to the user's phone.
     def _pet_detector(self, original_frame: MatLike, resized_frame: MatLike) -> Tuple[bool, Box, float]:
-        frame_expanded = np.expand_dims(resized_frame, axis=0)
+        assert isinstance(resized_frame, MatLike)
 
         # Perform the actual detection by running the model with the image as input
         start_time = time.time()
-        detection_result = self.detect_function(frame_expanded)
+        frame_tensor = tf.convert_to_tensor(resized_frame, dtype=tf.uint8)
+        detection_result = self.detect_function(frame_tensor)
         classes = detection_result['detection_classes'].numpy()
         boxes = detection_result['detection_boxes'].numpy()
         detections = detection_result['num_detections'].numpy()
