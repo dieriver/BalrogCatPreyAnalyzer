@@ -116,13 +116,13 @@ def _write_text_on_img(img: MatLike, text: str, text_pos: Tuple[int, int],
 
 
 class Cascade:
-    def __init__(self, max_open_cv_workers: int):
+    def __init__(self):
         # Models
         self.cc_mobile_stage = CCMobileNetStage()
         self.pc_stage = PCStage()
         self.ff_stage = FFStage()
         self.eyes_stage = EyeStage()
-        self.haar_stage = HaarStage(max_open_cv_workers=max_open_cv_workers)
+        self.haar_stage = HaarStage()
 
     def shutdown(self):
         self.haar_stage.shutdown()

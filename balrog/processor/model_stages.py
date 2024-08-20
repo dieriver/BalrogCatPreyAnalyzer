@@ -83,10 +83,17 @@ class CCMobileNetStage:
 
 
 class HaarStage:
-    def __init__(self, max_open_cv_workers: int):
+    open_cv_pool: ProcessPoolExecutor
+
+    @classmethod
+    def init_executor(cls, max_open_cv_workers: int):
         with get_resource_path(_HAAR_model_file) as model_file:
-            self.haar_executor = HaarExecutor(str(model_file))
-        self.open_cv_pool = ProcessPoolExecutor(max_workers=max_open_cv_workers, initializer=self.haar_executor.init)
+            haar_executor = HaarExecutor(str(model_file))
+        HaarStage.open_cv_pool = ProcessPoolExecutor(max_workers=max_open_cv_workers, initializer=haar_executor.init)
+        for _ in range(max_open_cv_workers):
+            # We submit a "dummy" task to each worker in the executor; this forces to call the "init" method
+            # This action forces to fork the main process as soon as possible, leaving the workers lightweight
+            HaarStage.open_cv_pool.submit(haar_executor.force_init)
 
     def shutdown(self):
         self.open_cv_pool.shutdown(wait=False, cancel_futures=True)

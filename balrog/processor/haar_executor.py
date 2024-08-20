@@ -3,6 +3,13 @@ from typing import Optional, Sequence
 import cv2
 from cv2.typing import MatLike
 
+from balrog.utils.utils import logger
+
+# This is the CascadeClassifier instance (OpenCV object) _of the current worker_.
+# Since the main process will be forked, each sub-process should have a _different_
+# instance of the CascadeClassifier, tied to a _different instance of the dynamic
+# link of the OpenCV python bindings_. This avoids static state corruption when
+# invoking the detection from different threads of the same process.
 _model: Optional[cv2.CascadeClassifier] = None
 
 
@@ -20,3 +27,8 @@ class HaarExecutor:
     def init(self) -> None:
         global _model
         _model = cv2.CascadeClassifier(self.haar_model_file_name)
+
+    def force_init(self) -> None:
+        # We do nothing; this simply forces to invoke "init" to create the cascade classifier
+        # for the current worker process
+        logger.info(f"Starting HAAR detection sub-process. Haar object id: {id(_model)}")
