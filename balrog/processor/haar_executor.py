@@ -27,8 +27,9 @@ class HaarExecutor:
     def init(self) -> None:
         global _model
         _model = cv2.CascadeClassifier(self.haar_model_file_name)
+        logger.info(f"HAAR detection object ID: '{hex(id(_model))}'")
 
     def force_init(self) -> None:
         # We do nothing; this simply forces to invoke "init" to create the cascade classifier
         # for the current worker process
-        logger.info(f"Starting HAAR detection sub-process. Haar object id: {id(_model)}")
+        logger.info(f"Starting HAAR detection sub-process.")
