@@ -26,6 +26,11 @@ maintainers = [
     { name = "Diego Rivera", email = "dieriverav@gmail.com" }
 ]
 
+[project.optional-dependencies]
+with-cuda = [
+    "tensorflow[and-cuda]<=2.15.1"
+]
+
 [tool.setuptools]
 py-modules = ["balrog"]
 
