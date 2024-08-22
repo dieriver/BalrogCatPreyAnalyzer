@@ -183,3 +183,94 @@ $ source /path/to/virt-env/bin/activate
 This script will start the module, but also restart the module if it fails for some reason. Additionally, you can use
 the `balrog-dbg.sh` script to start the module in a similar manner, but using the `-m` option in python to get extra
 debugging info from the python interpreter.
+
+
+# CUDA Support
+
+Since the principal computation is carried by the OpenCV and TensorFlow libraries, this package also offers support for
+accelerating the computation using CUDA. To this end, you need to install this package with cuda support:
+
+```shell
+pip install .[with-cuda]
+```
+
+However, this *will only install tensorflow with CUDA support*. To extend CUDA support for the OpenCV package, you
+need to compile the full OpenCV package with CUDA support.
+
+
+## Compiling OpenCV with CUDA Support
+
+First, be sure to install the "develop" package of python and some build tools:
+
+```shell
+sudo apt-get install cmake ninja-build build-essential python3.11-dev
+```
+
+Optionally, you can also install `clang` as C compiler alternative, which improves the optimization of the binary
+and performs slightly faster than GCC:
+
+```shell
+sudo apt-get install clang-18
+```
+
+Then, we need to install the CUDA toolkit and cuDNN packages from the Nvidia website. Follow the instructions provided
+in the Nvidia website for [the CUDA toolkit](https://developer.nvidia.com/cuda-downloads) and [the cuDNN package](https://developer.nvidia.com/cudnn-downloads).
+
+Before compiling, we also need to create a python virtual environment for OpenCV and activate it:
+
+```shell
+pwd # This will show the current path; we assume this returned '/path/to'
+python3.11 -m venv opencv-venv
+source /path/to/opencv-venv/bin/activate
+```
+
+The rest of this tutorial assumes that you have already activated the python virtual environment. Once all the
+dependencies are installed, we proceed to clone the OpenCV python repository:
+
+```shell
+git clone --recursive https://github.com/opencv/opencv-python.git
+```
+
+We now proceed to configure the OpenCV package by setting CMake flags. *IMPORTANT:* Depending on the graphics card
+you want to use, please configure the `-DCUDA_ARCH_BIN` argument _to match the compute capability_ of your graphics
+card. To figure out which is the compute capability of your card, please [refer to the official Nvidia website](https://developer.nvidia.com/cuda-gpus).
+The command shown below uses `clang` as the compiler for OpenCV. If you wish to use gcc, simply remove the `COMPILER`
+lines in the cmake args:
+
+```shell
+export CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Release \
+                   -DWITH_CUDA=ON \
+                   -DWITH_CUDNN=ON \
+                   -DOPENCV_DNN_CUDA=ON \
+                   -DENABLE_FAST_MATH=1 \
+                   -DCUDA_FAST_MATH=1 \
+                   -DCUDA_ARCH_BIN=7.5 \
+                   -DWITH_CUBLAS=1 \
+                   -DCMAKE_C_COMPILER=clang-18 \
+                   -DCMAKE_CXX_COMPILER=clang++-18"
+```
+
+Additionally, we need to set up the OpenCV package to compile the "contrib" libraries, and (for headless environment)
+create a headless package:
+
+```shell
+export ENABLE_CONTRIB=1
+export ENABLE_HEADLESS=1
+```
+
+Then, start the compilation of OpenCV by simply creating the python wheel (Depending on your system, this might take
+quite a while):
+
+```shell
+pip wheel . --verbose
+```
+
+Once compiled, you need to replace the installed OpenCV with the package just compiled _in the runtime virtual
+environment_:
+
+```shell
+deactivate # Deactivate the OpenCV virtual env
+source /path/to/virt-env/bin/activate # Activate the balrog runtime virtual env
+pip uninstall opencv-contrib-python-headless
+pip install opencv_contrib_python_headless-4.10.0.84-cp311-cp311-linux_x86_64.whl
+```
