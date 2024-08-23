@@ -10,7 +10,7 @@ from balrog.utils.utils import logger
 # instance of the CascadeClassifier, tied to a _different instance of the dynamic
 # link of the OpenCV python bindings_. This avoids static state corruption when
 # invoking the detection from different threads of the same process.
-if "cuda_CascadeClassifier" in dir(cv2):
+if False and "cuda_CascadeClassifier" in dir(cv2):
     _cuda_available = True
     _model: Optional[cv2.cuda_CascadeClassifier] = None
 else:
