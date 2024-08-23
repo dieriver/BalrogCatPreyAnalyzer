@@ -10,14 +10,23 @@ from balrog.utils.utils import logger
 # instance of the CascadeClassifier, tied to a _different instance of the dynamic
 # link of the OpenCV python bindings_. This avoids static state corruption when
 # invoking the detection from different threads of the same process.
-_model: Optional[cv2.CascadeClassifier] = None
+if "cuda_CascadeClassifier" in dir(cv2):
+    _cuda_available = True
+    _model: Optional[cv2.cuda_CascadeClassifier] = None
+else:
+    _cuda_available = False
+    _model: Optional[cv2.CascadeClassifier] = None
 
 
 def perform_haar_detection(image: MatLike) -> Sequence[cv2.typing.Rect]:
     global _model
     if _model is None:
         return []
-    return _model.detectMultiScale(image=image, scaleFactor=1.3, minNeighbors=1, minSize=(25, 25))
+    if _cuda_available:
+        cuda_frame = cv2.cuda_GpuMat(image)
+        return _model.detectMultiScale(image=image, scaleFactor=1.3, minNeighbors=1, minSize=(25, 25)).download()
+    else:
+        return _model.detectMultiScale(image=image, scaleFactor=1.3, minNeighbors=1, minSize=(25, 25))
 
 
 class HaarExecutor:
@@ -26,7 +35,10 @@ class HaarExecutor:
 
     def init(self) -> None:
         global _model
-        _model = cv2.CascadeClassifier(self.haar_model_file_name)
+        if _cuda_available:
+            _model = cv2.cuda_CascadeClassifier.create(self.haar_model_file_name)
+        else:
+            _model = cv2.CascadeClassifier(self.haar_model_file_name)
         logger.info(f"HAAR detection object ID: '{hex(id(_model))}'")
 
     def force_init(self) -> None:

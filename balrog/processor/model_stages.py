@@ -11,7 +11,7 @@ from cv2.typing import MatLike
 
 from balrog.config import general_config
 from balrog.processor.cv_helpers import resize_img_to_square
-from balrog.processor.haar_executor import HaarExecutor, perform_haar_detection
+from balrog.processor.executors import HaarExecutor, perform_haar_detection
 from balrog.types import Box
 from balrog.utils import logger, get_resource_path
 
@@ -34,6 +34,7 @@ class CCMobileNetStage:
 
         logger.info(f"TF Config: inter_threads = {tf.config.threading.get_inter_op_parallelism_threads()}")
         logger.info(f"TF Config: intra_threads = {tf.config.threading.get_intra_op_parallelism_threads()}")
+        logger.info(f"Num GPUs available: {len(tf.config.list_physical_devices('GPU'))}")
         logger.debug('CNN is ready to go!')
 
     def do_cc(self, target_img: MatLike) -> Tuple[bool, Box, float]:
@@ -83,20 +84,20 @@ class CCMobileNetStage:
 
 
 class HaarStage:
-    open_cv_pool: ProcessPoolExecutor
+    haar_worker_pool: ProcessPoolExecutor
 
     @classmethod
     def init_executor(cls, max_open_cv_workers: int):
         with get_resource_path(_HAAR_model_file) as model_file:
             haar_executor = HaarExecutor(str(model_file))
-        HaarStage.open_cv_pool = ProcessPoolExecutor(max_workers=max_open_cv_workers, initializer=haar_executor.init)
+        HaarStage.haar_worker_pool = ProcessPoolExecutor(max_workers=max_open_cv_workers, initializer=haar_executor.init)
         for _ in range(max_open_cv_workers):
             # We submit a "dummy" task to each worker in the executor; this forces to call the "init" method
             # This action forces to fork the main process as soon as possible, leaving the workers lightweight
-            HaarStage.open_cv_pool.submit(haar_executor.force_init)
+            HaarStage.haar_worker_pool.submit(haar_executor.force_init)
 
     def shutdown(self):
-        self.open_cv_pool.shutdown(wait=False, cancel_futures=True)
+        self.haar_worker_pool.shutdown(wait=False, cancel_futures=True)
 
     def haar_do(self, sub_img: MatLike, full_img: MatLike, prev_box: Box) -> Tuple[bool, Box, float]:
         img_copy = cpy.deepcopy(sub_img)
@@ -116,7 +117,7 @@ class HaarStage:
         bw_image = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
 
         if bw_image.size != 0:
-            future_detections = self.open_cv_pool.submit(perform_haar_detection, bw_image)
+            future_detections = self.haar_worker_pool.submit(perform_haar_detection, bw_image)
             faces: Sequence[cv2.typing.Rect] = future_detections.result()
         else:
             # Something happened with the image; it has a dimension of 0
