@@ -1,3 +1,4 @@
+import asyncio
 import builtins
 import datetime
 import os
@@ -9,7 +10,7 @@ from surepy.entities.devices import Flap
 from surepy.entities.pet import Pet
 from surepy.enums import LockState, Location
 
-from balrog.config import general_config
+from balrog.config import general_config, flap_config
 from balrog.utils.utils import logger
 
 
@@ -26,17 +27,29 @@ class FlapLocker:
     # Functions used to "introspect" the information about pets and devices
     # to register commands
     async def get_pets_data(self) -> Dict[str, int]:
-        registered_pets: List[Pet] = await self.surepy.get_pets()
-        pets_data: Dict[str, int] = dict()
-        for registered_pet in registered_pets:
-            pets_data[registered_pet.name] = registered_pet.pet_id
+        try:
+            registered_pets: List[Pet] = await asyncio.wait_for(
+                self.surepy.get_pets(),
+                timeout=flap_config.server_timeout_seconds
+            )
+            pets_data: Dict[str, int] = dict()
+            for registered_pet in registered_pets:
+                pets_data[registered_pet.name] = registered_pet.pet_id
+        except asyncio.TimeoutError:
+            pets_data = {}
         return pets_data
 
     async def get_devices_data(self) -> Dict[str, int]:
-        registered_devices: List[SurepyDevice] = await self._get_fresh_devices()
-        devices_data: Dict[str, int] = dict()
-        for registered_device in registered_devices:
-            devices_data[registered_device.name] = registered_device.id
+        try:
+            registered_devices: List[SurepyDevice] = await asyncio.wait_for(
+                self._get_fresh_devices(),
+                timeout=flap_config.server_timeout_seconds
+            )
+            devices_data: Dict[str, int] = dict()
+            for registered_device in registered_devices:
+                devices_data[registered_device.name] = registered_device.id
+        except asyncio.TimeoutError:
+            devices_data = {}
         return devices_data
 
     @staticmethod
@@ -54,14 +67,20 @@ class FlapLocker:
 
     # Functions used to send data from surepy to the telegram interface
     async def get_pets_status_str(self, filter_by_id: Optional[int] = None) -> str:
-        # list with all pets
-        pets: List[Pet] = await self._get_fresh_pets()
-        message = f"I found this:"
-        for pet in pets:
-            if filter_by_id is not None and pet.pet_id != filter_by_id:
-                continue
-            else:
-                message += FlapLocker._parse_pet_data(pet)
+        try:
+            # list with all pets
+            pets: List[Pet] = await asyncio.wait_for(
+                self._get_fresh_pets(),
+                timeout=flap_config.server_timeout_seconds
+            )
+            message = f"I found this:"
+            for pet in pets:
+                if filter_by_id is not None and pet.pet_id != filter_by_id:
+                    continue
+                else:
+                    message += FlapLocker._parse_pet_data(pet)
+        except asyncio.TimeoutError:
+            message = "Surepet server did not respond in time."
         return message
 
     async def get_device_data_str(self, device_id: int) -> str:
@@ -99,6 +118,9 @@ class FlapLocker:
                 if device.type == EntityType.CAT_FLAP:
                     cat_flap: Flap = device
                     return cat_flap.state
+            # We assume a default value;
+            logger.debug('WARNING: No device was found; we assume that the old state was "LOCKED_OUT"')
+            return LockState.LOCKED_OUT
         except Exception:
             logger.exception('+++ Exception while getting last flap state: ')
             # We assume a default value;
@@ -111,10 +133,19 @@ class FlapLocker:
         for device in devices:
             # Search for the cat flap
             if device.type == EntityType.CAT_FLAP:
-                result_lock = await self.surepy.sac._set_lock_state(device.id, state)
-                result_device = await self.surepy.get_device(device.id)
-                if result_lock and result_device:
-                    return True
+                try:
+                    result_lock = await asyncio.wait_for(
+                        self.surepy.sac._set_lock_state(device.id, state),
+                        timeout=flap_config.server_timeout_seconds
+                    )
+                    result_device = await asyncio.wait_for(
+                        self.surepy.get_device(device.id),
+                        timeout=flap_config.server_timeout_seconds
+                    )
+                    if result_lock and result_device:
+                        return True
+                except asyncio.TimeoutError:
+                    return False
         return False
 
     async def unlock_moria(self) -> bool:
@@ -155,7 +186,13 @@ class FlapLocker:
         self.old_state = None
 
     async def switch_pet_location(self, pet_id: int) -> str:
-        pets: List[Dict[str, Any]] = await self.surepy.sac.get_pets()
+        try:
+            pets: List[Dict[str, Any]] = await asyncio.wait_for(
+                self.surepy.sac.get_pets(),
+                timeout=flap_config.server_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            return "Server timed out when retrieving pets."
         if pets is None:
             return "No pet was found in the server"
 
@@ -174,20 +211,40 @@ class FlapLocker:
             new_location = Location.OUTSIDE
         else:
             new_location = Location.INSIDE
-        await self.surepy.sac.set_pet_location(pet_id, new_location)
+        try:
+            await asyncio.wait_for(
+                self.surepy.sac.set_pet_location(pet_id, new_location),
+                timeout=flap_config.server_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            return f"Server timed out when marking pet '{chosen_pet['name']}' as '{new_location}'"
         return f"Pet '{chosen_pet['name']}' was marked as '{new_location}'"
 
     # Helper function used to get fresh data from the devices, so the states are NOT cached by surepy library
     async def _get_fresh_devices(self) -> List[SurepyDevice]:
+        try:
+            entities: Dict[int, SurepyEntity] = await asyncio.wait_for(
+                self.surepy.get_entities(refresh=True),
+                timeout=flap_config.server_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            entities = {}
         return [
             device
-            for device in (await self.surepy.get_entities(refresh=True)).values()
+            for device in entities.values()
             if isinstance(device, SurepyDevice)
         ]
 
     async def _get_fresh_pets(self) -> List[Pet]:
+        try:
+            entities: Dict[int, SurepyEntity] = await asyncio.wait_for(
+                self.surepy.get_entities(refresh=True),
+                timeout=flap_config.server_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            entities = {}
         return [
             device
-            for device in (await self.surepy.get_entities(refresh=True)).values()
+            for device in entities.values()
             if isinstance(device, Pet)
         ]

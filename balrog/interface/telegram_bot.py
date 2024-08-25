@@ -272,9 +272,12 @@ class BalrogTelegramBot(MessageSender):
             bot.is_ongoing_let_in = True
             open_msg = await update.message.reply_text(f"Ok, door is open for {seconds}s...")
             let_in_success = await bot.flap_handler.unlock_flap_for_let_in()
-            # await open_msg.reply_text(result)
             reaction = ReactionEmoji.THUMBS_UP if let_in_success else ReactionEmoji.THUMBS_DOWN
             await open_msg.set_reaction(reaction)
+
+            if not let_in_success:
+                bot.is_ongoing_let_in = False
+                return
 
             async def _finish_let_in(ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 nonlocal bot, update
