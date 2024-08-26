@@ -134,16 +134,10 @@ class FlapLocker:
             # Search for the cat flap
             if device.type == EntityType.CAT_FLAP:
                 try:
-                    result_lock = await asyncio.wait_for(
+                    return await asyncio.wait_for(
                         self.surepy.sac._set_lock_state(device.id, state),
                         timeout=flap_config.server_timeout_seconds
                     )
-                    result_device = await asyncio.wait_for(
-                        self.surepy.get_device(device.id),
-                        timeout=flap_config.server_timeout_seconds
-                    )
-                    if result_lock and result_device:
-                        return True
                 except asyncio.TimeoutError:
                     return False
         return False
