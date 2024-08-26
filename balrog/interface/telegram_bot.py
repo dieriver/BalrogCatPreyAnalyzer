@@ -328,7 +328,6 @@ class BalrogTelegramBot(MessageSender):
             nonlocal message, callback
             lock_msg = await update.message.reply_text(message)
             lock_success = await callback()
-            # await lock_msg.reply_text(lock_success)
             reaction = ReactionEmoji.THUMBS_UP if lock_success else ReactionEmoji.THUMBS_DOWN
             await lock_msg.set_reaction(reaction)
         return _lock_moria
@@ -346,6 +345,7 @@ class BalrogTelegramBot(MessageSender):
     async def _resume_notifications(ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not ctx.job.data.muted_images or ctx.job.data.mute_msg is None:
             ctx.job.data.send_text("Images were not muted; Ignoring.")
+            return
 
         for job in ctx.job_queue.get_jobs_by_name("resume_notifications"):
             job.schedule_removal()
