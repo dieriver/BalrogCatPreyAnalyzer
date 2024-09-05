@@ -2,13 +2,13 @@ from typing import Optional, Any, Dict
 
 from balrog.utils.utils import logger
 
-_model: Optional[Any] = None
+_detect_function: Optional[Any] = None
 
 
 def perform_cc_mobile_detection(image) -> Dict[str, Any]:
-    if _model is None:
+    if _detect_function is None:
         return {}
-    return _model(image)
+    return _detect_function(image)
 
 
 class CCMobileExecutor:
@@ -17,7 +17,7 @@ class CCMobileExecutor:
         self.max_workers = max_workers
 
     def init(self) -> None:
-        global _model
+        global _detect_function
         import tensorflow as tf
 
         self.configure_tensorflow(tf)
