@@ -78,7 +78,7 @@ class BalrogTelegramBot(MessageSender):
 
     @property
     def default_flap_device(self) -> str:
-        return "moria"
+        return flap_config.default_flap
 
     @property
     def is_ongoing_let_in(self) -> bool:

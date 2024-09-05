@@ -51,6 +51,7 @@ class ModelConfigs:
 
 @dataclass
 class FlapConfigs:
+    default_flap: str
     server_timeout_seconds: int
     let_in_open_seconds: int
 
@@ -64,6 +65,7 @@ def load_flap_config() -> FlapConfigs:
     with open(config_file_path, "rb") as config_file:
         loaded_bytes = load(config_file)
         return FlapConfigs(
+            loaded_bytes["flap"]["default_flap"],
             loaded_bytes["flap"]["server_timeout_seconds"],
             loaded_bytes["flap"]["let_in_open_seconds"]
         )
