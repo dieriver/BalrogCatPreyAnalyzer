@@ -277,7 +277,7 @@ class BalrogTelegramBot(MessageSender):
 
     def _get_finish_let_in_callback(self, update: Update, device_id: int, seconds: int) -> _FinishCallbackType:
         bot = self
-        async def _finish_let_in(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        async def _finish_let_in(context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot, update, seconds, device_id
             lock_msg = await update.message.reply_text(f"Locking door after {seconds}s...")
             result_success = await bot.flap_handler.finish_letin(device_id)
@@ -286,7 +286,10 @@ class BalrogTelegramBot(MessageSender):
             bot.is_ongoing_let_in = False
 
             if not result_success:
-                await bot._report_flap_command_timeout("lock", device_id, lock_msg)
+                context.job_queue.run_once(
+                    bot._report_flap_command_timeout("lock", device_id, lock_msg),
+                    flap_config.seconds_to_wait_before_reporting_timeout
+                )
         return _finish_let_in
 
     def _get_let_in_callback(self, device_name: str) -> _TelegramCallbackType:
@@ -308,7 +311,10 @@ class BalrogTelegramBot(MessageSender):
 
             if not let_in_success:
                 bot.is_ongoing_let_in = False
-                await bot._report_flap_command_timeout("unlock", flap_id, open_msg)
+                context.job_queue.run_once(
+                    bot._report_flap_command_timeout("unlock", flap_id, open_msg),
+                    flap_config.seconds_to_wait_before_reporting_timeout
+                )
                 return
 
             context.job_queue.run_once(self._get_finish_let_in_callback(update, flap_id, seconds), seconds)
@@ -355,7 +361,7 @@ class BalrogTelegramBot(MessageSender):
             case _:
                 raise RuntimeError(f"Unhandled case for locking mode '{mode}' on '{device_name}")
 
-        async def _lock_moria(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        async def _set_device_lock_state(update: Update, contex: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot, command, message, callback, device_id
             lock_msg = await update.message.reply_text(message)
             lock_success = await callback
@@ -363,8 +369,11 @@ class BalrogTelegramBot(MessageSender):
             await lock_msg.set_reaction(reaction)
 
             if not lock_success:
-                await bot._report_flap_command_timeout(command, device_id, lock_msg)
-        return _lock_moria
+                contex.job_queue.run_once(
+                    bot._report_flap_command_timeout(command, device_id, lock_msg),
+                    flap_config.seconds_to_wait_before_reporting_timeout
+                )
+        return _set_device_lock_state
 
     def _get_status_all_pets_callback(self) -> _TelegramCallbackType:
         bot = self
