@@ -6,7 +6,7 @@ from enum import Enum, auto
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
-from typing import Any, Callable, Dict, Coroutine, Optional, List
+from typing import Any, Callable, Dict, Coroutine, Optional, List, Self
 
 import cv2
 from telegram import Update, Message
@@ -19,6 +19,7 @@ from balrog.interface.flap_locker import FlapLocker
 from balrog.utils import Logging, logger
 
 _TelegramCallbackType = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
+_FinishCallbackType = Callable[[ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
 
 
 async def _get_value_from_var_or_args(var: Optional[str], args: Optional[List[str]],
@@ -76,6 +77,10 @@ class BalrogTelegramBot(MessageSender):
         self.telegram_endpoint.add_handlers(handlers)
 
     @property
+    def default_flap_device(self) -> str:
+        return "moria"
+
+    @property
     def is_ongoing_let_in(self) -> bool:
         return self._is_ongoing_let_in
 
@@ -95,12 +100,16 @@ class BalrogTelegramBot(MessageSender):
         self.commands['restart'] = self._get_restart_cmd_callback()
         self.commands['sendlivepic'] = self._get_send_live_pic_cmd_callback()
         self.commands['sendlastcascpic'] = self._get_send_last_casc_pic_cmd_callback()
-        self.commands['letin'] = self._get_let_in_callback()
-        self.commands['cancelLetin'] = self._get_cancel_let_in_callback()
-        self.commands['lock'] = self._get_lock_moria_callback_for_status(_LockMode.FULL)
-        self.commands['lockin'] = self._get_lock_moria_callback_for_status(_LockMode.LOCK_IN)
-        self.commands['lockout'] = self._get_lock_moria_callback_for_status(_LockMode.LOCK_OUT)
-        self.commands['unlock'] = self._get_lock_moria_callback_for_status(_LockMode.UNLOCK)
+        self.commands['letin'] = self._get_let_in_callback(device_name=self.default_flap_device)
+        self.commands['cancelLetin'] = self._get_cancel_let_in_callback(device_name=self.default_flap_device)
+        self.commands['lock'] = self._get_lock_moria_callback_for_status(device_name=self.default_flap_device,
+                                                                         mode=_LockMode.FULL)
+        self.commands['lockin'] = self._get_lock_moria_callback_for_status(device_name=self.default_flap_device,
+                                                                           mode=_LockMode.LOCK_IN)
+        self.commands['lockout'] = self._get_lock_moria_callback_for_status(device_name=self.default_flap_device,
+                                                                            mode=_LockMode.LOCK_OUT)
+        self.commands['unlock'] = self._get_lock_moria_callback_for_status(device_name=self.default_flap_device,
+                                                                           mode=_LockMode.UNLOCK)
         self.commands['mute'] = self._get_mute_notifications_callback()
         self.commands['unmute'] = self._get_resume_notifications_callback()
         self.commands['switch'] = self._get_switch_location_callback()
@@ -117,7 +126,8 @@ class BalrogTelegramBot(MessageSender):
             self.commands[f'status{device_name}'] = self._get_status_callback(status_arg=device_name)
 
         # Not very used commands
-        self.commands['curfew'] = self._get_lock_moria_callback_for_status(_LockMode.CURFEW)
+        self.commands['curfew'] = self._get_lock_moria_callback_for_status(device_name=self.default_flap_device,
+                                                                           mode=_LockMode.CURFEW)
 
     # Telegram thread supporter functions
     def start(self) -> None:
@@ -259,75 +269,91 @@ class BalrogTelegramBot(MessageSender):
                 await update.message.reply_text('No casc img available yet...')
         return _send_last_casc_pic_cmd_callback
 
-    def _get_let_in_callback(self) -> _TelegramCallbackType:
+    async def _report_let_in_timeout(self, device_id: int, message: Message):
+        await message.reply_text("The last 'letin' command was not acknowledged on time:\n"
+                                 "Please check the current status of the door:")
+        flap_data = await self.flap_handler.get_device_data_str(device_id)
+        self.send_text(flap_data)
+        return
+
+    def _get_finish_let_in_callback(self, update: Update, device_id: int, seconds: int) -> _FinishCallbackType:
+        bot = self
+        async def _finish_let_in(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+            nonlocal bot, update, seconds, device_id
+            lock_msg = await update.message.reply_text(f"Locking door after {seconds}s...")
+            result_success = await bot.flap_handler.finish_letin(device_id)
+            react = ReactionEmoji.THUMBS_UP if result_success else ReactionEmoji.THUMBS_DOWN
+            await lock_msg.set_reaction(react)
+            bot.is_ongoing_let_in = False
+
+            if not result_success:
+                await bot._report_let_in_timeout(device_id, lock_msg)
+        return _finish_let_in
+
+    def _get_let_in_callback(self, device_name: str) -> _TelegramCallbackType:
         bot = self
         seconds = flap_config.let_in_open_seconds
+        flap_id = self.devices_data[device_name.lower()]
 
         async def _let_in_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
+            nonlocal bot, seconds, flap_id
             if bot.is_ongoing_let_in:
                 await update.message.reply_text(f"Oops... There is already a 'letin' command in execution. Ignoring...")
                 return
 
             bot.is_ongoing_let_in = True
             open_msg = await update.message.reply_text(f"Ok, door is open for {seconds}s...")
-            let_in_success = await bot.flap_handler.unlock_flap_for_let_in()
+            let_in_success = await bot.flap_handler.unlock_flap_for_let_in(flap_id)
             reaction = ReactionEmoji.THUMBS_UP if let_in_success else ReactionEmoji.THUMBS_DOWN
             await open_msg.set_reaction(reaction)
 
             if not let_in_success:
                 bot.is_ongoing_let_in = False
+                await bot._report_let_in_timeout(flap_id, open_msg)
                 return
 
-            async def _finish_let_in(ctx: ContextTypes.DEFAULT_TYPE) -> None:
-                nonlocal bot, update
-                lock_msg = await update.message.reply_text(f"Locking door after {seconds}s...")
-                result_success = await bot.flap_handler.finish_letin()
-                # await lock_msg.reply_text(result_success)
-                react = ReactionEmoji.THUMBS_UP if result_success else ReactionEmoji.THUMBS_DOWN
-                await lock_msg.set_reaction(react)
-                bot.is_ongoing_let_in = False
-
-            context.job_queue.run_once(_finish_let_in, seconds)
+            context.job_queue.run_once(self._get_finish_let_in_callback(update, flap_id, seconds), seconds)
         return _let_in_callback
 
-    def _get_cancel_let_in_callback(self) -> _TelegramCallbackType:
+    def _get_cancel_let_in_callback(self, device_name: str) -> _TelegramCallbackType:
         bot = self
+        flap_id = self.devices_data[device_name.lower()]
 
         async def _cancel_let_in_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot
+            nonlocal bot, flap_id
             if bot.is_ongoing_let_in:
                 await update.message.reply_text(f"Cancelling last 'letin' command")
                 bot.is_ongoing_let_in = False
-                await bot.flap_handler.finish_letin()
+                await bot.flap_handler.finish_letin(flap_id)
             else:
                 await update.message.reply_text(f"No 'letin' command to cancel")
         return _cancel_let_in_callback
 
-    def _get_lock_moria_callback_for_status(self, mode: _LockMode):
+    def _get_lock_moria_callback_for_status(self, device_name: str, mode: _LockMode):
+        device_id = self.devices_data[device_name.lower()]
         match mode:
             case _LockMode.FULL:
-                message = "Locking Moria fully..."
-                callback = self.flap_handler.lock_moria
+                message = f"Locking {device_name} fully..."
+                callback = self.flap_handler.device_lock(device_id)
             case _LockMode.LOCK_IN:
-                message = "Locking Moria for outgoing..."
-                callback = self.flap_handler.lock_moria_in
+                message = f"Locking {device_name} for outgoing..."
+                callback = self.flap_handler.device_lock_in(device_id)
             case _LockMode.LOCK_OUT:
-                message = "Locking Moria for incoming..."
-                callback = self.flap_handler.lock_moria_out
+                message = f"Locking {device_name} for incoming..."
+                callback = self.flap_handler.device_lock_out(device_id)
             case _LockMode.UNLOCK:
-                message = "Unlocking Moria..."
-                callback = self.flap_handler.unlock_moria
+                message = f"Unlocking {device_name}..."
+                callback = self.flap_handler.unlock_device(device_id)
             case _LockMode.CURFEW:
-                message = "Activating curfew on Moria..."
-                callback = self.flap_handler.activate_curfew
+                message = f"Activating curfew on {device_name}..."
+                callback = self.flap_handler.device_curfew(device_id)
             case _:
-                raise RuntimeError(f"Unhandled case for locking mode '{mode}'")
+                raise RuntimeError(f"Unhandled case for locking mode '{mode}' on '{device_name}")
 
         async def _lock_moria(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal message, callback
             lock_msg = await update.message.reply_text(message)
-            lock_success = await callback()
+            lock_success = await callback
             reaction = ReactionEmoji.THUMBS_UP if lock_success else ReactionEmoji.THUMBS_DOWN
             await lock_msg.set_reaction(reaction)
         return _lock_moria
@@ -399,19 +425,18 @@ class BalrogTelegramBot(MessageSender):
 
     def _get_switch_location_callback(self, pet_name: Optional[str] = None) -> _TelegramCallbackType:
         bot = self
-        pet_data = {k.lower(): v for k, v in self.pets_data.items()}
 
         async def _switch_location_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot, pet_data, pet_name
+            nonlocal bot, pet_name
 
             pet = await _get_value_from_var_or_args(pet_name, context.args, update, "Which pet??...")
             if pet is None:
                 return
 
-            if pet.lower() not in pet_data:
+            if pet.lower() not in bot.pets_data:
                 await update.message.reply_text(f"Pet '{pet}' is unknown...")
                 return
-            pet_id = pet_data[pet.lower()]
+            pet_id = bot.pets_data[pet.lower()]
 
             switch_result = await bot.flap_handler.switch_pet_location(pet_id)
             await update.message.reply_text(switch_result)
@@ -419,11 +444,9 @@ class BalrogTelegramBot(MessageSender):
 
     def _get_status_callback(self, status_arg: Optional[str] = None) -> _TelegramCallbackType:
         bot = self
-        device_data = {k.lower(): v for k, v in self.devices_data.items()}
-        pet_data = {k.lower(): v for k, v in self.pets_data.items()}
 
         async def _send_device_data_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot, device_data, pet_data, status_arg
+            nonlocal bot, status_arg
 
             arg = await _get_value_from_var_or_args(status_arg, context.args, update, "Status of what??...")
             if arg is None:
@@ -438,12 +461,12 @@ class BalrogTelegramBot(MessageSender):
                 case "pets":
                     pets_status_coro = self._get_status_all_pets_callback()
                     return await pets_status_coro(update, context)
-                case arg_low if arg_low in device_data:
-                    device_id = device_data[arg_low]
+                case arg_low if arg_low in bot.devices_data:
+                    device_id = bot.devices_data[arg_low]
                     device_result = await bot.flap_handler.get_device_data_str(device_id)
                     await update.message.reply_text(device_result)
-                case arg_low if arg_low in pet_data:
-                    pet_id = pet_data[arg_low]
+                case arg_low if arg_low in bot.pets_data:
+                    pet_id = bot.pets_data[arg_low]
                     pet_result = await bot.flap_handler.get_pets_status_str(filter_by_id=pet_id)
                     await update.message.reply_text(pet_result)
                 case _:

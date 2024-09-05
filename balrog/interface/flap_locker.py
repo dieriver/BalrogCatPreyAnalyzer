@@ -34,7 +34,7 @@ class FlapLocker:
             )
             pets_data: Dict[str, int] = dict()
             for registered_pet in registered_pets:
-                pets_data[registered_pet.name] = registered_pet.pet_id
+                pets_data[registered_pet.name.lower()] = registered_pet.pet_id
         except asyncio.TimeoutError:
             pets_data = {}
         return pets_data
@@ -47,7 +47,7 @@ class FlapLocker:
             )
             devices_data: Dict[str, int] = dict()
             for registered_device in registered_devices:
-                devices_data[registered_device.name] = registered_device.id
+                devices_data[registered_device.name.lower()] = registered_device.id
         except asyncio.TimeoutError:
             devices_data = {}
         return devices_data
@@ -111,13 +111,14 @@ class FlapLocker:
             devices_str += f"{entities[device.parent_id].full_name = } | {entities[device.parent_id] = }\n"
         return devices_str
 
-    async def get_lock_state(self) -> LockState:
+    async def get_lock_state(self, device_id: int) -> LockState:
         try:
             devices: List[SurepyDevice] = await self._get_fresh_devices()
             for device in devices:
-                if device.type == EntityType.CAT_FLAP:
-                    cat_flap: Flap = device
-                    return cat_flap.state
+                if device.id == device_id:
+                    assert device.type == EntityType.CAT_FLAP or device.type == EntityType.PET_FLAP
+                    assert isinstance(device, Flap)
+                    return device.state
             # We assume a default value;
             logger.debug('WARNING: No device was found; we assume that the old state was "LOCKED_OUT"')
             return LockState.LOCKED_OUT
@@ -127,12 +128,13 @@ class FlapLocker:
             logger.debug('WARNING: We assume that the old state was "LOCKED_OUT"')
             return LockState.LOCKED_OUT
 
-    async def _set_moria_lock_state(self, state: LockState) -> bool:
+    async def _set_flap_lock_state(self, device_id: int, state: LockState) -> bool:
         # list with all devices
         devices: List[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
-            # Search for the cat flap
-            if device.type == EntityType.CAT_FLAP:
+            if device.id == device_id:
+                # Search for the cat flap
+                assert device.type == EntityType.CAT_FLAP or device.type == EntityType.PET_FLAP
                 try:
                     return await asyncio.wait_for(
                         self.surepy.sac._set_lock_state(device.id, state),
@@ -142,41 +144,41 @@ class FlapLocker:
                     return False
         return False
 
-    async def unlock_moria(self) -> bool:
-        return await self._set_moria_lock_state(LockState.UNLOCKED)
+    async def unlock_device(self, device_id: int) -> bool:
+        return await self._set_flap_lock_state(device_id, LockState.UNLOCKED)
 
-    async def lock_moria_in(self) -> bool:
-        return await self._set_moria_lock_state(LockState.LOCKED_IN)
+    async def device_lock_in(self, device_id: int) -> bool:
+        return await self._set_flap_lock_state(device_id, LockState.LOCKED_IN)
 
-    async def lock_moria_out(self) -> bool:
-        return await self._set_moria_lock_state(LockState.LOCKED_OUT)
+    async def device_lock_out(self, device_id: int) -> bool:
+        return await self._set_flap_lock_state(device_id, LockState.LOCKED_OUT)
 
-    async def lock_moria(self) -> bool:
-        return await self._set_moria_lock_state(LockState.LOCKED_ALL)
+    async def device_lock(self, device_id: int) -> bool:
+        return await self._set_flap_lock_state(device_id, LockState.LOCKED_ALL)
 
-    async def activate_curfew(self) -> bool:
-        return await self._set_moria_lock_state(LockState.CURFEW)
+    async def device_curfew(self, device_id: int) -> bool:
+        return await self._set_flap_lock_state(device_id, LockState.CURFEW)
 
-    async def lock_moria_curfew(self) -> bool:
-        return await self._set_moria_lock_state(LockState.CURFEW_LOCKED)
+    async def device_lock_curfew(self, device_id: int) -> bool:
+        return await self._set_flap_lock_state(device_id, LockState.CURFEW_LOCKED)
 
-    async def unlock_moria_curfew(self) -> bool:
-        return await self._set_moria_lock_state(LockState.CURFEW_UNLOCKED)
+    async def device_unlock_curfew(self, device_id: int) -> bool:
+        return await self._set_flap_lock_state(device_id, LockState.CURFEW_UNLOCKED)
 
-    async def unlock_flap_for_let_in(self) -> bool:
-        self.old_state = await self.get_lock_state()
+    async def unlock_flap_for_let_in(self, device_id: int) -> bool:
+        self.old_state = await self.get_lock_state(device_id)
         logger.debug(f"Old state = {self.old_state}")
         if self.old_state >= LockState.CURFEW:
             new_state = LockState.CURFEW_UNLOCKED
         else:
             new_state = LockState.LOCKED_IN
         logger.debug(f"New state = {new_state}")
-        return await self._set_moria_lock_state(new_state)
+        return await self._set_flap_lock_state(device_id, new_state)
 
-    async def finish_letin(self) -> bool:
+    async def finish_letin(self, device_id: int) -> bool:
         if self.old_state is not None:
             logger.debug(f"Setting back old state = {self.old_state}")
-            return await self._set_moria_lock_state(self.old_state)
+            return await self._set_flap_lock_state(device_id, self.old_state)
         self.old_state = None
 
     async def switch_pet_location(self, pet_id: int) -> str:
