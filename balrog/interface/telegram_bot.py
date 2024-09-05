@@ -269,12 +269,11 @@ class BalrogTelegramBot(MessageSender):
                 await update.message.reply_text('No casc img available yet...')
         return _send_last_casc_pic_cmd_callback
 
-    async def _report_let_in_timeout(self, device_id: int, message: Message):
-        await message.reply_text("The last 'letin' command was not acknowledged on time:\n"
+    async def _report_flap_command_timeout(self, command: str, device_id: int, message: Message) -> None:
+        await message.reply_text(f"The last '{command}' command was not acknowledged on time:\n"
                                  "Please check the current status of the door:")
         flap_data = await self.flap_handler.get_device_data_str(device_id)
         self.send_text(flap_data)
-        return
 
     def _get_finish_let_in_callback(self, update: Update, device_id: int, seconds: int) -> _FinishCallbackType:
         bot = self
@@ -287,7 +286,7 @@ class BalrogTelegramBot(MessageSender):
             bot.is_ongoing_let_in = False
 
             if not result_success:
-                await bot._report_let_in_timeout(device_id, lock_msg)
+                await bot._report_flap_command_timeout("lock", device_id, lock_msg)
         return _finish_let_in
 
     def _get_let_in_callback(self, device_name: str) -> _TelegramCallbackType:
@@ -309,7 +308,7 @@ class BalrogTelegramBot(MessageSender):
 
             if not let_in_success:
                 bot.is_ongoing_let_in = False
-                await bot._report_let_in_timeout(flap_id, open_msg)
+                await bot._report_flap_command_timeout("unlock", flap_id, open_msg)
                 return
 
             context.job_queue.run_once(self._get_finish_let_in_callback(update, flap_id, seconds), seconds)
@@ -330,32 +329,41 @@ class BalrogTelegramBot(MessageSender):
         return _cancel_let_in_callback
 
     def _get_lock_moria_callback_for_status(self, device_name: str, mode: _LockMode):
+        bot = self
         device_id = self.devices_data[device_name.lower()]
         match mode:
             case _LockMode.FULL:
                 message = f"Locking {device_name} fully..."
+                command = "lock"
                 callback = self.flap_handler.device_lock(device_id)
             case _LockMode.LOCK_IN:
                 message = f"Locking {device_name} for outgoing..."
+                command = "lock in"
                 callback = self.flap_handler.device_lock_in(device_id)
             case _LockMode.LOCK_OUT:
                 message = f"Locking {device_name} for incoming..."
+                command = "lock out"
                 callback = self.flap_handler.device_lock_out(device_id)
             case _LockMode.UNLOCK:
                 message = f"Unlocking {device_name}..."
+                command = "unlock"
                 callback = self.flap_handler.unlock_device(device_id)
             case _LockMode.CURFEW:
                 message = f"Activating curfew on {device_name}..."
+                command = "curfew"
                 callback = self.flap_handler.device_curfew(device_id)
             case _:
                 raise RuntimeError(f"Unhandled case for locking mode '{mode}' on '{device_name}")
 
         async def _lock_moria(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal message, callback
+            nonlocal bot, command, message, callback, device_id
             lock_msg = await update.message.reply_text(message)
             lock_success = await callback
             reaction = ReactionEmoji.THUMBS_UP if lock_success else ReactionEmoji.THUMBS_DOWN
             await lock_msg.set_reaction(reaction)
+
+            if not lock_success:
+                await bot._report_flap_command_timeout(command, device_id, lock_msg)
         return _lock_moria
 
     def _get_status_all_pets_callback(self) -> _TelegramCallbackType:
