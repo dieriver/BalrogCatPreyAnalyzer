@@ -12,7 +12,7 @@ from balrog.utils.utils import logger
 # invoking the detection from different threads of the same process.
 _cuda_available = False
 _model: Optional[cv2.CascadeClassifier] = None
-# if False:  # and "cuda_CascadeClassifier" in dir(cv2):
+# if "cuda_CascadeClassifier" in dir(cv2):
 #     _cuda_available = True
 #     _model: Optional[cv2.cuda_CascadeClassifier] = None
 
@@ -28,7 +28,7 @@ def perform_haar_detection(image: MatLike) -> Sequence[cv2.typing.Rect]:
         return _model.detectMultiScale(image=image, scaleFactor=1.3, minNeighbors=1, minSize=(25, 25))
 
 
-class HaarExecutor:
+class HaarModelExecutor:
     def __init__(self, haar_model_file_name: str):
         self.haar_model_file_name: str = haar_model_file_name
 

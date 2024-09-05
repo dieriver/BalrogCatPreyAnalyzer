@@ -1,7 +1,8 @@
 import copy as cpy
 import time
+from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor
-from typing import Tuple, Sequence
+from typing import Tuple, Sequence, Callable, Optional
 
 import cv2
 import kagglehub as hub
@@ -9,11 +10,12 @@ import numpy as np
 import tensorflow as tf
 from cv2.typing import MatLike
 
-from balrog.config import general_config
 from balrog.processor.cv_helpers import resize_img_to_square
-from balrog.processor.executors import HaarExecutor, perform_haar_detection
+from balrog.processor.model import (CCMobileExecutor, HaarModelExecutor, PCExecutor, FFExecutor, EyesExecutor,
+                                    perform_cc_mobile_detection, perform_haar_detection, perform_pc_detection,
+                                    perform_ff_detection, perform_eye_detection)
 from balrog.types import Box
-from balrog.utils import logger, get_resource_path
+from balrog.utils import get_resource_path
 
 _PC_model_file = 'models/Prey_Classifier/0.86_512_05_VGG16_ownData_FTfrom15_350_Epochs_2020_05_15_11_40_56.h5'
 _FF_model_file = 'models/Face_Fur_Classifier/256_05_mobileNet_50_Epochs_2020_05_07_14_56_25.h5'
@@ -21,21 +23,33 @@ _EYE_model_file = 'models/Eye_Detector/trainwhole100_Epochs_2020_04_30_18_05_25.
 _HAAR_model_file = 'models/Haar_Classifier/haarcascade_frontalcatface_extended.xml'
 
 
-class CCMobileNetStage:
-    def __init__(self):
-        # ****Initialize TensorFlow model****
-        tf.config.threading.set_inter_op_parallelism_threads(general_config.max_frame_processor_threads + 1)
-        tf.config.threading.set_intra_op_parallelism_threads(general_config.max_frame_processor_threads * 2)
+class CascadeStage(ABC):
+    @staticmethod
+    @abstractmethod
+    def init_executor(max_workers: int):
+        pass
 
+    @abstractmethod
+    def shutdown(self):
+        pass
+
+
+
+class CCMobileNetStage(CascadeStage):
+    worker_pool: ProcessPoolExecutor
+
+    @staticmethod
+    def init_executor(max_workers: int):
         # "TF2" way to dynamically load the ssd model from Kaggle Hub and easily "call" the model
         # model_files = hub.model_download("tensorflow/centernet-resnet/tensorFlow2/50v2-512x512")
         model_files = hub.model_download("tensorflow/ssd-mobilenet-v2/tensorFlow2/ssd-mobilenet-v2")
-        self.detect_function = tf.saved_model.load(model_files)
+        executor = CCMobileExecutor(model_files, max_workers)
+        CCMobileNetStage.worker_pool = ProcessPoolExecutor(max_workers=max_workers, initializer=executor.init)
+        for _ in range(max_workers):
+            CCMobileNetStage.worker_pool.submit(executor.force_init)
 
-        logger.info(f"TF Config: inter_threads = {tf.config.threading.get_inter_op_parallelism_threads()}")
-        logger.info(f"TF Config: intra_threads = {tf.config.threading.get_intra_op_parallelism_threads()}")
-        logger.info(f"Num GPUs available: {len(tf.config.list_physical_devices('GPU'))}")
-        logger.debug('CNN is ready to go!')
+    def shutdown(self):
+        self.worker_pool.shutdown(wait=False, cancel_futures=True)
 
     def do_cc(self, target_img: MatLike) -> Tuple[bool, Box, float]:
         img_copy = cpy.deepcopy(target_img)
@@ -54,7 +68,8 @@ class CCMobileNetStage:
         # Perform the actual detection by running the model with the image as input
         start_time = time.time()
         frame_tensor = tf.convert_to_tensor(resized_frame, dtype=tf.uint8)
-        detection_result = self.detect_function(frame_tensor)
+        future_result = self.worker_pool.submit(perform_cc_mobile_detection, frame_tensor)
+        detection_result = future_result.result()
         classes = detection_result['detection_classes'].numpy()
         boxes = detection_result['detection_boxes'].numpy()
         detections = detection_result['num_detections'].numpy()
@@ -83,21 +98,21 @@ class CCMobileNetStage:
         return pet_detected, pet_box, inference_time
 
 
-class HaarStage:
-    haar_worker_pool: ProcessPoolExecutor
+class HaarStage(CascadeStage):
+    worker_pool: ProcessPoolExecutor
 
-    @classmethod
-    def init_executor(cls, max_open_cv_workers: int):
+    @staticmethod
+    def init_executor(max_workers: int):
         with get_resource_path(_HAAR_model_file) as model_file:
-            haar_executor = HaarExecutor(str(model_file))
-        HaarStage.haar_worker_pool = ProcessPoolExecutor(max_workers=max_open_cv_workers, initializer=haar_executor.init)
-        for _ in range(max_open_cv_workers):
+            executor = HaarModelExecutor(str(model_file))
+        HaarStage.worker_pool = ProcessPoolExecutor(max_workers=max_workers, initializer=executor.init)
+        for _ in range(max_workers):
             # We submit a "dummy" task to each worker in the executor; this forces to call the "init" method
             # This action forces to fork the main process as soon as possible, leaving the workers lightweight
-            HaarStage.haar_worker_pool.submit(haar_executor.force_init)
+            HaarStage.worker_pool.submit(executor.force_init)
 
     def shutdown(self):
-        self.haar_worker_pool.shutdown(wait=False, cancel_futures=True)
+        self.worker_pool.shutdown(wait=False, cancel_futures=True)
 
     def haar_do(self, sub_img: MatLike, full_img: MatLike, prev_box: Box) -> Tuple[bool, Box, float]:
         img_copy = cpy.deepcopy(sub_img)
@@ -117,7 +132,7 @@ class HaarStage:
         bw_image = cv2.cvtColor(input_img, cv2.COLOR_BGR2GRAY)
 
         if bw_image.size != 0:
-            future_detections = self.haar_worker_pool.submit(perform_haar_detection, bw_image)
+            future_detections = self.worker_pool.submit(perform_haar_detection, bw_image)
             faces: Sequence[cv2.typing.Rect] = future_detections.result()
         else:
             # Something happened with the image; it has a dimension of 0
@@ -143,16 +158,23 @@ class HaarStage:
         return face_found, face_box, inference_time
 
 
-def _apply_keras_model_on_image(model: tf.keras.Model, img: MatLike) -> Tuple[bool, float, float]:
+def _apply_keras_model_on_image(pool: ProcessPoolExecutor,
+                                detector: Callable[[tf.Tensor], Optional[np.ndarray]],
+                                img: MatLike) -> Tuple[bool, float, float]:
     size = 224
     img_copy = cpy.deepcopy(img)
     preprocessed_img = resize_img_to_square(img_copy, size, normalize=True).reshape((1, size, size, 3))
 
     start_time = time.time()
-    class_pred = model.predict(preprocessed_img)
+    tensor_img = tf.convert_to_tensor(preprocessed_img)
+    detect_future = pool.submit(detector, tensor_img)
+    class_pred = detect_future.result()
     inference_time = time.time() - start_time
-    prey_value = class_pred[0][0]
-    return prey_value <= 0.5, prey_value, inference_time
+    if class_pred is None:
+        return False, 0.0, inference_time
+    else:
+        prey_value = class_pred[0][0]
+        return prey_value <= 0.5, prey_value, inference_time
 
 
 def _get_f1(y_true, y_pred):  # taken from old keras source code
@@ -167,34 +189,64 @@ def _get_f1(y_true, y_pred):  # taken from old keras source code
     return f1_val
 
 
-class PCStage:
-    def __init__(self):
-        # Handle args
+class PCStage(CascadeStage):
+    worker_pool: ProcessPoolExecutor
+
+    @staticmethod
+    def init_executor(max_workers: int):
+                # Handle args
         with get_resource_path(_PC_model_file) as model_file:
             custom_objects = {'get_f1': _get_f1} if 'F1' in _PC_model_file else None
-            self.pc_model = tf.keras.models.load_model(str(model_file),
-                                                       custom_objects=custom_objects)
+            executor = PCExecutor(str(model_file), custom_objects, max_workers)
+        PCStage.worker_pool = ProcessPoolExecutor(max_workers=max_workers, initializer=executor.init)
+        for _ in range(max_workers):
+            # We submit a "dummy" task to each worker in the executor; this forces to call the "init" method
+            # This action forces to fork the main process as soon as possible, leaving the workers lightweight
+            HaarStage.worker_pool.submit(executor.force_init)
+
+    def shutdown(self):
+        self.worker_pool.shutdown(wait=False, cancel_futures=True)
 
     def pc_do(self, target_img: MatLike) -> Tuple[bool, float, float]:
-        return _apply_keras_model_on_image(self.pc_model, target_img)
+        return _apply_keras_model_on_image(self.worker_pool, perform_pc_detection, target_img)
 
 
-class FFStage:
-    def __init__(self):
-        # Handle args
+class FFStage(CascadeStage):
+    worker_pool: ProcessPoolExecutor
+
+    @staticmethod
+    def init_executor(max_workers: int):
         with get_resource_path(_FF_model_file) as model_file:
-            self.ff_model: tf.keras.Model = tf.keras.models.load_model(str(model_file))
+            executor = FFExecutor(str(model_file), max_workers)
+        PCStage.worker_pool = ProcessPoolExecutor(max_workers=max_workers, initializer=executor.init)
+        for _ in range(max_workers):
+            # We submit a "dummy" task to each worker in the executor; this forces to call the "init" method
+            # This action forces to fork the main process as soon as possible, leaving the workers lightweight
+            HaarStage.worker_pool.submit(executor.force_init)
+
+    def shutdown(self):
+        self.worker_pool.shutdown(wait=False, cancel_futures=True)
 
     def face_fur_do(self, target_img: MatLike) -> Tuple[bool, float, float]:
-        return _apply_keras_model_on_image(self.ff_model, target_img)
+        return _apply_keras_model_on_image(self.worker_pool, perform_ff_detection, target_img)
 
 
-class EyeStage:
+class EyesStage(CascadeStage):
     TARGET_SIZE = 224
+    worker_pool: ProcessPoolExecutor
 
-    def __init__(self):
+    @staticmethod
+    def init_executor(max_workers: int):
         with get_resource_path(_EYE_model_file) as model_file:
-            self.eye_model: tf.keras.Model = tf.keras.models.load_model(str(model_file))
+            executor = EyesExecutor(str(model_file), max_workers)
+        PCStage.worker_pool = ProcessPoolExecutor(max_workers=max_workers, initializer=executor.init)
+        for _ in range(max_workers):
+            # We submit a "dummy" task to each worker in the executor; this forces to call the "init" method
+            # This action forces to fork the main process as soon as possible, leaving the workers lightweight
+            HaarStage.worker_pool.submit(executor.force_init)
+
+    def shutdown(self):
+        self.worker_pool.shutdown(wait=False, cancel_futures=True)
 
     def _resize_img(self, img_resize: MatLike):
         old_size = img_resize.shape[:2]  # old_size is in (height, width) format
@@ -214,9 +266,14 @@ class EyeStage:
         preprocessed_img, top, left = self._resize_img(img_copy)
         inputs = (preprocessed_img.astype('float32') / 255).reshape((1, self.TARGET_SIZE, self.TARGET_SIZE, 3))
         start_time = time.time()
-        pred_eyes = self.eye_model.predict(inputs)[0].reshape((-1, 2))
+        predict_future = self.worker_pool.submit(perform_eye_detection, inputs)
+        predict_result = predict_future.result()
         inference_time = time.time() - start_time
 
+        if predict_result is None:
+            return False, inference_time
+
+        pred_eyes = predict_result[0].reshape((-1, 2))
         ratio_h = self.TARGET_SIZE / img_copy.shape[0]
         ratio_w = self.TARGET_SIZE / img_copy.shape[1]
 
@@ -249,7 +306,7 @@ class EyeStage:
 
     def do_eyes(self, in_image: MatLike, in_box: Box, raw_image: MatLike) -> Tuple[MatLike, Box, float]:
         eyes_coords, inference_time = self._eye_full_prediction(image=in_image, face_box=in_box)
-        eyes_box = EyeStage._eyes_to_box(pred_eyes=eyes_coords, image=raw_image, face_box=in_box)
+        eyes_box = EyesStage._eyes_to_box(pred_eyes=eyes_coords, image=raw_image, face_box=in_box)
 
         pc_xmin = int(eyes_box[0][0])
         pc_ymin = int(eyes_box[0][1])
@@ -258,3 +315,11 @@ class EyeStage:
         eyes_img_crop = cpy.deepcopy(raw_image[pc_ymin:pc_ymax, pc_xmin:pc_xmax])
 
         return eyes_img_crop, eyes_box, inference_time
+
+
+def init_executors(max_open_cv_workers: int) -> None:
+    HaarStage.init_executor(max_open_cv_workers)
+    CCMobileNetStage.init_executor(max_open_cv_workers)
+    PCStage.init_executor(max_open_cv_workers)
+    FFStage.init_executor(max_open_cv_workers)
+    EyesStage.init_executor(max_open_cv_workers)

@@ -8,7 +8,7 @@ from cv2.typing import MatLike
 
 from balrog.config import logging_config
 from balrog.processor.cv_helpers import draw_rectangle
-from balrog.processor.model_stages import PCStage, FFStage, EyeStage, HaarStage, CCMobileNetStage
+from balrog.processor.model_stages import PCStage, FFStage, EyesStage, HaarStage, CCMobileNetStage
 from balrog.types import Box
 from balrog.utils import logger
 
@@ -95,16 +95,6 @@ def _do_haar_stage(
     return face_found, face_sub_img, face_box, haar_inference_time
 
 
-def _do_face_fur_stage(ff_stage: FFStage, in_img: MatLike) -> tuple[bool, float, float]:
-    face_fur_detected, face_fur_confidence, ff_inference_time = ff_stage.face_fur_do(target_img=in_img)
-    return face_fur_detected, face_fur_confidence, ff_inference_time
-
-
-def _do_pc_stage(pc_stage: PCStage, pc_target_img: MatLike) -> tuple[bool, float, float]:
-    prey_detected, prey_confidence, inference_time = pc_stage.pc_do(target_img=pc_target_img)
-    return prey_detected, prey_confidence, inference_time
-
-
 def _write_text_on_img(img: MatLike, text: str, text_pos: Tuple[int, int],
                        color: Tuple[float, float, float]) -> MatLike:
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -121,11 +111,15 @@ class Cascade:
         self.cc_mobile_stage = CCMobileNetStage()
         self.pc_stage = PCStage()
         self.ff_stage = FFStage()
-        self.eyes_stage = EyeStage()
+        self.eyes_stage = EyesStage()
         self.haar_stage = HaarStage()
 
     def shutdown(self):
+        self.cc_mobile_stage.shutdown()
         self.haar_stage.shutdown()
+        self.pc_stage.shutdown()
+        self.ff_stage.shutdown()
+        self.eyes_stage.shutdown()
 
     def do_single_cascade(self, event_img_object: EventElement, thread_id: int, frame_index: int) -> None:
         logger.info(f"Processor #{thread_id} - Processing index: '{frame_index}', "
@@ -195,10 +189,7 @@ class Cascade:
                 event_img_object.total_inference_time += eye_inference_time
 
                 # Do FF for Haar and EYES - Recognizes fur and eyes inside the eyes image
-                face_fur_detected, face_fur_confidence, ff_inference_time = _do_face_fur_stage(
-                    ff_stage=self.ff_stage,
-                    in_img=eyes_image
-                )
+                face_fur_detected, face_fur_confidence, ff_inference_time = self.ff_stage.face_fur_do(eyes_image)
                 event_img_object.face_fur_detected = face_fur_detected
                 event_img_object.face_fur_confidence = face_fur_confidence
                 event_img_object.ff_bbs_inference_time = ff_inference_time
@@ -216,10 +207,7 @@ class Cascade:
                 _log(DEBUG, thread_id, "CASCADE - Face Detected!")
 
                 # Do PC - Check if there is a prey in the crop image under analysis
-                pred_class, pred_val, pc_inference_time = _do_pc_stage(
-                    pc_stage=self.pc_stage,
-                    pc_target_img=cropped_img
-                )
+                pred_class, pred_val, pc_inference_time = self.pc_stage.pc_do(cropped_img)
                 _log(DEBUG, thread_id, f"CASCADE - Prey Prediction: {pred_class}")
                 _log(DEBUG, thread_id, f"CASCADE - Pred_Val: {pred_val:.2f}")
                 pc_str = f' Prey: {pred_class} @ {pred_val:.2f}'

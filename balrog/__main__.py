@@ -8,7 +8,7 @@ from balrog.interface import MessageSender
 from balrog.processor.aggregator import FrameResultAggregator
 from balrog.processor.frame_processor import FrameProcessor
 from balrog.processor.image_container import ImageBuffers
-from balrog.processor.model_stages import HaarStage
+from balrog.processor.model_stages import init_executors
 from balrog.utils.utils import Logging
 
 
@@ -22,7 +22,7 @@ Logging.init_logger(
     max_log_files=logging_config.max_log_files_kept
 )
 
-HaarStage.init_executor(max_open_cv_workers=general_config.max_frame_processor_threads)
+init_executors(general_config.max_frame_processor_threads)
 
 frame_buffers = ImageBuffers(2 * general_config.max_frame_buffers, logging_config.enable_circular_buffer_logging)
 
