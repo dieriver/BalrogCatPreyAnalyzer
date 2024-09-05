@@ -8,7 +8,7 @@ from balrog.utils.utils import logger
 _model: Optional[Any] = None
 
 
-def perform_ff_detection(image: tf.Tensor) -> Optional[np.ndarray]:
+def perform_ff_detection(image: Any) -> Optional[np.ndarray]:
     if _model is None:
         return None
     return _model.predict(image)
