@@ -40,4 +40,4 @@ class PCExecutor:
 
         logger.info(f"TF Config - PC: inter_threads = {tf_module.config.threading.get_inter_op_parallelism_threads()}")
         logger.info(f"TF Config - PC: intra_threads = {tf_module.config.threading.get_intra_op_parallelism_threads()}")
-        logger.info(f"Num GPUs available: {len(tf_module.config.list_physical_devices('GPU'))}")
+        logger.info(f"Num GPUs available - PC: {len(tf_module.config.list_physical_devices('GPU'))}")

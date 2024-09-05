@@ -36,6 +36,6 @@ class EyesExecutor:
         tf_module.config.threading.set_inter_op_parallelism_threads(self.max_workers + 1)
         tf_module.config.threading.set_intra_op_parallelism_threads(self.max_workers * 2)
 
-        logger.info(f"TF Config - PC: inter_threads = {tf_module.config.threading.get_inter_op_parallelism_threads()}")
-        logger.info(f"TF Config - PC: intra_threads = {tf_module.config.threading.get_intra_op_parallelism_threads()}")
-        logger.info(f"Num GPUs available: {len(tf_module.config.list_physical_devices('GPU'))}")
+        logger.info(f"TF Config - Eyes: inter_threads = {tf_module.config.threading.get_inter_op_parallelism_threads()}")
+        logger.info(f"TF Config - Eyes: intra_threads = {tf_module.config.threading.get_intra_op_parallelism_threads()}")
+        logger.info(f"Num GPUs available - Eyes: {len(tf_module.config.list_physical_devices('GPU'))}")
