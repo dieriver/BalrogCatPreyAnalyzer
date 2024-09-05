@@ -2,7 +2,7 @@
 name = "balrog-prey-analyzer"
 description = "A Cat Prey Analyzer software, based on tensorflow, and OpenCV."
 keywords = ["cat", "prey", "opencv", "tensorflow", "telegram", "surepet"]
-version = "0.3"
+version = "0.4"
 readme = "README.md"
 license = { file= "LICENSE" }
 requires-python = ">= 3.11, <3.12"
