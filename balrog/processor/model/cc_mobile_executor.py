@@ -1,14 +1,12 @@
 from typing import Optional, Any, Dict
 
-import tensorflow as tf
-
 from balrog.processor.model import configure_tensorflow
 from balrog.utils.utils import logger
 
 _model: Optional[Any] = None
 
 
-def perform_cc_mobile_detection(image: tf.Tensor) -> Dict[str, Any]:
+def perform_cc_mobile_detection(image) -> Dict[str, Any]:
     if _model is None:
         return {}
     return _model(image)
@@ -21,6 +19,7 @@ class CCMobileExecutor:
 
     def init(self) -> None:
         global _model
+        import tensorflow as tf
         _detect_function = tf.saved_model.load(self.cc_mobile_model_file_name)
         logger.info(f"CC Mobile detection object ID: '{hex(id(_detect_function))}'")
 

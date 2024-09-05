@@ -2,12 +2,11 @@ import copy as cpy
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ProcessPoolExecutor
-from typing import Tuple, Sequence, Callable, Optional
+from typing import Tuple, Sequence, Callable, Optional, Any
 
 import cv2
 import kagglehub as hub
 import numpy as np
-import tensorflow as tf
 from cv2.typing import MatLike
 
 from balrog.processor.cv_helpers import resize_img_to_square
@@ -67,6 +66,7 @@ class CCMobileNetStage(CascadeStage):
 
         # Perform the actual detection by running the model with the image as input
         start_time = time.time()
+        import tensorflow as tf
         frame_tensor = tf.convert_to_tensor(resized_frame, dtype=tf.uint8)
         future_result = self.worker_pool.submit(perform_cc_mobile_detection, frame_tensor)
         detection_result = future_result.result()
@@ -159,13 +159,14 @@ class HaarStage(CascadeStage):
 
 
 def _apply_keras_model_on_image(pool: ProcessPoolExecutor,
-                                detector: Callable[[tf.Tensor], Optional[np.ndarray]],
+                                detector: Callable[[Any], Optional[np.ndarray]],
                                 img: MatLike) -> Tuple[bool, float, float]:
     size = 224
     img_copy = cpy.deepcopy(img)
     preprocessed_img = resize_img_to_square(img_copy, size, normalize=True).reshape((1, size, size, 3))
 
     start_time = time.time()
+    import tensorflow as tf
     tensor_img = tf.convert_to_tensor(preprocessed_img)
     detect_future = pool.submit(detector, tensor_img)
     class_pred = detect_future.result()

@@ -1,12 +1,11 @@
-from typing import Optional
+from typing import Optional, Any
 
 import numpy as np
-import tensorflow as tf
 
 from balrog.processor.model import configure_tensorflow
 from balrog.utils.utils import logger
 
-_model: Optional[tf.keras.Model] = None
+_model: Optional[Any] = None
 
 
 def perform_ff_detection(image: tf.Tensor) -> Optional[np.ndarray]:
@@ -22,6 +21,7 @@ class FFExecutor:
 
     def init(self) -> None:
         global _model
+        import tensorflow as tf
         _model = tf.keras.models.load_model(self.ff_model_file_name)
         logger.info(f"FF detection object ID: '{hex(id(_model))}'")
 

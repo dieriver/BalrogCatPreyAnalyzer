@@ -1,15 +1,14 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 import numpy as np
-import tensorflow as tf
 
 from balrog.processor.model import configure_tensorflow
 from balrog.utils.utils import logger
 
-_model: Optional[tf.keras.Model] = None
+_model: Optional[Any] = None
 
 
-def perform_pc_detection(image: tf.Tensor) -> Optional[np.ndarray]:
+def perform_pc_detection(image) -> Optional[np.ndarray]:
     if _model is None:
         return None
     return _model.predict(image)
@@ -23,6 +22,7 @@ class PCExecutor:
 
     def init(self) -> None:
         global _model
+        import tensorflow as tf
         _model = tf.keras.models.load_model(self.pc_model_file_name,
                                             custom_objects=self.custom_objects)
         logger.info(f"PC detection object ID: '{hex(id(_model))}'")
