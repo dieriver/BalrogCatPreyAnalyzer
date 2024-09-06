@@ -341,34 +341,34 @@ class BalrogTelegramBot(MessageSender):
     def _get_lock_moria_callback_for_status(self, device_name: str, mode: _LockMode):
         bot = self
         device_id = self.devices_data[device_name.lower()]
-        match mode:
-            case _LockMode.FULL:
-                message = f"Locking {device_name} fully..."
-                command = "lock"
-                callback = self.flap_handler.device_lock(device_id)
-            case _LockMode.LOCK_IN:
-                message = f"Locking {device_name} for outgoing..."
-                command = "lock in"
-                callback = self.flap_handler.device_lock_in(device_id)
-            case _LockMode.LOCK_OUT:
-                message = f"Locking {device_name} for incoming..."
-                command = "lock out"
-                callback = self.flap_handler.device_lock_out(device_id)
-            case _LockMode.UNLOCK:
-                message = f"Unlocking {device_name}..."
-                command = "unlock"
-                callback = self.flap_handler.unlock_device(device_id)
-            case _LockMode.CURFEW:
-                message = f"Activating curfew on {device_name}..."
-                command = "curfew"
-                callback = self.flap_handler.device_curfew(device_id)
-            case _:
-                raise RuntimeError(f"Unhandled case for locking mode '{mode}' on '{device_name}")
 
         async def _set_device_lock_state(update: Update, contex: ContextTypes.DEFAULT_TYPE) -> None:
-            nonlocal bot, command, message, callback, device_id
+            nonlocal bot, mode, device_id
+            match mode:
+                case _LockMode.FULL:
+                    message = f"Locking {device_name} fully..."
+                    command = "lock"
+                    callback = bot.flap_handler.device_lock
+                case _LockMode.LOCK_IN:
+                    message = f"Locking {device_name} for outgoing..."
+                    command = "lock in"
+                    callback = bot.flap_handler.device_lock_in
+                case _LockMode.LOCK_OUT:
+                    message = f"Locking {device_name} for incoming..."
+                    command = "lock out"
+                    callback = bot.flap_handler.device_lock_out
+                case _LockMode.UNLOCK:
+                    message = f"Unlocking {device_name}..."
+                    command = "unlock"
+                    callback = bot.flap_handler.unlock_device
+                case _LockMode.CURFEW:
+                    message = f"Activating curfew on {device_name}..."
+                    command = "curfew"
+                    callback = bot.flap_handler.device_curfew
+                case _:
+                    raise RuntimeError(f"Unhandled case for locking mode '{mode}' on '{device_name}")
             lock_msg = await update.message.reply_text(message)
-            lock_success = await callback
+            lock_success = await callback(device_id)
             reaction = ReactionEmoji.THUMBS_UP if lock_success else ReactionEmoji.THUMBS_DOWN
             await lock_msg.set_reaction(reaction)
 
