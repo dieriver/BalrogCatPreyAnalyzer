@@ -41,8 +41,10 @@ class FlapLocker:
 
     async def get_devices_data(self) -> Dict[str, int]:
         try:
+            # In this case, we are only interested on the name and id of the devices;
+            # we can use a cached answer for this
             registered_devices: List[SurepyDevice] = await asyncio.wait_for(
-                self._get_fresh_devices(),
+                self.surepy.get_devices(),
                 timeout=flap_config.server_timeout_seconds
             )
             devices_data: Dict[str, int] = dict()
@@ -84,6 +86,7 @@ class FlapLocker:
         return message
 
     async def get_device_data_str(self, device_id: int) -> str:
+        # In this case, we need the fresh data of the device
         devices: List[SurepyDevice] = await self._get_fresh_devices()
         for device in devices:
             if device.id == device_id:
@@ -102,7 +105,7 @@ class FlapLocker:
         # all entities as id-indexed dict
         entities: Dict[int, SurepyEntity] = await self.surepy.get_entities()
 
-        # list with all devices
+        # list with all devices, with fresh info (?)
         devices: List[SurepyDevice] = await self._get_fresh_devices()
         devices_str = ""
         for device in devices:
@@ -113,15 +116,15 @@ class FlapLocker:
 
     async def get_lock_state(self, device_id: int) -> LockState:
         try:
-            devices: List[SurepyDevice] = await self._get_fresh_devices()
-            for device in devices:
-                if device.id == device_id:
-                    assert device.type == EntityType.CAT_FLAP or device.type == EntityType.PET_FLAP
-                    assert isinstance(device, Flap)
-                    return device.state
-            # We assume a default value;
-            logger.debug('WARNING: No device was found; we assume that the old state was "LOCKED_OUT"')
-            return LockState.LOCKED_OUT
+            device: SurepyDevice = await self._get_fresh_device(device_id)
+            if device is None:
+                # We assume a default value;
+                logger.debug('WARNING: No device was found; we assume that the old state was "LOCKED_OUT"')
+                return LockState.LOCKED_OUT
+
+            assert device.type == EntityType.CAT_FLAP or device.type == EntityType.PET_FLAP
+            assert isinstance(device, Flap)
+            return device.state
         except Exception:
             logger.exception('+++ Exception while getting last flap state: ')
             # We assume a default value;
@@ -130,19 +133,21 @@ class FlapLocker:
 
     async def _set_flap_lock_state(self, device_id: int, state: LockState) -> bool:
         # list with all devices
-        devices: List[SurepyDevice] = await self._get_fresh_devices()
-        for device in devices:
-            if device.id == device_id:
-                # Search for the cat flap
-                assert device.type == EntityType.CAT_FLAP or device.type == EntityType.PET_FLAP
-                try:
-                    return await asyncio.wait_for(
-                        self.surepy.sac._set_lock_state(device.id, state),
-                        timeout=flap_config.server_timeout_seconds
-                    )
-                except asyncio.TimeoutError:
-                    return False
-        return False
+        try:
+            device: SurepyDevice = await asyncio.wait_for(
+                self.surepy.get_device(device_id),
+                timeout=flap_config.server_timeout_seconds
+            )
+            if device is None:
+                return False
+
+            assert device.type == EntityType.CAT_FLAP or device.type == EntityType.PET_FLAP
+            return await asyncio.wait_for(
+                self.surepy.sac._set_lock_state(device.id, state),
+                timeout=flap_config.server_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            return False
 
     async def unlock_device(self, device_id: int) -> bool:
         return await self._set_flap_lock_state(device_id, LockState.UNLOCKED)
@@ -224,12 +229,24 @@ class FlapLocker:
                 timeout=flap_config.server_timeout_seconds
             )
         except asyncio.TimeoutError:
-            entities = {}
+            return []
         return [
             device
             for device in entities.values()
             if isinstance(device, SurepyDevice)
         ]
+
+    async def _get_fresh_device(self, device_id: int) -> Optional[SurepyDevice]:
+        try:
+            entities: Dict[int, SurepyEntity] = await asyncio.wait_for(
+                self.surepy.get_entities(refresh=True),
+                timeout=flap_config.server_timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            return None
+        filter_list = (device for device in entities.values()
+                       if isinstance(device, SurepyDevice) and device.id == device_id)
+        return next(filter_list, None)
 
     async def _get_fresh_pets(self) -> List[Pet]:
         try:
@@ -238,7 +255,7 @@ class FlapLocker:
                 timeout=flap_config.server_timeout_seconds
             )
         except asyncio.TimeoutError:
-            entities = {}
+            return []
         return [
             device
             for device in entities.values()
