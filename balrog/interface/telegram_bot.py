@@ -18,8 +18,8 @@ from balrog.interface import MessageSender
 from balrog.interface.flap_locker import FlapLocker
 from balrog.utils import Logging, logger
 
-_TelegramCallbackType = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
-_FinishCallbackType = Callable[[ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
+_TelegramCmdCallbackType = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
+_SchedFuncCallbackType = Callable[[ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
 
 
 async def _get_value_from_var_or_args(var: Optional[str], args: Optional[List[str]],
@@ -59,7 +59,7 @@ class BalrogTelegramBot(MessageSender):
         app_builder.post_stop(self.get_send_message("Balrog goes back to the abyss... for now..."))
         self.telegram_endpoint: Application = app_builder.build()
         self.flap_handler: FlapLocker = FlapLocker()
-        self.commands: Dict[str, _TelegramCallbackType] = dict()
+        self.commands: Dict[str, _TelegramCmdCallbackType] = dict()
         self.message_loop = asyncio.get_event_loop()
         self.pets_data: Dict[str, int] = self.message_loop.run_until_complete(self.flap_handler.get_pets_data())
         self.devices_data: Dict[str, int] = self.message_loop.run_until_complete(self.flap_handler.get_devices_data())
@@ -194,7 +194,7 @@ class BalrogTelegramBot(MessageSender):
         logger.info(f"Sender - File: {str(img)}, Scheduled: {scheduled_tstamp}")
         self.telegram_endpoint.job_queue.run_once(_send_img_callback, 0, data=data, chat_id=self.chat_id)
 
-    def _get_help_cmd_callback(self) -> _TelegramCallbackType:
+    def _get_help_cmd_callback(self) -> _TelegramCmdCallbackType:
         bot = self
 
         async def help_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -205,14 +205,14 @@ class BalrogTelegramBot(MessageSender):
             await update.message.reply_text(bot_message)
         return help_cmd_callback
 
-    def _get_clean_cmd_callback(self) -> _TelegramCallbackType:
+    def _get_clean_cmd_callback(self) -> _TelegramCmdCallbackType:
         async def clean_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             new_msg = await update.message.reply_text('Cleaning old logs...')
             removed_paths = Logging.clean_logs()
             await new_msg.reply_text(f'Removed: [{*removed_paths,}]')
         return clean_cmd_callback
 
-    def _get_restart_cmd_callback(self) -> _TelegramCallbackType:
+    def _get_restart_cmd_callback(self) -> _TelegramCmdCallbackType:
         bot = self
 
         async def _restart_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -221,7 +221,7 @@ class BalrogTelegramBot(MessageSender):
             bot.stop()
         return _restart_cmd_callback
 
-    def _get_balrog_status_cmd_callback(self) -> _TelegramCallbackType:
+    def _get_balrog_status_cmd_callback(self) -> _TelegramCmdCallbackType:
         bot = self
 
         async def _node_status_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -241,7 +241,7 @@ class BalrogTelegramBot(MessageSender):
             await update.message.reply_text(bot_message)
         return _node_status_cmd_callback
 
-    def _get_send_live_pic_cmd_callback(self) -> _TelegramCallbackType:
+    def _get_send_live_pic_cmd_callback(self) -> _TelegramCmdCallbackType:
         bot = self
 
         async def _send_live_pic_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -255,7 +255,7 @@ class BalrogTelegramBot(MessageSender):
                 await update.message.reply_text('No img available yet...')
         return _send_live_pic_cmd_callback
 
-    def _get_send_last_casc_pic_cmd_callback(self) -> _TelegramCallbackType:
+    def _get_send_last_casc_pic_cmd_callback(self) -> _TelegramCmdCallbackType:
         bot = self
 
         async def _send_last_casc_pic_cmd_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -269,13 +269,17 @@ class BalrogTelegramBot(MessageSender):
                 await update.message.reply_text('No casc img available yet...')
         return _send_last_casc_pic_cmd_callback
 
-    async def _report_flap_command_timeout(self, command: str, device_id: int, message: Message) -> None:
-        await message.reply_text(f"The last '{command}' command was not acknowledged on time:\n"
-                                 "Please check the current status of the door:")
-        flap_data = await self.flap_handler.get_device_data_str(device_id)
-        self.send_text(flap_data)
+    def _get_report_flap_command_timeout(self, command: str, device_id: int, message: Message) -> _SchedFuncCallbackType:
+        bot = self
+        async def _report_flap_command_timeout(context: ContextTypes.DEFAULT_TYPE) -> None:
+            nonlocal bot, command, device_id, message
+            await message.reply_text(f"The last '{command}' command was not acknowledged on time:\n"
+                                     "Please check the current status of the door:")
+            flap_data = await bot.flap_handler.get_device_data_str(device_id)
+            await context.bot.send_message(bot.chat_id, flap_data)
+        return _report_flap_command_timeout
 
-    def _get_finish_let_in_callback(self, update: Update, device_id: int, seconds: int) -> _FinishCallbackType:
+    def _get_finish_let_in_callback(self, update: Update, device_id: int, seconds: int) -> _SchedFuncCallbackType:
         bot = self
         async def _finish_let_in(context: ContextTypes.DEFAULT_TYPE) -> None:
             nonlocal bot, update, seconds, device_id
@@ -287,12 +291,12 @@ class BalrogTelegramBot(MessageSender):
 
             if not result_success:
                 context.job_queue.run_once(
-                    bot._report_flap_command_timeout("lock", device_id, lock_msg),
+                    bot._get_report_flap_command_timeout("lock", device_id, lock_msg),
                     flap_config.seconds_to_wait_before_reporting_timeout
                 )
         return _finish_let_in
 
-    def _get_let_in_callback(self, device_name: str) -> _TelegramCallbackType:
+    def _get_let_in_callback(self, device_name: str) -> _TelegramCmdCallbackType:
         bot = self
         seconds = flap_config.let_in_open_seconds
         flap_id = self.devices_data[device_name.lower()]
@@ -312,7 +316,7 @@ class BalrogTelegramBot(MessageSender):
             if not let_in_success:
                 bot.is_ongoing_let_in = False
                 context.job_queue.run_once(
-                    bot._report_flap_command_timeout("unlock", flap_id, open_msg),
+                    bot._get_report_flap_command_timeout("unlock", flap_id, open_msg),
                     flap_config.seconds_to_wait_before_reporting_timeout
                 )
                 return
@@ -320,7 +324,7 @@ class BalrogTelegramBot(MessageSender):
             context.job_queue.run_once(self._get_finish_let_in_callback(update, flap_id, seconds), seconds)
         return _let_in_callback
 
-    def _get_cancel_let_in_callback(self, device_name: str) -> _TelegramCallbackType:
+    def _get_cancel_let_in_callback(self, device_name: str) -> _TelegramCmdCallbackType:
         bot = self
         flap_id = self.devices_data[device_name.lower()]
 
@@ -370,12 +374,12 @@ class BalrogTelegramBot(MessageSender):
 
             if not lock_success:
                 contex.job_queue.run_once(
-                    bot._report_flap_command_timeout(command, device_id, lock_msg),
+                    bot._get_report_flap_command_timeout(command, device_id, lock_msg),
                     flap_config.seconds_to_wait_before_reporting_timeout
                 )
         return _set_device_lock_state
 
-    def _get_status_all_pets_callback(self) -> _TelegramCallbackType:
+    def _get_status_all_pets_callback(self) -> _TelegramCmdCallbackType:
         bot = self
 
         async def _send_pets_data_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -397,7 +401,7 @@ class BalrogTelegramBot(MessageSender):
         await ctx.job.data.mute_msg.reply_text("Restarting Balrog image notifications")
         ctx.job.data.mute_msg = None
 
-    def _get_mute_notifications_callback(self) -> _TelegramCallbackType:
+    def _get_mute_notifications_callback(self) -> _TelegramCmdCallbackType:
         bot = self
         timeout = general_config.mute_img_send_minutes
 
@@ -427,7 +431,7 @@ class BalrogTelegramBot(MessageSender):
             )
         return _mute_notifications
 
-    def _get_resume_notifications_callback(self) -> _TelegramCallbackType:
+    def _get_resume_notifications_callback(self) -> _TelegramCmdCallbackType:
         bot = self
 
         async def _resume_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -440,7 +444,7 @@ class BalrogTelegramBot(MessageSender):
             )
         return _resume_notifications
 
-    def _get_switch_location_callback(self, pet_name: Optional[str] = None) -> _TelegramCallbackType:
+    def _get_switch_location_callback(self, pet_name: Optional[str] = None) -> _TelegramCmdCallbackType:
         bot = self
 
         async def _switch_location_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -459,7 +463,7 @@ class BalrogTelegramBot(MessageSender):
             await update.message.reply_text(switch_result)
         return _switch_location_callback
 
-    def _get_status_callback(self, status_arg: Optional[str] = None) -> _TelegramCallbackType:
+    def _get_status_callback(self, status_arg: Optional[str] = None) -> _TelegramCmdCallbackType:
         bot = self
 
         async def _send_device_data_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
