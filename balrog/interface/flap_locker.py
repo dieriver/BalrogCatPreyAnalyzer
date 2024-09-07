@@ -44,7 +44,8 @@ class FlapLocker:
             # In this case, we are only interested on the name and id of the devices;
             # we can use a cached answer for this
             registered_devices: List[SurepyDevice] = await asyncio.wait_for(
-                self.surepy.get_devices(),
+                self._get_fresh_devices(),
+                # self.surepy.get_devices(),
                 timeout=flap_config.server_timeout_seconds
             )
             devices_data: Dict[str, int] = dict()
@@ -135,7 +136,8 @@ class FlapLocker:
         # list with all devices
         try:
             device: SurepyDevice = await asyncio.wait_for(
-                self.surepy.get_device(device_id),
+                self._get_fresh_device(device_id),
+                # self.surepy.get_device(device_id),
                 timeout=flap_config.server_timeout_seconds
             )
             if device is None:
