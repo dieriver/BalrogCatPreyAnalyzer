@@ -1,3 +1,5 @@
+# WARNING: This repository has been archived and moved to https://codeberg.org/dieriver/BalrogCatPreyAnalyzer
+
 # Introduction
 If you own a cat that has the freedom to go outside, then you probably are familiar with the issue of your feline
 bringing home prey. Balrog aims to perform Cat Prey Detection with Deep Learning on any cat in any environment.
